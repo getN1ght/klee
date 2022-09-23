@@ -49,8 +49,13 @@ private:
 
 public:
   unsigned id;
+  
+  /// "Physical" memory address
   uint64_t address;
-  ref<Expr> lazyInstantiatedSource;
+
+  /// "Virtual" memory address 
+  ref<Expr> addressExpr;
+  ref<Expr> lazyInstantiationSource;
 
   /// size in bytes
   unsigned size;
@@ -80,17 +85,7 @@ public:
   MemoryObject(uint64_t _address) 
     : id(counter++),
       address(_address),
-      lazyInstantiatedSource(nullptr),
-      size(0),
-      isFixed(true),
-      parent(NULL),
-      allocSite(0) {
-  }
-
-  MemoryObject(ref<Expr> _lazyInstantiatedSource)
-    : id(counter++),
-      address((uint64_t)0xffffffffffffffff),
-      lazyInstantiatedSource(_lazyInstantiatedSource),
+      addressExpr(nullptr),
       size(0),
       isFixed(true),
       parent(NULL),
@@ -101,10 +96,10 @@ public:
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
-               ref<Expr> _lazyInstantiatedSource = nullptr)
+               ref<Expr> addressExpr = nullptr)
     : id(counter++),
       address(_address),
-      lazyInstantiatedSource(_lazyInstantiatedSource),
+      addressExpr(addressExpr),
       size(_size),
       name("unnamed"),
       isLocal(_isLocal),
@@ -113,6 +108,7 @@ public:
       isUserSpecified(false),
       parent(_parent), 
       allocSite(_allocSite) {
+    assert(parent);
   }
 
   ~MemoryObject();
@@ -124,22 +120,25 @@ public:
     this->name = name;
   }
 
-  bool isLazyInstantiated() const { return !lazyInstantiatedSource.isNull(); }
-  ref<Expr> getLazyInstantiatedSource() const {
-    return this->lazyInstantiatedSource;
-  }
-  void setLazyInstantiatedSource(ref<Expr> source) {
-    this->lazyInstantiatedSource = source;
-  }
   ref<ConstantExpr> getBaseConstantExpr() const {
     return ConstantExpr::create(address, Context::get().getPointerWidth());
   }
+
   ref<Expr> getBaseExpr() const {
-    if (lazyInstantiatedSource.isNull())
-      return getBaseConstantExpr();
-    else
-      return lazyInstantiatedSource;
+    if (addressExpr) {
+      return addressExpr;
+    }
+    return getBaseConstantExpr();
   }
+
+  bool isLazyInstantiated() const {
+    return !lazyInstantiationSource.isNull();
+  }
+
+  void setLazyInstatiationSource(ref<Expr> source) {
+    lazyInstantiationSource = source;
+  }
+
   ref<ConstantExpr> getSizeExpr() const { 
     return ConstantExpr::create(size, Context::get().getPointerWidth());
   }
@@ -187,7 +186,7 @@ public:
     if (allocSite != b.allocSite)
       return (allocSite < b.allocSite ? -1 : 1);
 
-    assert(lazyInstantiatedSource == b.lazyInstantiatedSource);
+    assert(getBaseExpr() == b.getBaseExpr());
     return 0;
   }
 };
