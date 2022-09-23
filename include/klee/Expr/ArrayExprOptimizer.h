@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "klee/ADT/Ref.h"
+#include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprHashMap.h"
 
@@ -39,7 +40,7 @@ public:
   /// @param e expression to optimise
   /// @param valueOnly XXX document
   /// @return optimised expression
-  ref<Expr> optimizeExpr(const ref<Expr> &e, bool valueOnly);
+  ref<Expr> optimizeExpr(const ref<Expr> &e, bool valueOnly, const Assignment &assignment);
 
 private:
   bool computeIndexes(array2idx_ty &arrays, const ref<Expr> &e,
@@ -48,7 +49,7 @@ private:
   ref<Expr> getSelectOptExpr(
       const ref<Expr> &e, std::vector<const ReadExpr *> &reads,
       std::map<const ReadExpr *, std::pair<ref<Expr>, Expr::Width>> &readInfo,
-      bool isSymbolic);
+      bool isSymbolic, const Assignment &assignment);
 
   ref<Expr> buildConstantSelectExpr(const ref<Expr> &index,
                                     std::vector<uint64_t> &arrayValues,

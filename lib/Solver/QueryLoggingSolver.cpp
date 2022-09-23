@@ -9,11 +9,15 @@
 #include "QueryLoggingSolver.h"
 
 #include "klee/Config/config.h"
+#include "klee/Expr/AssignmentGenerator.h"
 #include "klee/Support/OptionCategories.h"
 #include "klee/Statistics/Statistics.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/FileHandling.h"
 #include "klee/System/Time.h"
+
+#include <unordered_map>
+
 
 namespace {
 llvm::cl::opt<bool> DumpPartialQueryiesEarly(
@@ -173,6 +177,13 @@ bool QueryLoggingSolver::computeInitialValues(
 
   finishQuery(success);
 
+  std::unordered_map<const Array *, std::vector<unsigned char>> arrayToConcreteValue;
+  for (unsigned i = 0; i < values.size(); ++i) {
+    arrayToConcreteValue[objects[i]] = values[i];
+  }
+  /// Tranform vectors of bytes to uint value
+
+
   if (success) {
     logBuffer << queryCommentSign
               << "   Solvable: " << (hasSolution ? "true" : "false") << "\n";
@@ -187,10 +198,25 @@ bool QueryLoggingSolver::computeInitialValues(
         std::vector<unsigned char> &data = *values_it;
         logBuffer << queryCommentSign << "     " << array->name << " = [";
 
-        for (unsigned j = 0; j < array->size; j++) {
+        uint64_t size = 0;
+        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(array->getSize())) {
+          size = CE->getZExtValue();
+        } else if (ReadExpr *RE =
+                        AssignmentGenerator::hasOrderedReads(array->getSize())) {
+          std::vector<unsigned char> &symsize =
+              arrayToConcreteValue[RE->updates.root];
+          assert(symsize.size() == 8 &&
+                  "Size array does not have enought bytes in concretization");
+
+          for (int bit = 0; bit < symsize.size(); ++bit) {
+            size |= (symsize[bit] << bit);
+          }
+        }
+
+        for (unsigned j = 0; j < size; j++) {
           logBuffer << (int)data[j];
 
-          if (j + 1 < array->size) {
+          if (j + 1 < size) {
             logBuffer << ",";
           }
         }

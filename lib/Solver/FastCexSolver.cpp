@@ -358,9 +358,17 @@ public:
 
   ValueRange getInitialReadRange(const Array &array, ValueRange index) {
     // Check for a concrete read of a constant array.
+    uint64_t size = 0;
+    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(array.size)) {
+      size = CE->getZExtValue();
+    }
+    else {
+      std::abort();
+    }
+
     if (array.isConstantArray() && 
         index.isFixed() && 
-        index.min() < array.size)
+        index.min() < size)
       return ValueRange(array.constantValues[index.min()]->getZExtValue(8));
 
     return ValueRange(0, 255);
@@ -372,7 +380,15 @@ protected:
   ref<Expr> getInitialValue(const Array& array, unsigned index) {
     // If the index is out of range, we cannot assign it a value, since that
     // value cannot be part of the assignment.
-    if (index >= array.size)
+    uint64_t size = 0;
+    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(array.size)) {
+      size = CE->getZExtValue();
+    }
+    else {
+      std::abort();
+    }
+    
+    if (index >= size)
       return ReadExpr::create(UpdateList(&array, 0), 
                               ConstantExpr::alloc(index, array.getDomain()));
       
@@ -393,7 +409,15 @@ protected:
   ref<Expr> getInitialValue(const Array& array, unsigned index) {
     // If the index is out of range, we cannot assign it a value, since that
     // value cannot be part of the assignment.
-    if (index >= array.size)
+    uint64_t size = 0;
+    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(array.size)) {
+      size = CE->getZExtValue();
+    }
+    else {
+      std::abort();
+    }
+
+    if (index >= size)
       return ReadExpr::create(UpdateList(&array, 0), 
                               ConstantExpr::alloc(index, array.getDomain()));
       
@@ -434,9 +458,14 @@ public:
   CexObjectData &getObjectData(const Array *A) {
     CexObjectData *&Entry = objects[A];
 
-    if (!Entry)
-      Entry = new CexObjectData(A->size);
-
+    if (!Entry) {
+      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(A->size)) {
+        Entry = new CexObjectData(CE->getZExtValue());
+      } else {
+        /// Not implemented
+        std::abort();
+      }
+    }
     return *Entry;
   }
 
@@ -472,7 +501,15 @@ public:
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(re->index)) {
         uint64_t index = CE->getZExtValue();
 
-        if (index < array->size) {
+        uint64_t size = 0;
+        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(array->size)) {
+          size = CE->getZExtValue();
+        }
+        else {
+          std::abort();
+        }
+
+        if (index < size) {
           // If the range is fixed, just set that; even if it conflicts with the
           // previous range it should be a better guess.
           if (range.isFixed()) {
@@ -952,16 +989,24 @@ public:
       const Array *A = it->first;
       CexObjectData *COD = it->second;
 
+      uint64_t size = 0;
+      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(A->size)) {
+        size = CE->getZExtValue();
+      }
+      else {
+        std::abort();
+      }
+
       llvm::errs() << A->name << "\n";
       llvm::errs() << "possible: [";
-      for (unsigned i = 0; i < A->size; ++i) {
+      for (unsigned i = 0; i < size; ++i) {
         if (i)
           llvm::errs() << ", ";
         llvm::errs() << COD->getPossibleValues(i);
       }
       llvm::errs() << "]\n";
       llvm::errs() << "exact   : [";
-      for (unsigned i = 0; i < A->size; ++i) {
+      for (unsigned i = 0; i < size; ++i) {
         if (i)
           llvm::errs() << ", ";
         llvm::errs() << COD->getExactValues(i);
@@ -1115,9 +1160,18 @@ FastCexSolver::computeInitialValues(const Query& query,
     const Array *array = objects[i];
     assert(array);
     std::vector<unsigned char> data;
-    data.reserve(array->size);
 
-    for (unsigned i=0; i < array->size; i++) {
+    uint64_t size = 0;
+    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(array->size)) {
+      size = CE->getZExtValue();
+    }
+    else {
+      std::abort();
+    }
+
+    data.reserve(size);
+
+    for (unsigned i=0; i < size; i++) {
       ref<Expr> read = 
         ReadExpr::create(UpdateList(array, 0),
                          ConstantExpr::create(i, array->getDomain()));

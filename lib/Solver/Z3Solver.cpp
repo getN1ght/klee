@@ -396,8 +396,19 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
       const Array *array = *it;
       std::vector<unsigned char> data;
 
-      data.reserve(array->size);
-      for (unsigned offset = 0; offset < array->size; offset++) {
+      ::Z3_ast arraySizeExpr;
+      Z3_model_eval(builder->ctx, theModel,
+                    Z3ASTHandle(builder->construct(array->size), builder->ctx),
+                    Z3_TRUE, &arraySizeExpr);
+      Z3_inc_ref(builder->ctx, arraySizeExpr);
+      assert(Z3_get_ast_kind(builder->ctx, arraySizeExpr) == Z3_NUMERAL_AST &&
+             "Evaluated size expression has wrong sort");
+      uint64_t arraySize = 0;
+      assert(Z3_get_numeral_uint64(builder->ctx, arraySizeExpr, &arraySize) &&
+             "Failed to get size");
+
+      data.reserve(arraySize);
+      for (unsigned offset = 0; offset < arraySize; offset++) {
         // We can't use Z3ASTHandle here so have to do ref counting manually
         ::Z3_ast arrayElementExpr;
         Z3ASTHandle initial_read = builder->getInitialRead(array, offset);
@@ -422,6 +433,8 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
         data.push_back(arrayElementValue);
         Z3_dec_ref(builder->ctx, arrayElementExpr);
       }
+
+      Z3_dec_ref(builder->ctx, arraySizeExpr);
       values->push_back(data);
     }
 

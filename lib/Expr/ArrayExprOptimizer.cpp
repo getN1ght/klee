@@ -100,7 +100,7 @@ ref<Expr> extendRead(const UpdateList &ul, const ref<Expr> index,
   }
 }
 
-ref<Expr> ExprOptimizer::optimizeExpr(const ref<Expr> &e, bool valueOnly) {
+ref<Expr> ExprOptimizer::optimizeExpr(const ref<Expr> &e, bool valueOnly, const Assignment &assignment) {
   // Nothing to optimise for constant expressions
   if (isa<ConstantExpr>(e))
     return e;
@@ -173,7 +173,7 @@ ref<Expr> ExprOptimizer::optimizeExpr(const ref<Expr> &e, bool valueOnly) {
     }
 
     ref<Expr> selectOpt =
-        getSelectOptExpr(e, reads, readInfo, are.containsSymbolic());
+        getSelectOptExpr(e, reads, readInfo, are.containsSymbolic(), assignment);
     if (selectOpt) {
       klee_warning("OPT_V: successful");
       result = selectOpt;
@@ -251,7 +251,7 @@ bool ExprOptimizer::computeIndexes(array2idx_ty &arrays, const ref<Expr> &e,
 ref<Expr> ExprOptimizer::getSelectOptExpr(
     const ref<Expr> &e, std::vector<const ReadExpr *> &reads,
     std::map<const ReadExpr *, std::pair<ref<Expr>, Expr::Width>> &readInfo,
-    bool isSymbolic) {
+    bool isSymbolic, const Assignment &assignment) {
   ref<Expr> notFound;
   ref<Expr> toReturn;
 
@@ -269,7 +269,12 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       if (info.second > width) {
         width = info.second;
       }
-      unsigned size = read->updates.root->getSize();
+      unsigned size = 0;
+      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(assignment.evaluate(read->updates.root->getSize()))) {
+        size = CE->getZExtValue();
+      } else {
+        assert(false && "Array size does not have concretization (ArrayExprOptimisation)");
+      }
       unsigned bytesPerElement = width / 8;
       unsigned elementsInArray = size / bytesPerElement;
 
@@ -344,7 +349,12 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       if (info.second > width) {
         width = info.second;
       }
-      unsigned size = read->updates.root->getSize();
+      unsigned size = 0;
+      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(assignment.evaluate(read->updates.root->getSize()))) {
+        size = CE->getZExtValue();
+      } else {
+        assert(false && "Array size does not have concretization (ArrayExprOptimisation)");
+      }
       unsigned bytesPerElement = width / 8;
       unsigned elementsInArray = size / bytesPerElement;
       bool symbArray = read->updates.root->isSymbolicArray();
