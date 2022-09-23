@@ -129,6 +129,7 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     constraints(state.constraints),
     targetForest(state.targetForest),
     targetsOfCurrentKBlock(state.targetsOfCurrentKBlock),
+    constraintsWithSymcretes(state.constraintsWithSymcretes),
     pathOS(state.pathOS),
     symPathOS(state.symPathOS),
     coveredLines(state.coveredLines),
@@ -211,22 +212,42 @@ void ExecutionState::addSymbolic(const MemoryObject *mo, const Array *array) {
   symbolics.emplace_back(ref<const MemoryObject>(mo), array);
 }
 
+ref<const MemoryObject>
+ExecutionState::findMemoryObject(const Array *array) const {
+  for (unsigned i = 0; i != symbolics.size(); ++i) {
+    const auto &symbolic = symbolics[i];
+    if (array == symbolic.second) {
+      return symbolic.first;
+    }
+  }
+  return nullptr;
+}
+
 bool ExecutionState::isSymcrete(const Array *array) {
   return symcretes.bindings.count(array);
 }
 
 void ExecutionState::addSymcrete(
-    const Array *array, const std::vector<unsigned char> &concretisation) {
+    const Array *array, const std::vector<unsigned char> &concretisation, uint64_t value) {
   assert(array && array->isSymbolicArray() &&
          "Cannot make concrete array symcrete");
   assert(array->size == concretisation.size() &&
          "Given concretisation does not fit the array");
   assert(!isSymcrete(array) && "Array already symcrete");
+
   symcretes.bindings[array] = concretisation;
+  ConstraintManager cs(constraintsWithSymcretes);
+  cs.addConstraint(EqExpr::create(
+      ReadExpr::createTempRead(array, Context::get().getPointerWidth()),
+      Expr::createPointer(value)));
 }
 
-ref<Expr> ExecutionState::evaluateWithSymcretes(ref<Expr> e) {
+ref<Expr> ExecutionState::evaluateWithSymcretes(ref<Expr> e) const {
   return symcretes.evaluate(e);
+}
+
+ConstraintSet ExecutionState::evaluateConstraintsWithSymcretes() const {
+  return constraintsWithSymcretes;
 }
 
 /**/
@@ -443,7 +464,9 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
 
 void ExecutionState::addConstraint(ref<Expr> e) {
   ConstraintManager c(constraints);
+  ConstraintManager cs(constraintsWithSymcretes);
   c.addConstraint(e);
+  cs.addConstraint(evaluateWithSymcretes(e));
 }
 
 void ExecutionState::addCexPreference(const ref<Expr> &cond) {
