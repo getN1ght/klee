@@ -130,7 +130,10 @@ void SeedInfo::patchSeed(const ExecutionState &state,
   for (Assignment::bindings_ty::iterator it = assignment.bindings.begin(), 
          ie = assignment.bindings.end(); it != ie; ++it) {
     const Array *array = it->first;
-    for (unsigned i=0; i<array->size; ++i) {
+    ref<ConstantExpr> size =
+        dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(array->getSize()));
+    assert(size && "Array has non-constant size");
+    for (unsigned i=0; i<size->getZExtValue(); ++i) {
       ref<Expr> read = ReadExpr::create(UpdateList(array, 0),
                                         ConstantExpr::alloc(i, Expr::Int32));
       ref<Expr> isSeed = EqExpr::create(read, 

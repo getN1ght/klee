@@ -11,6 +11,7 @@
 
 #include "klee/ADT/MapOfSets.h"
 #include "klee/Expr/Assignment.h"
+#include "klee/Expr/AssignmentGenerator.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprUtil.h"
@@ -388,8 +389,23 @@ CexCachingSolver::computeInitialValues(const Query& query,
     const Array *os = objects[i];
     Assignment::bindings_ty::iterator it = a->bindings.find(os);
     
+    uint64_t size = 0;
+    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(os->getSize())) {
+      size = CE->getZExtValue();
+    } else if (ReadExpr *RE = AssignmentGenerator::hasOrderedReads(os->getSize())) {
+      std::vector<unsigned char> &symsize = a->bindings[RE->updates.root];
+      assert(symsize.size() == 8 &&
+             "Size array does not have enought bytes in concretization");
+
+      for (int bit = 0; bit < symsize.size(); ++bit) {
+        size |= (symsize[bit] << bit);
+      }
+    } else {
+      assert(0 && "Cannot receive array size from binding (CexCaching)");
+    }
+
     if (it == a->bindings.end()) {
-      values[i] = std::vector<unsigned char>(os->size, 0);
+      values[i] = std::vector<unsigned char>(size, 0);
     } else {
       values[i] = it->second;
     }

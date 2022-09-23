@@ -295,6 +295,10 @@ private:
   void resolveExact(ExecutionState &state, ref<Expr> p, KType *type,
                     ExactResolutionList &results, const std::string &name);
 
+  MemoryObject *allocate(ExecutionState &state, ref<Expr> size, bool isLocal,
+                         const llvm::Value *allocSite,
+                         size_t allocationAlignment);
+
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.
   ///
@@ -359,7 +363,7 @@ private:
 
   ObjectPair lazyInstantiateVariable(ExecutionState &state, ref<Expr> address,
                                      KInstruction *target, KType *targetType,
-                                     uint64_t size);
+                                     ref<Expr> size);
 
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
                            KType *type, const std::string &name, bool isLocal);
@@ -638,7 +642,7 @@ public:
 
   MergingSearcher *getMergingSearcher() const { return mergingSearcher; };
   void setMergingSearcher(MergingSearcher *ms) { mergingSearcher = ms; };
-  const Array *makeArray(ExecutionState &state, const uint64_t size,
+  const Array *makeArray(ExecutionState &state, ref<Expr> size,
                          const std::string &name);
   void executeStep(ExecutionState &state);
   bool tryBoundedExecuteStep(ExecutionState &state, unsigned bound);

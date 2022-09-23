@@ -65,8 +65,8 @@ TEST(ArrayExprTest, HashCollisions) {
   EXPECT_EQ(a->evaluate(firstRead), getConstant(5, Expr::Int8));
 
   ExprOptimizer opt;
-  auto oFirstRead = opt.optimizeExpr(firstRead, true);
-  auto oUpdatedRead = opt.optimizeExpr(updatedRead, true);
+  auto oFirstRead = opt.optimizeExpr(firstRead, true, Assignment(true));
+  auto oUpdatedRead = opt.optimizeExpr(updatedRead, true, Assignment(true));
   EXPECT_NE(oFirstRead, firstRead);
   EXPECT_NE(updatedRead, oUpdatedRead);
 

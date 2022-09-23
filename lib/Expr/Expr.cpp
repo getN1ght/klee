@@ -1396,15 +1396,16 @@ ref<Expr> NotOptimizedExpr::create(ref<Expr> src) {
 
 /***/
 
-Array::Array(const std::string &_name, uint64_t _size,
+Array::Array(const std::string &_name, ref<Expr> _size,
              const ref<ConstantExpr> *constantValuesBegin,
              const ref<ConstantExpr> *constantValuesEnd, Expr::Width _domain,
              Expr::Width _range)
     : name(_name), size(_size), domain(_domain), range(_range),
       constantValues(constantValuesBegin, constantValuesEnd) {
+  // FIXME: We should provide this check
 
-  assert((isSymbolicArray() || constantValues.size() == size) &&
-         "Invalid size for constant array!");
+  // assert((isSymbolicArray() || constantValues.size() == size) &&
+  //        "Invalid size for constant array!");
   computeHash();
 #ifndef NDEBUG
   for (const ref<ConstantExpr> *it = constantValuesBegin;
@@ -1420,7 +1421,9 @@ unsigned Array::computeHash() {
   unsigned res = 0;
   for (unsigned i = 0, e = name.size(); i != e; ++i)
     res = (res * Expr::MAGIC_HASH_CONSTANT) + name[i];
-  res = (res * Expr::MAGIC_HASH_CONSTANT) + size;
+  /// If it is polynomial hash, why we need next operation? =)
+  // res = (res * Expr::MAGIC_HASH_CONSTANT) + size;
+
   hashValue = res;
   return hashValue;
 }
@@ -1451,11 +1454,14 @@ ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index) {
   if (ul.root->isConstantArray() && !updateListHasSymbolicWrites) {
     // No updates with symbolic index to a constant array have been found
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(index)) {
-      assert(CE->getWidth() <= 64 && "Index too large");
-      uint64_t concreteIndex = CE->getZExtValue();
-      uint64_t size = ul.root->size;
-      if (concreteIndex < size) {
-        return ul.root->constantValues[concreteIndex];
+      if (ConstantExpr *constantExprSize =
+              dyn_cast<ConstantExpr>(ul.root->getSize())) {
+        assert(CE->getWidth() <= 64 && "Index too large");
+        uint64_t concreteIndex = CE->getZExtValue();
+        uint64_t size = constantExprSize->getZExtValue();
+        if (concreteIndex < size) {
+          return ul.root->constantValues[concreteIndex];
+        }
       }
     }
   }
@@ -1463,13 +1469,15 @@ ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index) {
   // Now, no update with this concrete index exists
   // Try to remove any most recent but unimportant updates
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(index)) {
-    assert(CE->getWidth() <= 64 && "Index too large");
-    uint64_t concreteIndex = CE->getZExtValue();
-    uint64_t size = ul.root->size;
-    if (concreteIndex < size) {
-      // Create shortened update list
-      UpdateList newUpdateList(ul.root, un);
-      return ReadExpr::alloc(newUpdateList, index);
+    if (ConstantExpr *constantExprSize = dyn_cast<ConstantExpr>(ul.root->getSize())) {
+      assert(CE->getWidth() <= 64 && "Index too large");
+      uint64_t concreteIndex = CE->getZExtValue();
+      uint64_t size = constantExprSize->getZExtValue();
+      if (concreteIndex < size) {
+        // Create shortened update list
+        UpdateList newUpdateList(ul.root, un);
+        return ReadExpr::alloc(newUpdateList, index);
+      }
     }
   }
 
@@ -2020,7 +2028,8 @@ static ref<Expr> TryConstArrayOpt(const ref<ConstantExpr> &cl, ReadExpr *rd) {
   // for now, just assume standard "flushing" of a concrete array,
   // where the concrete array has one update for each index, in order
   ref<Expr> res = ConstantExpr::alloc(0, Expr::Bool);
-  for (unsigned i = 0, e = rd->updates.root->size; i != e; ++i) {
+  uint64_t size = dyn_cast<ConstantExpr>(rd->updates.root->getSize())->getZExtValue();
+  for (unsigned i = 0, e = size; i != e; ++i) {
     if (cl == rd->updates.root->constantValues[i]) {
       // Arbitrary maximum on the size of disjunction.
       if (++numMatches > 100)
