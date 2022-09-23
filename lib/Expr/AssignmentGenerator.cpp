@@ -192,9 +192,17 @@ bool AssignmentGenerator::helperGenerateAssignment(const ref<Expr> &e,
     ReadExpr &re = static_cast<ReadExpr &>(ep);
     if (isa<ConstantExpr>(re.index)) {
       if (re.updates.root->isSymbolicArray()) {
+        uint64_t size = 0;
+        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(re.updates.root->size)) {
+          size = CE->getZExtValue();
+        }
+        else {
+          klee_warning("KLEE failed to optimize array of symbolic size");
+          return false;
+        }
         ConstantExpr &index = static_cast<ConstantExpr &>(*re.index.get());
         std::vector<unsigned char> c_value =
-            getIndexedValue(getByteValue(val), index, re.updates.root->size);
+            getIndexedValue(getByteValue(val), index, size);
         if (c_value.size() == 0) {
           return false;
         }

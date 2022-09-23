@@ -11,9 +11,11 @@
 #define KLEE_MEMORY_H
 
 #include "Context.h"
+#include "MemoryManager.h"
 #include "TimingSolver.h"
 
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ArrayCache.h"
 
 #include "llvm/ADT/StringExtras.h"
 
@@ -49,17 +51,27 @@ private:
 
 public:
   unsigned id;
+  
+  /// "Physical" memory address
   uint64_t address;
-  ref<Expr> lazyInstantiatedSource;
 
-  /// size in bytes
+  /// "Virtual" memory address 
+  ref<Expr> addressExpr;
+  ref<Expr> sizeExpr;
+
+  /// "Physical" size in bytes
+  /// This value indicates sizeof allocated object on local machine.
+  /// Note, that it is not actually value of symcrete size, as memory in one
+  /// MemoryObject can be used for objects in different states.
   unsigned size;
+
   mutable std::string name;
 
   bool isLocal;
   mutable bool isGlobal;
   bool isFixed;
   bool isKleeMakeSymbolic = false;
+  bool wasLazyInstantiated = false;
 
   bool isUserSpecified;
 
@@ -80,7 +92,7 @@ public:
   MemoryObject(uint64_t _address) 
     : id(counter++),
       address(_address),
-      lazyInstantiatedSource(nullptr),
+      addressExpr(nullptr),
       size(0),
       isFixed(true),
       parent(NULL),
@@ -90,7 +102,7 @@ public:
   MemoryObject(ref<Expr> _lazyInstantiatedSource)
     : id(counter++),
       address((uint64_t)0xffffffffffffffff),
-      lazyInstantiatedSource(_lazyInstantiatedSource),
+      addressExpr(_lazyInstantiatedSource),
       size(0),
       isFixed(true),
       parent(NULL),
@@ -101,10 +113,12 @@ public:
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
-               ref<Expr> _lazyInstantiatedSource = nullptr)
+               ref<Expr> _addressExpr = nullptr,
+               ref<Expr> _sizeExpr = nullptr)
     : id(counter++),
       address(_address),
-      lazyInstantiatedSource(_lazyInstantiatedSource),
+      addressExpr(_addressExpr),
+      sizeExpr(_sizeExpr),
       size(_size),
       name("unnamed"),
       isLocal(_isLocal),
@@ -113,6 +127,7 @@ public:
       isUserSpecified(false),
       parent(_parent), 
       allocSite(_allocSite) {
+    assert(parent);
   }
 
   ~MemoryObject();
@@ -124,25 +139,27 @@ public:
     this->name = name;
   }
 
-  bool isLazyInstantiated() const { return !lazyInstantiatedSource.isNull(); }
-  ref<Expr> getLazyInstantiatedSource() const {
-    return this->lazyInstantiatedSource;
+  bool isLazyInstantiated() const {
+    return wasLazyInstantiated;
   }
-  void setLazyInstantiatedSource(ref<Expr> source) {
-    this->lazyInstantiatedSource = source;
-  }
+
   ref<ConstantExpr> getBaseConstantExpr() const {
     return ConstantExpr::create(address, Context::get().getPointerWidth());
   }
   ref<Expr> getBaseExpr() const {
-    if (lazyInstantiatedSource.isNull())
-      return getBaseConstantExpr();
-    else
-      return lazyInstantiatedSource;
+    if (addressExpr) {
+      return addressExpr;
+    }
+    return getBaseConstantExpr();
   }
-  ref<ConstantExpr> getSizeExpr() const { 
-    return ConstantExpr::create(size, Context::get().getPointerWidth());
+
+  ref<Expr> getSizeExpr() const {
+    if (sizeExpr) {
+      return sizeExpr;
+    }
+    return Expr::createPointer(size);
   }
+
   ref<Expr> getOffsetExpr(ref<Expr> pointer) const {
     return SubExpr::create(pointer, getBaseExpr());
   }
@@ -187,7 +204,6 @@ public:
     if (allocSite != b.allocSite)
       return (allocSite < b.allocSite ? -1 : 1);
 
-    assert(lazyInstantiatedSource == b.lazyInstantiatedSource);
     return 0;
   }
 };
@@ -224,6 +240,8 @@ private:
   KType *dynamicType;
 
 public:
+  /// Actual size of object, should be equal to value of symcrete.
+  /// Not the same with size from `object`.
   unsigned size;
 
   bool readOnly;

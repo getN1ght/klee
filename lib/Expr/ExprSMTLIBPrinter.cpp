@@ -681,9 +681,11 @@ void ExprSMTLIBPrinter::printAction() {
          it != arraysToCallGetValueOn->end(); it++) {
       theArray = *it;
       // Loop over the array indices
-      for (unsigned int index = 0; index < theArray->size; ++index) {
-        *o << "(get-value ( (select " << (**it).name << " (_ bv" << index << " "
-           << theArray->getDomain() << ") ) ) )\n";
+      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(theArray->size)) {
+        for (unsigned int index = 0; index < CE->getZExtValue(); ++index) {
+          *o << "(get-value ( (select " << (**it).name << " (_ bv" << index << " "
+            << theArray->getDomain() << ") ) ) )\n";
+        }
       }
     }
   }

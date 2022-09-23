@@ -8,6 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Expr/Assignment.h"
+#include "klee/Expr/Expr.h"
+
 
 namespace klee {
 
@@ -31,7 +33,12 @@ ConstraintSet Assignment::createConstraintsFromAssignment() const {
     const auto &array = binding.first;
     const auto &values = binding.second;
 
-    for (unsigned arrayIndex = 0; arrayIndex < array->size; ++arrayIndex) {
+    ConstantExpr *constantSizeExpr =
+        dyn_cast<ConstantExpr>(evaluate(array->getSize()));
+    assert(constantSizeExpr && "Assignments should have constant size");
+
+    for (unsigned arrayIndex = 0; arrayIndex < constantSizeExpr->getZExtValue();
+         ++arrayIndex) {
       unsigned char value = values[arrayIndex];
       result.push_back(EqExpr::create(
           ReadExpr::create(UpdateList(array, 0),
