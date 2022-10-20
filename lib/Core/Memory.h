@@ -56,11 +56,8 @@ public:
   uint64_t address;
 
   /// "Virtual" memory address 
-  const Array *concreteAddress = nullptr;
-  ref<Expr> lazyInstantiatedSource;
-
-  const Array *concreteSize = nullptr;
-  ref<Expr> sizeSource;
+  ref<Expr> addressExpr;
+  ref<Expr> sizeExpr;
 
   /// "Physical" size in bytes
   unsigned size;
@@ -70,6 +67,7 @@ public:
   mutable bool isGlobal;
   bool isFixed;
   bool isKleeMakeSymbolic = false;
+  bool wasLazyInstantiated = false;
 
   bool isUserSpecified;
 
@@ -90,7 +88,7 @@ public:
   MemoryObject(uint64_t _address) 
     : id(counter++),
       address(_address),
-      lazyInstantiatedSource(nullptr),
+      addressExpr(nullptr),
       size(0),
       isFixed(true),
       parent(NULL),
@@ -100,7 +98,7 @@ public:
   MemoryObject(ref<Expr> _lazyInstantiatedSource)
     : id(counter++),
       address((uint64_t)0xffffffffffffffff),
-      lazyInstantiatedSource(_lazyInstantiatedSource),
+      addressExpr(_lazyInstantiatedSource),
       size(0),
       isFixed(true),
       parent(NULL),
@@ -111,12 +109,12 @@ public:
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
-               ref<Expr> _lazyInstantiatedSource = nullptr,
-               ref<Expr> _sizeSource = nullptr)
+               ref<Expr> _addressExpr = nullptr,
+               ref<Expr> _sizeExpr = nullptr)
     : id(counter++),
       address(_address),
-      lazyInstantiatedSource(_lazyInstantiatedSource),
-      sizeSource(_sizeSource),
+      addressExpr(_addressExpr),
+      sizeExpr(_sizeExpr),
       size(_size),
       name("unnamed"),
       isLocal(_isLocal),
@@ -126,16 +124,6 @@ public:
       parent(_parent), 
       allocSite(_allocSite) {
     assert(parent);
-    /// FIXME: temporary solution
-    static int addressCounter = 0;
-
-    concreteAddress = parent->getArrayCache()->CreateArray(
-        name + std::to_string(addressCounter),
-        Context::get().getPointerWidth() / CHAR_BIT);
-    concreteSize = parent->getArrayCache()->CreateArray(
-        name + std::to_string(addressCounter) + "_size",
-        Context::get().getPointerWidth() / CHAR_BIT);
-    ++addressCounter;
   }
 
   ~MemoryObject();
@@ -147,30 +135,23 @@ public:
     this->name = name;
   }
 
-  bool isLazyInstantiated() const { return !lazyInstantiatedSource.isNull(); }
-  ref<Expr> getLazyInstantiatedSource() const {
-    return this->lazyInstantiatedSource;
+  bool isLazyInstantiated() const {
+    return wasLazyInstantiated;
   }
-  void setLazyInstantiatedSource(ref<Expr> source) {
-    this->lazyInstantiatedSource = source;
-  }
+
   ref<ConstantExpr> getBaseConstantExpr() const {
     return ConstantExpr::create(address, Context::get().getPointerWidth());
   }
   ref<Expr> getBaseExpr() const {
-    return isLazyInstantiated() || sizeSource
-               ? Expr::createTempRead(concreteAddress,
-                                      Context::get().getPointerWidth())
-               : ref<Expr>(cast<Expr>(getBaseConstantExpr()));
-  }
-
-  bool hasSymbolicSize() const {
-    return sizeSource != nullptr;
+    if (addressExpr) {
+      return addressExpr;
+    }
+    return getBaseConstantExpr();
   }
 
   ref<Expr> getSizeExpr() const {
-    if (sizeSource) {
-      return Expr::createTempRead(concreteSize, Context::get().getPointerWidth());
+    if (sizeExpr) {
+      return sizeExpr;
     }
     return Expr::createPointer(size);
   }
@@ -219,7 +200,6 @@ public:
     if (allocSite != b.allocSite)
       return (allocSite < b.allocSite ? -1 : 1);
 
-    assert(lazyInstantiatedSource == b.lazyInstantiatedSource);
     return 0;
   }
 };

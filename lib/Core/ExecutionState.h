@@ -301,6 +301,10 @@ public:
 
   void addSymbolic(const MemoryObject *mo, const Array *array);
 
+  void addSymsize(const MemoryObject *mo, const Array *array);
+
+  void addSymaddress(const MemoryObject *mo, const Array *array);
+
   ref<const MemoryObject> findMemoryObject(const Array *array) const;
 
   bool isSymcrete(const Array *array);

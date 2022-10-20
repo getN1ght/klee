@@ -4645,35 +4645,49 @@ ObjectState *Executor::bindObjectInState(ExecutionState &state,
   return os;
 }
 
-void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
-                            KInstruction *target, KType *type, bool zeroMemory,
-                            const ObjectState *reallocFrom,
-                            size_t allocationAlignment) {
+MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
+                                 bool isLocal, const llvm::Value *allocSite,
+                                 size_t allocationAlignment) {
   /// Try to find existing solution
   ref<Expr> optimizedSize = optimizer.optimizeExpr(
       state.evaluateWithSymcretes(toUnique(state, size)), true);
 
   size_t modelSize; 
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(optimizedSize)) {
-    // FIXME: 1?
-    modelSize = std::max(CE->getZExtValue(), static_cast<size_t>(1));
+    modelSize = CE->getZExtValue();
   } else {
     /* In order to minimize size of allocations we will make a binary search
     on sizes to determine the least possible size of allocation */
 
     /* TODO: we can start from example for greater model */
-    size_t lessModel = 0, greaterModel = -1;
-    while (lessModel < greaterModel - 1) {
+    
+    ref<ConstantExpr> greaterModelInstance;
+    solver->setTimeout(coreSolverTimeout);
+    bool success = solver->getValue(state.evaluateConstraintsWithSymcretes(),
+                                    state.evaluateWithSymcretes(optimizedSize),
+                                    greaterModelInstance, state.queryMetaData);
+    solver->setTimeout(time::Span());
+    if (!success) {
+      terminateStateOnSolverError(state, "Query timed out (symsize example).");
+      return nullptr;
+    }
+
+    size_t lessModel = 0, greaterModel = greaterModelInstance->getZExtValue();
+    while (greaterModel != 0 && lessModel < greaterModel - 1) {
       size_t middleModel = (lessModel + greaterModel) / 2;
       
       ref<Expr> middleModelExpr = Expr::createPointer(middleModel);
       bool mayBeLess;
 
       solver->setTimeout(coreSolverTimeout);
-      bool success = solver->mayBeTrue(state.evaluateConstraintsWithSymcretes(),
+      success = solver->mayBeTrue(state.evaluateConstraintsWithSymcretes(),
                                        state.evaluateWithSymcretes(UleExpr::create(optimizedSize, middleModelExpr)),
                                        mayBeLess, state.queryMetaData); 
       solver->setTimeout(time::Span());
+      if (!success) {
+        terminateStateOnSolverError(state, "Query timed out (min example search).");
+        return nullptr;
+      }
       if (mayBeLess) {
         greaterModel = middleModel;
       } else {
@@ -4684,7 +4698,6 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
     modelSize = greaterModel;
   }
 
-  const llvm::Value *allocSite = state.prevPC->inst;
   if (allocationAlignment == 0) {
     allocationAlignment = getAllocationAlignment(allocSite);
   }
@@ -4694,14 +4707,44 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
     mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
                           allocationAlignment);
   } else {
-    mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
-                          allocationAlignment, nullptr, size);
-    mo->setLazyInstantiatedSource(Expr::createTempRead(
-        mo->concreteAddress, Context::get().getPointerWidth()));
-    state.addSymcrete(mo->concreteAddress, addressToBytes(mo->address), mo->address);
-    state.addSymcrete(mo->concreteSize, addressToBytes(modelSize), modelSize);
-  }
+    // FIXME: temporary soliton. We do not want to have static variables.
+    static int addressCounter = 0;
 
+    /// We'll use this address to make realloc's later.
+    const Array *addressArray = memory->getArrayCache()->CreateArray(
+        std::string("symAddress") + std::to_string(addressCounter),
+        Context::get().getPointerWidth() / CHAR_BIT);
+    ref<Expr> addressExpr =
+        Expr::createTempRead(addressArray, Context::get().getPointerWidth());
+    
+    const Array *sizeArray = memory->getArrayCache()->CreateArray(
+        std::string("symSize") + std::to_string(addressCounter),
+        Context::get().getPointerWidth() / CHAR_BIT);
+    ref<Expr> sizeExpr =
+        Expr::createTempRead(sizeArray, Context::get().getPointerWidth());
+    addConstraint(state, EqExpr::create(sizeExpr, size));
+    ++addressCounter;
+
+    /// TODO:
+    /// Moreother, we need to add sizeArray to list of known sizes
+    /// as we need to make `Array`s to have symcrete sizes.
+
+    mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
+                          allocationAlignment, addressExpr, sizeExpr);
+
+    state.addSymcrete(addressArray, addressToBytes(mo->address), mo->address);
+    state.addSymcrete(sizeArray, addressToBytes(modelSize), modelSize);
+  }
+  return mo;
+}
+
+void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
+                            KInstruction *target, KType *type, bool zeroMemory,
+                            const ObjectState *reallocFrom,
+                            size_t allocationAlignment) {
+  const llvm::Value *allocSite = state.prevPC->inst;
+  MemoryObject *mo =
+      allocate(state, size, isLocal, allocSite, allocationAlignment);
   if (!mo) {
     bindLocal(target, state, 
               ConstantExpr::alloc(0, Context::get().getPointerWidth()));
@@ -5022,7 +5065,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 (UseGEPExpr && isGEPExpr(address)))) {
       ObjectPair p =
-          lazyInstantiateVariable(*unbound, base, target, baseTargetType, size);
+          lazyInstantiateVariable(*unbound, base, target, baseTargetType, Expr::createPointer(size));
       if (p.first == nullptr && p.second == nullptr) {
         return;
       }
@@ -5103,28 +5146,27 @@ ObjectPair Executor::lazyInstantiateAlloca(ExecutionState &state,
 ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
                                              ref<Expr> address,
                                              KInstruction *target,
-                                             KType *targetType, uint64_t size) {
+                                             KType *targetType, ref<Expr> size) {
   assert(!isa<ConstantExpr>(address));
   const llvm::Value *allocSite = target ? target->inst : nullptr;
-  /// TODO: make executeAlloc
-  MemoryObject *mo =
-      memory->allocate(size, false, /*isGlobal=*/false, allocSite,
-                       /*allocationAlignment=*/8, address);
+  /// TODO: make similar to executeAlloc
+  MemoryObject *mo = allocate(state, size, false, allocSite,
+                              /*allocationAlignment=*/8);
+  mo->wasLazyInstantiated = true;
+
   assert(mo);
 
   ref<Expr> checkPointerExpr = EqExpr::create(address, mo->getBaseConstantExpr());
-  bool isAddressNeq;
+  bool mustBeFalse;
 
   /// FIXME:
   /// Check that the constructed model does not contradict itself 
   solver->setTimeout(coreSolverTimeout);
-  time::Point start = time::getWallTime();
   bool success =
       solver->mustBeFalse(state.evaluateConstraintsWithSymcretes(),
                           state.evaluateWithSymcretes(checkPointerExpr),
-                          isAddressNeq, state.queryMetaData);
+                          mustBeFalse, state.queryMetaData);
   solver->setTimeout(time::Span());
-  // llvm::errs() << time::getWallTime() - start << "\n";
 
   if (!success) {
     terminateStateOnSolverError(state, "Query timed out.");
@@ -5132,13 +5174,12 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
   }
   solver->setTimeout(time::Span());
 
-  if (isAddressNeq) {
+  if (mustBeFalse) {
     terminateStateOnExecError(
         state, "Malloc returned address not consistent with constrains");
     return ObjectPair(nullptr, nullptr);
   }
-  
-  state.addSymcrete(mo->concreteAddress, addressToBytes(mo->address), mo->address);
+
   state.addConstraint(EqExpr::create(mo->getBaseExpr(), address));
 
   return lazyInstantiate(state, targetType, /*isLocal=*/false, mo);
@@ -5355,9 +5396,10 @@ void Executor:: prepareSymbolicValue(ExecutionState &state, KInstruction *target
         count = Expr::createZExtToPointerWidth(count);
         size = MulExpr::create(size, count);
       }
+      /// FIXME: is it always sizeof element?
       lazyInstantiateVariable(state, result, target,
                               typeSystemManager->getWrappedType(ai->getType()),
-                              elementSize);
+                              Expr::createPointer(elementSize));
   }
 }
 
@@ -5505,15 +5547,16 @@ void Executor::logState(ExecutionState &state, int id,
     *f << "Symbolic number " << sc++ << "\n";
     *f << "Associated memory object: " << i.first.get()->id << "\n";
     *f << "Memory object size: " << i.first.get()->size << "\n";
-    if (!i.first->isLazyInstantiated()) {
+    if (!isa<ConstantExpr>(i.first->addressExpr)) {
       *f << "<Not instantiated lazily>"
          << "\n";
       continue;
     }
-    auto lisource = i.first->lazyInstantiatedSource;
-    *f << "Lazy Instantiation Source: ";
-    lisource->print(*f);
-    *f << "\n";
+    *f << "Lazily instantiated\n";
+    // auto lisource = i.first->addressExpr;
+    // *f << "Lazy Instantiation Source: ";
+    // lisource->print(*f);
+    // *f << "\n";
   }
   *f << "\n";
   *f << "State constraints:\n";
@@ -5530,7 +5573,7 @@ int Executor::resolveLazyInstantiation(ExecutionState &state) {
       continue;
     }
     status = 1;
-    auto lisource = i.first->lazyInstantiatedSource;
+    auto lisource = i.first->getBaseExpr();
     switch (lisource->getKind()) {
     case Expr::Read: {
       ref<ReadExpr> base = dyn_cast<ReadExpr>(lisource);
@@ -5565,7 +5608,7 @@ void Executor::setInstantiationGraph(ExecutionState &state, TestCase &tc) {
     if (!state.symbolics[i].first->isLazyInstantiated())
       continue;
     auto parent =
-        state.pointers[state.symbolics[i].first->lazyInstantiatedSource];
+        state.pointers[state.symbolics[i].first->getBaseExpr()];
     // Resolve offset (parent.second)
     ref<ConstantExpr> offset;
     bool success = solver->getValue(state.evaluateConstraintsWithSymcretes(), state.evaluateWithSymcretes(parent.second), offset,

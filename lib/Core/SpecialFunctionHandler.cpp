@@ -970,7 +970,7 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
     if (res) {
       executor.executeMakeSymbolic(*s, mo, it->first.second->getDynamicType(),
                                    name, false);
-    } else {      
+    } else {  
       executor.terminateStateOnUserError(*s, "Wrong size given to klee_make_symbolic");
     }
   }
