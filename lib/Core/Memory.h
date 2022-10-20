@@ -57,10 +57,12 @@ public:
 
   /// "Virtual" memory address 
   const Array *concreteAddress = nullptr;
-
   ref<Expr> lazyInstantiatedSource;
 
-  /// size in bytes
+  const Array *concreteSize = nullptr;
+  ref<Expr> sizeSource;
+
+  /// "Physical" size in bytes
   unsigned size;
   mutable std::string name;
 
@@ -109,10 +111,12 @@ public:
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
-               ref<Expr> _lazyInstantiatedSource = nullptr)
+               ref<Expr> _lazyInstantiatedSource = nullptr,
+               ref<Expr> _sizeSource = nullptr)
     : id(counter++),
       address(_address),
       lazyInstantiatedSource(_lazyInstantiatedSource),
+      sizeSource(_sizeSource),
       size(_size),
       name("unnamed"),
       isLocal(_isLocal),
@@ -126,7 +130,12 @@ public:
     static int addressCounter = 0;
 
     concreteAddress = parent->getArrayCache()->CreateArray(
-        name + std::to_string(addressCounter++), Context::get().getPointerWidth() / CHAR_BIT);
+        name + std::to_string(addressCounter),
+        Context::get().getPointerWidth() / CHAR_BIT);
+    concreteSize = parent->getArrayCache()->CreateArray(
+        name + std::to_string(addressCounter) + "_size",
+        Context::get().getPointerWidth() / CHAR_BIT);
+    ++addressCounter;
   }
 
   ~MemoryObject();
@@ -149,22 +158,23 @@ public:
     return ConstantExpr::create(address, Context::get().getPointerWidth());
   }
   ref<Expr> getBaseExpr() const {
-    return isLazyInstantiated()
+    return isLazyInstantiated() || sizeSource
                ? Expr::createTempRead(concreteAddress,
                                       Context::get().getPointerWidth())
                : ref<Expr>(cast<Expr>(getBaseConstantExpr()));
   }
 
-  ref<Expr> getSourceExpr() const {
-    if (lazyInstantiatedSource.isNull())
-      return getBaseConstantExpr();
-    else
-      return lazyInstantiatedSource;
+  bool hasSymbolicSize() const {
+    return sizeSource != nullptr;
   }
 
-  ref<ConstantExpr> getSizeExpr() const { 
-    return ConstantExpr::create(size, Context::get().getPointerWidth());
+  ref<Expr> getSizeExpr() const {
+    if (sizeSource) {
+      return Expr::createTempRead(concreteSize, Context::get().getPointerWidth());
+    }
+    return Expr::createPointer(size);
   }
+
   ref<Expr> getOffsetExpr(ref<Expr> pointer) const {
     return SubExpr::create(pointer, getBaseExpr());
   }

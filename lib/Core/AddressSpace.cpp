@@ -62,8 +62,9 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr, KType *objectType,
     const auto &mo = res->first;
     // Check if the provided address is between start and end of the object
     // [mo->address, mo->address + mo->size) or the object is a 0-sized object.
-    if ((mo->size==0 && address==mo->address) ||
-        (address - mo->address < mo->size)) {
+    const auto &os = findObject(mo);
+    if ((os->size==0 && address==mo->address) ||
+        (address - mo->address < os->size)) {
       result.first = res->first;
       result.second = res->second.get();
       return true;
@@ -84,26 +85,6 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   } else {
     TimerStatIncrementer timer(stats::resolveTime);
 
-    MemoryObject *symHack = nullptr;
-    /// TODO: seems useless, as we know concrete addresses
-    for (auto &moa : state.symbolics) {
-      if (moa.first->isLazyInstantiated() &&
-          moa.first->getLazyInstantiatedSource() == base) {
-        symHack = const_cast<MemoryObject *>(moa.first.get());
-        break;
-      }
-    }
-
-    if (symHack) {
-      auto osi = objects.find(symHack);
-      if (osi != objects.end()) {
-        result.first = osi->first;
-        result.second = osi->second.get();
-        success = true;
-        return true;
-      }
-    }
-
     // try cheap search, will succeed for any inbounds pointer
 
     ref<ConstantExpr> cex;
@@ -116,12 +97,12 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     uint64_t example = cex->getZExtValue();
     MemoryObject hack(example);
     
-    /// FIXME: Here we are trying to find existing object, INCLUDING symbolic. Seems ok...
     const auto res = objects.lookup_previous(&hack);
 
     if (res) {
       const MemoryObject *mo = res->first;
-      if (example - mo->address < mo->size) {
+      const auto &os = findObject(mo);
+      if (example - mo->address < os->size) {
         if (res->second->isAccessableFrom(objectType)) {
           result.first = res->first;
           result.second = res->second.get();
@@ -132,7 +113,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     }
 
     // didn't work, now we have to search
-       
+        
     MemoryMap::iterator oi = objects.upper_bound(&hack);
     MemoryMap::iterator begin = objects.begin();
     MemoryMap::iterator end = objects.end();
@@ -165,8 +146,6 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                                 mustBeTrue, state.queryMetaData))
           return false;
         
-        /// FIXME: Make a binary search optimization?
-        /// We will optimize it in general case, as constraints are linear
         if (mustBeTrue)
           break;
       }
@@ -319,12 +298,6 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
       }
 
       if (timeout && timeout < timer.delta()) {
-        // llvm::errs() << timer.delta() << "\n";
-        // llvm::errs() << "1) TIMED OUT!\n";
-        // llvm::errs() << "RL SIZE IS: " << rl.size() << "\n";
-        // llvm::errs() << "OBJECTS: " << objects.size() << "\n";
-
-        // state.evaluateWithSymcretes(p)->dump();
         return true;
       }
 
@@ -354,11 +327,6 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
       }
 
       if (timeout && timeout < timer.delta()) {
-        // llvm::errs() << timer.delta() << "\n";
-        // llvm::errs() << "2) TIMED OUT!\n";
-        // llvm::errs() << "RL SIZE IS: " << rl.size() << "\n";
-        // llvm::errs() << "OBJECTS: " << objects.size() << "\n";
-        // state.evaluateWithSymcretes(p)->dump();
         return true;
       }
 
@@ -523,7 +491,7 @@ void AddressSpace::copyOutConcretes() {
       auto address = reinterpret_cast<std::uint8_t*>(mo->address);
 
       if (!os->readOnly)
-        memcpy(address, os->concreteStore, mo->size);
+        memcpy(address, os->concreteStore, os->size);
     }
   }
 }
@@ -546,12 +514,12 @@ bool AddressSpace::copyInConcretes() {
 bool AddressSpace::copyInConcrete(const MemoryObject *mo, const ObjectState *os,
                                   uint64_t src_address) {
   auto address = reinterpret_cast<std::uint8_t*>(src_address);
-  if (memcmp(address, os->concreteStore, mo->size) != 0) {
+  if (memcmp(address, os->concreteStore, os->size) != 0) {
     if (os->readOnly) {
       return false;
     } else {
       ObjectState *wos = getWriteable(mo, os);
-      memcpy(wos->concreteStore, address, mo->size);
+      memcpy(wos->concreteStore, address, os->size);
     }
   }
   return true;

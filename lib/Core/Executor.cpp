@@ -4194,10 +4194,12 @@ std::string Executor::getAddressInfo(ExecutionState &state, ref<Expr> address,
     info << "none\n";
   } else {
     const MemoryObject *mo = lower->first;
+    const ObjectState *os = lower->second.get();
+
     std::string alloc_info;
     mo->getAllocInfo(alloc_info);
     info << "object at " << mo->address
-         << " of size " << mo->size << "\n"
+         << " of size " << os->size << "\n"
          << "\t\t" << alloc_info << "\n";
   }
   if (lower!=state.addressSpace.objects.begin()) {
@@ -4207,10 +4209,11 @@ std::string Executor::getAddressInfo(ExecutionState &state, ref<Expr> address,
       info << "none\n";
     } else {
       const MemoryObject *mo = lower->first;
+      const ObjectState *os = lower->second.get();
       std::string alloc_info;
       mo->getAllocInfo(alloc_info);
       info << "object at " << mo->address 
-           << " of size " << mo->size << "\n"
+           << " of size " << os->size << "\n"
            << "\t\t" << alloc_info << "\n";
     }
   }
@@ -4646,117 +4649,77 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
                             KInstruction *target, KType *type, bool zeroMemory,
                             const ObjectState *reallocFrom,
                             size_t allocationAlignment) {
-  size = toUnique(state, size);
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) {
-    const llvm::Value *allocSite = state.prevPC->inst;
-    if (allocationAlignment == 0) {
-      allocationAlignment = getAllocationAlignment(allocSite);
-    }
-    MemoryObject *mo =
-        memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false,
-                         allocSite, allocationAlignment);
-    if (!mo) {
-      bindLocal(target, state, 
-                ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-    } else {
-      ObjectState *os = bindObjectInState(state, mo, type, isLocal);
-      if (zeroMemory) {
-        os->initializeToZero();
-      } else {
-        os->initializeToRandom();
-      }
-      bindLocal(target, state, mo->getBaseExpr());
-      
-      if (reallocFrom) {
-        unsigned count = std::min(reallocFrom->size, os->size);
-        for (unsigned i=0; i<count; i++)
-          os->write(i, reallocFrom->read8(i));
-        state.addressSpace.unbindObject(reallocFrom->getObject());
-      }
-    }
+  /// Try to find existing solution
+  ref<Expr> optimizedSize = optimizer.optimizeExpr(
+      state.evaluateWithSymcretes(toUnique(state, size)), true);
+
+  size_t modelSize; 
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(optimizedSize)) {
+    // FIXME: 1?
+    modelSize = std::max(CE->getZExtValue(), static_cast<size_t>(1));
   } else {
-    // XXX For now we just pick a size. Ideally we would support
-    // symbolic sizes fully but even if we don't it would be better to
-    // "smartly" pick a value, for example we could fork and pick the
-    // min and max values and perhaps some intermediate (reasonable
-    // value).
-    // 
-    // It would also be nice to recognize the case when size has
-    // exactly two values and just fork (but we need to get rid of
-    // return argument first). This shows up in pcre when llvm
-    // collapses the size expression with a select.
+    /* In order to minimize size of allocations we will make a binary search
+    on sizes to determine the least possible size of allocation */
 
-    size = optimizer.optimizeExpr(size, true);
+    /* TODO: we can start from example for greater model */
+    size_t lessModel = 0, greaterModel = -1;
+    while (lessModel < greaterModel - 1) {
+      size_t middleModel = (lessModel + greaterModel) / 2;
+      
+      ref<Expr> middleModelExpr = Expr::createPointer(middleModel);
+      bool mayBeLess;
 
-    ref<ConstantExpr> example;
-    bool success =
-        solver->getValue(state.evaluateConstraintsWithSymcretes(), state.evaluateWithSymcretes(size), example, state.queryMetaData);
-    assert(success && "FIXME: Unhandled solver failure");
-    (void) success;
-    
-    // Try and start with a small example.
-    Expr::Width W = example->getWidth();
-    while (example->Ugt(ConstantExpr::alloc(128, W))->isTrue()) {
-      ref<ConstantExpr> tmp = example->LShr(ConstantExpr::alloc(1, W));
-      bool res;
-      bool success =
-          solver->mayBeTrue(state.constraints, EqExpr::create(tmp, size), res,
-                            state.queryMetaData);
-      assert(success && "FIXME: Unhandled solver failure");      
-      (void) success;
-      if (!res)
-        break;
-      example = tmp;
-    }
-
-    StatePair fixedSize =
-        fork(state, EqExpr::create(example, size), true, BranchType::Alloc);
-
-    if (fixedSize.second) { 
-      // Check for exactly two values
-      ref<ConstantExpr> tmp;
-      bool success = solver->getValue(fixedSize.second->constraints, size, tmp,
-                                      fixedSize.second->queryMetaData);
-      assert(success && "FIXME: Unhandled solver failure");      
-      (void) success;
-      bool res;
-      success = solver->mustBeTrue(fixedSize.second->constraints,
-                                   EqExpr::create(tmp, size), res,
-                                   fixedSize.second->queryMetaData);
-      assert(success && "FIXME: Unhandled solver failure");      
-      (void) success;
-      if (res) {
-        executeAlloc(*fixedSize.second, tmp, isLocal, target, type, zeroMemory,
-                     reallocFrom);
+      solver->setTimeout(coreSolverTimeout);
+      bool success = solver->mayBeTrue(state.evaluateConstraintsWithSymcretes(),
+                                       state.evaluateWithSymcretes(UleExpr::create(optimizedSize, middleModelExpr)),
+                                       mayBeLess, state.queryMetaData); 
+      solver->setTimeout(time::Span());
+      if (mayBeLess) {
+        greaterModel = middleModel;
       } else {
-        // See if a *really* big value is possible. If so assume
-        // malloc will fail for it, so lets fork and return 0.
-        StatePair hugeSize =
-            fork(*fixedSize.second,
-                 UltExpr::create(ConstantExpr::alloc(1U << 31, W), size), true,
-                 BranchType::Alloc);
-        if (hugeSize.first) {
-          klee_message("NOTE: found huge malloc, returning 0");
-          bindLocal(target, *hugeSize.first, 
-                    ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-        }
-        
-        if (hugeSize.second) {
-
-          std::string Str;
-          llvm::raw_string_ostream info(Str);
-          ExprPPrinter::printOne(info, "  size expr", size);
-          info << "  concretization : " << example << "\n";
-          info << "  unbound example: " << tmp << "\n";
-          terminateStateOnError(*hugeSize.second, "concretized symbolic size",
-                                StateTerminationType::Model, info.str());
-        }
+        lessModel = middleModel;
       }
     }
 
-    if (fixedSize.first) // can be zero when fork fails
-      executeAlloc(*fixedSize.first, example, isLocal, target, type, zeroMemory,
-                   reallocFrom);
+    modelSize = greaterModel;
+  }
+
+  const llvm::Value *allocSite = state.prevPC->inst;
+  if (allocationAlignment == 0) {
+    allocationAlignment = getAllocationAlignment(allocSite);
+  }
+  
+  MemoryObject *mo;
+  if (isa<ConstantExpr>(size)) {
+    mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
+                          allocationAlignment);
+  } else {
+    mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
+                          allocationAlignment, nullptr, size);
+    mo->setLazyInstantiatedSource(Expr::createTempRead(
+        mo->concreteAddress, Context::get().getPointerWidth()));
+    state.addSymcrete(mo->concreteAddress, addressToBytes(mo->address), mo->address);
+    state.addSymcrete(mo->concreteSize, addressToBytes(modelSize), modelSize);
+  }
+
+  if (!mo) {
+    bindLocal(target, state, 
+              ConstantExpr::alloc(0, Context::get().getPointerWidth()));
+  } else {
+    ObjectState *os = bindObjectInState(state, mo, type, isLocal);
+    if (zeroMemory) {
+      os->initializeToZero();
+    } else {
+      os->initializeToRandom();
+    }
+    bindLocal(target, state, mo->getBaseExpr());
+    
+    if (reallocFrom) {
+      unsigned count = std::min(reallocFrom->size, os->size);
+      for (unsigned i=0; i<count; i++)
+        os->write(i, reallocFrom->read8(i));
+      state.addressSpace.unbindObject(reallocFrom->getObject());
+    }
   }
 }
 
@@ -4886,8 +4849,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   if (success) {
     const MemoryObject *mo = op.first;
+    const ObjectState *os = op.second; 
 
-    if (MaxSymArraySize && mo->size >= MaxSymArraySize) {
+    if (MaxSymArraySize && os->size >= MaxSymArraySize) {
       address = toConstant(state, address, "max-sym-array-size");
     }
 
@@ -5034,31 +4998,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       }
       }
     }
-
-    // if (unbound && isReadFromSymbolicArray(state.evaluateWithSymcretes(base))) {
-    //   if (base == mo->getBaseExpr()) {
-    //     terminateStateOnError(*unbound, "memory error: out of bound pointer",
-    //                           StateTerminationType::Ptr,
-    //                           getAddressInfo(*unbound, address, mo));
-    //     unbound = nullptr;
-    //   } else {
-    //     ref<Expr> baseInObject = mo->getBoundsCheckPointer(base, 1);
-    //     if (UseGEPExpr && isGEPExpr(address)) {
-    //       baseInObject = OrExpr::create(baseInObject,
-    //                                     mo->getBoundsCheckPointer(base, size));
-    //     }
-
-
-    //     branches = fork(*unbound, baseInObject, true, BranchType::MemOp);
-    //     bound = branches.first;
-    //     if (bound) {
-    //       // the resolved object size was unsuitable, base cannot resolve to this object
-    //       terminateStateEarly(*bound, "", StateTerminationType::SilentExit);
-    //     }
-    //     unbound = branches.second;
-    //   }
-    // }
-
     if (!unbound) {
       break;
     }
@@ -5074,26 +5013,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     }
     unbound = branches.second;
   }
-
-  // FIXME: do this check, but not this way!
-  // Check if we need to make LI
-  // actualAddresses: AND_i getbaseExpr_i <- expr<address_i | LISource_i>
-  // if (!actualAddresses.isNull() && unbound) {
-  //   solver->setTimeout(coreSolverTimeout);
-  //   bool needLasyInstantiation = false;
-  //   actualAddresses = ConstraintManager::simplifyExpr(unbound->constraints, actualAddresses);
-  //   bool success =
-  //       solver->mayBeTrue(unbound->constraints, actualAddresses,
-  //                         needLasyInstantiation, unbound->queryMetaData);
-  //   solver->setTimeout(time::Span());
-  //   if (!success) {
-  //     terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
-  //     unbound = nullptr;
-  //   } else if (!needLasyInstantiation) {
-  //     terminateStateEarly(*unbound, "", StateTerminationType::SilentExit);
-  //     unbound = nullptr;
-  //   }
-  // }
 
   // XXX should we distinguish out of bounds and overlapped cases?
   if (unbound) {
@@ -5187,6 +5106,7 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
                                              KType *targetType, uint64_t size) {
   assert(!isa<ConstantExpr>(address));
   const llvm::Value *allocSite = target ? target->inst : nullptr;
+  /// TODO: make executeAlloc
   MemoryObject *mo =
       memory->allocate(size, false, /*isGlobal=*/false, allocSite,
                        /*allocationAlignment=*/8, address);

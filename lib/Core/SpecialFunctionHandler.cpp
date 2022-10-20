@@ -342,7 +342,7 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
 
   std::ostringstream buf;
   char c = 0;
-  for (size_t i = offset; i < mo->size; ++i) {
+  for (size_t i = offset; i < os->size; ++i) {
     ref<Expr> cur = os->read8(i);
     cur = executor.toUnique(state, cur);
     assert(isa<ConstantExpr>(cur) && 
@@ -517,7 +517,8 @@ void SpecialFunctionHandler::handleMemalign(ExecutionState &state,
   }
 
   std::pair<ref<Expr>, ref<Expr>> alignmentRangeExpr =
-      executor.solver->getRange(state.constraints, arguments[0],
+      executor.solver->getRange(state.evaluateConstraintsWithSymcretes(),
+                                state.evaluateWithSymcretes(arguments[0]),
                                 state.queryMetaData);
   ref<Expr> alignmentExpr = alignmentRangeExpr.first;
   auto alignmentConstExpr = dyn_cast<ConstantExpr>(alignmentExpr);
@@ -712,7 +713,8 @@ void SpecialFunctionHandler::handlePrintRange(ExecutionState &state,
     } else { 
       llvm::errs() << " ~= " << value;
       std::pair<ref<Expr>, ref<Expr>> res = executor.solver->getRange(
-          state.constraints, arguments[1], state.queryMetaData);
+          state.evaluateConstraintsWithSymcretes(),
+          state.evaluateWithSymcretes(arguments[1]), state.queryMetaData);
       llvm::errs() << " (in [" << res.first << ", " << res.second <<"])";
     }
   }
@@ -733,7 +735,7 @@ void SpecialFunctionHandler::handleGetObjSize(ExecutionState &state,
          ie = rl.end(); it != ie; ++it) {
     executor.bindLocal(
         target, *it->second,
-        ConstantExpr::create(it->first.first->size,
+        ConstantExpr::create(it->first.second->size,
                              executor.kmodule->targetData->getTypeSizeInBits(
                                  target->inst->getType())));
   }

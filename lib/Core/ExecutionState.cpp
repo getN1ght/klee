@@ -396,6 +396,10 @@ bool ExecutionState::merge(const ExecutionState &b) {
     assert(otherOS);
 
     ObjectState *wos = addressSpace.getWriteable(mo, os);
+
+    /// We can use mo->size here instead of wos->size as
+    /// realloc should be completed for replacing Memory Objects.
+    /// Nethertheless, it is not optimal.
     for (unsigned i=0; i<mo->size; i++) {
       ref<Expr> av = wos->read8(i);
       ref<Expr> bv = otherOS->read8(i);
