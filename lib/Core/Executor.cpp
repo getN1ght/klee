@@ -5208,7 +5208,6 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
     // Find a unique name for this array.  First try the original name,
     // or if that fails try adding a unique identifier.
     const Array *array = makeArray(state, mo->size, name);
-    const_cast<Array*>(array)->binding = mo;
     const_cast<MemoryObject *>(mo)->isKleeMakeSymbolic = true;
     ObjectState *os = bindObjectInState(state, mo, type, isLocal, array);
 
@@ -5426,7 +5425,6 @@ ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, uint6
                      value, /*allocationAlignment=*/8);
   memory->deallocate(mo);
   const Array *array = makeArray(state, size, name);
-  const_cast<Array*>(array)->binding = mo;
   state.addSymbolic(mo, array);
   assert(value && "Attempted to make symbolic value from nullptr Value");
   ObjectState *os = new ObjectState(
@@ -5579,7 +5577,7 @@ int Executor::resolveLazyInstantiation(ExecutionState &state) {
     switch (lisource->getKind()) {
     case Expr::Read: {
       ref<ReadExpr> base = dyn_cast<ReadExpr>(lisource);
-      auto parent = base->updates.root->binding;
+      auto parent = state.findMemoryObject(base->updates.root);
       if (!parent) {
         return -1;
       }
@@ -5589,7 +5587,7 @@ int Executor::resolveLazyInstantiation(ExecutionState &state) {
     case Expr::Concat: {
       ref<ReadExpr> base =
           ArrayExprHelper::hasOrderedReads(*dyn_cast<ConcatExpr>(lisource));
-      auto parent = base->updates.root->binding;
+      auto parent = state.findMemoryObject(base->updates.root);
       if (!parent) {
         return -1;
       }
