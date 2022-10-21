@@ -245,6 +245,8 @@ private:
 
   bool wasZeroInitialized = true;
   bool isMadeSymbolic = false;
+  ref<UpdateNode> lastUpdate;
+
 public:
   unsigned size;
 

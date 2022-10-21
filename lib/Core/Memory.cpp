@@ -84,6 +84,7 @@ ObjectState::ObjectState(const MemoryObject *mo)
     knownSymbolics(nullptr),
     unflushedMask(nullptr),
     updates(nullptr, nullptr),
+    lastUpdate(nullptr),
     size(mo->size),
     readOnly(false) {
   if (!UseConstantArrays) {
@@ -105,6 +106,7 @@ ObjectState::ObjectState(const MemoryObject *mo, const Array *array)
     knownSymbolics(nullptr),
     unflushedMask(nullptr),
     updates(array, nullptr),
+    lastUpdate(nullptr),
     size(mo->size),
     readOnly(false) {
   makeSymbolic();
@@ -121,6 +123,7 @@ ObjectState::ObjectState(const ObjectState &os)
     updates(os.updates),
     wasZeroInitialized(os.wasZeroInitialized),
     isMadeSymbolic(os.isMadeSymbolic),
+    lastUpdate(os.lastUpdate),
     size(os.size),
     readOnly(false) {
   assert(!os.readOnly && "no need to copy read only object?");
@@ -143,6 +146,7 @@ ObjectState::ObjectState(const MemoryObject *mo, const ObjectState &os)
     updates(os.updates),
     wasZeroInitialized(os.wasZeroInitialized),
     isMadeSymbolic(os.isMadeSymbolic),
+    lastUpdate(os.lastUpdate),
     size(mo->size),
     readOnly(os.readOnly) {
   /* This constructor should be used when we extend or truncate the memory
@@ -517,6 +521,10 @@ ref<Expr> ObjectState::read(ref<Expr> offset, Expr::Width width) const {
   if (width == Expr::Bool)
     return ExtractExpr::create(read8(offset), 0, Expr::Bool);
 
+  if (lastUpdate && lastUpdate->index == offset &&
+      lastUpdate->value->getWidth() == width)
+    return lastUpdate->value;
+
   // Otherwise, follow the slow general case.
   unsigned NumBytes = width / 8;
   assert(width == NumBytes * 8 && "Invalid read size!");
@@ -575,6 +583,7 @@ void ObjectState::write(ref<Expr> offset, ref<Expr> value) {
     write8(AddExpr::create(offset, ConstantExpr::create(idx, Expr::Int32)),
            ExtractExpr::create(value, 8 * i, Expr::Int8));
   }
+  lastUpdate = new UpdateNode(nullptr, offset, value);
 }
 
 void ObjectState::write(unsigned offset, ref<Expr> value) {
