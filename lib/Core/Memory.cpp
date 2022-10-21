@@ -83,6 +83,7 @@ ObjectState::ObjectState(const MemoryObject *mo, KType *dt)
     unflushedMask(nullptr),
     updates(nullptr, nullptr),
     dynamicType(dt),
+    lastUpdate(nullptr),
     size(mo->size),
     readOnly(false) {
   if (!UseConstantArrays) {
@@ -105,6 +106,7 @@ ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
     updates(array, nullptr),
     dynamicType(dt),
     size(mo->size),
+    lastUpdate(nullptr),
     readOnly(false) {
   makeSymbolic();
   memset(concreteStore, 0, size);
@@ -119,6 +121,7 @@ ObjectState::ObjectState(const ObjectState &os)
     unflushedMask(os.unflushedMask ? new BitArray(*os.unflushedMask, os.size) : nullptr),
     updates(os.updates),
     dynamicType(os.dynamicType),
+    lastUpdate(os.lastUpdate),
     size(os.size),
     readOnly(os.readOnly) {
   if (os.knownSymbolics) {
@@ -447,6 +450,10 @@ ref<Expr> ObjectState::read(ref<Expr> offset, Expr::Width width) const {
   if (width == Expr::Bool)
     return ExtractExpr::create(read8(offset), 0, Expr::Bool);
 
+  if (lastUpdate && lastUpdate->index == offset &&
+      lastUpdate->value->getWidth() == width)
+    return lastUpdate->value;
+
   // Otherwise, follow the slow general case.
   unsigned NumBytes = width / 8;
   assert(width == NumBytes * 8 && "Invalid read size!");
@@ -505,6 +512,7 @@ void ObjectState::write(ref<Expr> offset, ref<Expr> value) {
     write8(AddExpr::create(offset, ConstantExpr::create(idx, Expr::Int32)),
            ExtractExpr::create(value, 8 * i, Expr::Int8));
   }
+  lastUpdate = new UpdateNode(nullptr, offset, value);
 }
 
 void ObjectState::write(unsigned offset, ref<Expr> value) {

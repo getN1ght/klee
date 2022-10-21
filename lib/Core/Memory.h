@@ -226,6 +226,8 @@ private:
 
   KType *dynamicType;
 
+  ref<UpdateNode> lastUpdate;
+
 public:
   unsigned size;
 
