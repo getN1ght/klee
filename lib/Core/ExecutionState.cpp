@@ -228,7 +228,10 @@ void ExecutionState::addSymcrete(
     const Array *array, const std::vector<unsigned char> &concretisation, uint64_t value) {
   assert(array && array->isSymbolicArray() &&
          "Cannot make concrete array symcrete");
-  assert(array->size == concretisation.size() &&
+  assert(isa<ConstantExpr>(array->getSize()) &&
+         "Attempted to concretize object with symbolic size");
+  assert(cast<ConstantExpr>(array->getSize())->getZExtValue() ==
+             concretisation.size() &&
          "Given concretisation does not fit the array");
   assert(!isSymcrete(array) && "Array already symcrete");
 

@@ -11,6 +11,7 @@
 #include "klee/Solver/Solver.h"
 
 #include "klee/Expr/Assignment.h"
+#include "klee/Expr/AssignmentGenerator.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprUtil.h"
@@ -23,6 +24,7 @@
 #include <map>
 #include <ostream>
 #include <vector>
+#include <unordered_map>
 
 using namespace klee;
 using namespace llvm;
@@ -484,6 +486,9 @@ bool IndependentSolver::computeInitialValues(const Query& query,
 
   //Used to rearrange all of the answers into the correct order
   std::map<const Array*, std::vector<unsigned char> > retMap;
+  
+  std::unordered_map<const Array *, std::vector<unsigned char>> arrayToConcreteValue;
+  
   for (std::list<IndependentElementSet>::iterator it = factors->begin();
        it != factors->end(); ++it) {
     std::vector<const Array*> arraysInFactor;
@@ -525,8 +530,12 @@ bool IndependentSolver::computeInitialValues(const Query& query,
           retMap[arraysInFactor[i]] = tempValues[i];
         }
       }
+      for (unsigned i = 0; i < tempValues.size(); ++i) {
+        arrayToConcreteValue[objects[i]] = tempValues[i];
+      }
     }
   }
+
   for (std::vector<const Array *>::const_iterator it = objects.begin();
        it != objects.end(); it++){
     const Array * arr = * it;
@@ -534,7 +543,23 @@ bool IndependentSolver::computeInitialValues(const Query& query,
       // this means we have an array that is somehow related to the
       // constraint, but whose values aren't actually required to
       // satisfy the query.
-      std::vector<unsigned char> ret(arr->size);
+      uint64_t size = 0;
+
+      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(arr->getSize())) {
+        size = CE->getZExtValue();
+      } else if (ReadExpr *RE =
+                     AssignmentGenerator::hasOrderedReads(arr->getSize())) {
+        std::vector<unsigned char> &symsize =
+            arrayToConcreteValue[RE->updates.root];
+        assert(symsize.size() == 8 &&
+               "Size array does not have enought bytes in concretization");
+
+        for (int bit = 0; bit < symsize.size(); ++bit) {
+          size |= (symsize[bit] << bit);
+        }
+      }
+      
+      std::vector<unsigned char> ret(size);
       values.push_back(ret);
     } else {
       values.push_back(retMap[arr]);

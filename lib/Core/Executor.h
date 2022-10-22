@@ -642,7 +642,7 @@ public:
 
   MergingSearcher *getMergingSearcher() const { return mergingSearcher; };
   void setMergingSearcher(MergingSearcher *ms) { mergingSearcher = ms; };
-  const Array *makeArray(ExecutionState &state, const uint64_t size,
+  const Array *makeArray(ExecutionState &state, ref<Expr> size,
                          const std::string &name);
   void executeStep(ExecutionState &state);
   bool tryBoundedExecuteStep(ExecutionState &state, unsigned bound);

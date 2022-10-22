@@ -60,7 +60,11 @@ public:
   ref<Expr> sizeExpr;
 
   /// "Physical" size in bytes
+  /// This value indicates sizeof allocated object on local machine.
+  /// Note, that it is not actually value of symcrete size, as memory in one
+  /// MemoryObject can be used for objects in different states.
   unsigned size;
+
   mutable std::string name;
 
   bool isLocal;
@@ -236,6 +240,8 @@ private:
   KType *dynamicType;
 
 public:
+  /// Actual size of object, should be equal to value of symcrete.
+  /// Not the same with size from `object`.
   unsigned size;
 
   bool readOnly;

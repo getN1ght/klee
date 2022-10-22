@@ -548,7 +548,7 @@ public:
   const std::string name;
 
   // FIXME: Not 64-bit clean.
-  const unsigned size;
+  ref<Expr> size;
 
   /// Domain is how many bits can be used to access the array [32 bits]
   /// Range is the size (in bits) of the number stored there (array of bytes ->
@@ -578,7 +578,7 @@ private:
   /// when printing expressions. When expressions are printed the output will
   /// not parse correctly since two arrays with the same name cannot be
   /// distinguished once printed.
-  Array(const std::string &_name, uint64_t _size,
+  Array(const std::string &_name, ref<Expr> _size,
         const ref<ConstantExpr> *constantValuesBegin = 0,
         const ref<ConstantExpr> *constantValuesEnd = 0,
         Expr::Width _domain = Expr::Int32, Expr::Width _range = Expr::Int8);
@@ -590,7 +590,7 @@ public:
 
   const std::string getName() const { return name; }
 
-  unsigned getSize() const { return size; }
+  ref<Expr> getSize() const { return size; }
 
   Expr::Width getDomain() const { return domain; }
 

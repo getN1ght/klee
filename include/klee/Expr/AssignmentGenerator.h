@@ -28,6 +28,7 @@ class AssignmentGenerator {
 public:
   static bool generatePartialAssignment(const ref<Expr> &e, ref<Expr> &val,
                                         Assignment *&a);
+  static ReadExpr *hasOrderedReads(ref<Expr> e);
 
 private:
   static bool helperGenerateAssignment(const ref<Expr> &e, ref<Expr> &val,
@@ -36,7 +37,6 @@ private:
 
   static bool isReadExprAtOffset(ref<Expr> e, const ReadExpr *base,
                                  ref<Expr> offset);
-  static ReadExpr *hasOrderedReads(ref<Expr> e);
 
   static ref<Expr> createSubExpr(const ref<Expr> &l, ref<Expr> &r);
   static ref<Expr> createAddExpr(const ref<Expr> &l, ref<Expr> &r);

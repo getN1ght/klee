@@ -8,9 +8,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Expr/Constraints.h"
+#include "klee/Expr/AssignmentGenerator.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverImpl.h"
 
+#include <unordered_map>
 #include <vector>
 
 namespace klee {
@@ -91,13 +93,36 @@ bool ValidatingSolver::computeInitialValues(
     return false;
 
   if (hasSolution) {
+    std::unordered_map<const Array *, std::vector<unsigned char>> arrayToConcreteValue;
+    for (unsigned i = 0; i < values.size(); ++i) {
+      arrayToConcreteValue[objects[i]] = values[i];
+    }
+    /// Tranform vectors of bytes to uint value
+
     // Assert the bindings as constraints, and verify that the
     // conjunction of the actual constraints is satisfiable.
     ConstraintSet bindings;
     for (unsigned i = 0; i != values.size(); ++i) {
       const Array *array = objects[i];
       assert(array);
-      for (unsigned j = 0; j < array->size; j++) {
+
+      uint64_t size = 0;
+
+      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(array->getSize())) {
+        size = CE->getZExtValue();
+      } else if (ReadExpr *RE =
+                     AssignmentGenerator::hasOrderedReads(array->getSize())) {
+        std::vector<unsigned char> &symsize =
+            arrayToConcreteValue[RE->updates.root];
+        assert(symsize.size() == 8 &&
+               "Size array does not have enought bytes in concretization");
+
+        for (int bit = 0; bit < symsize.size(); ++bit) {
+          size |= (symsize[bit] << bit);
+        }
+      }
+
+      for (unsigned j = 0; j < size; j++) {
         unsigned char value = values[i][j];
         bindings.push_back(EqExpr::create(
             ReadExpr::create(UpdateList(array, 0),

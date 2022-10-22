@@ -262,9 +262,16 @@ static bool EvaluateInputAST(const char *Filename,
             llvm::outs() << "\tArray " << i << ":\t"
                        << QC->Objects[i]->name
                        << "[";
-            for (unsigned j = 0; j != QC->Objects[i]->size; ++j) {
+            uint64_t size = 0;
+
+            if (ConstantExpr *CE = dyn_cast<ConstantExpr>(QC->Objects[i]->size)) {
+              size = CE->getZExtValue();
+            } else {
+              std::abort();
+            }
+            for (unsigned j = 0; j != size; ++j) {
               llvm::outs() << (unsigned) result[i][j];
-              if (j + 1 != QC->Objects[i]->size)
+              if (j + 1 != size)
                 llvm::outs() << ", ";
             }
             llvm::outs() << "]";

@@ -10,6 +10,7 @@
 #include "klee/Config/Version.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/ArrayCache.h"
+#include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprPPrinter.h"
 #include "klee/Expr/Parser/Lexer.h"
@@ -1611,13 +1612,15 @@ void ArrayDecl::dump() {
   if (Root->isSymbolicArray()) {
     llvm::outs() << "symbolic\n";
   } else {
-    llvm::outs() << '[';
-    for (unsigned i = 0, e = Root->size; i != e; ++i) {
-      if (i)
-        llvm::outs() << " ";
-      llvm::outs() << Root->constantValues[i];
+    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Root->size)) {
+      llvm::outs() << '[';
+      for (unsigned i = 0, e = CE->getZExtValue(); i != e; ++i) {
+        if (i)
+          llvm::outs() << " ";
+        llvm::outs() << Root->constantValues[i];
+      }
+      llvm::outs() << "]\n";
     }
-    llvm::outs() << "]\n";
   }
 }
 

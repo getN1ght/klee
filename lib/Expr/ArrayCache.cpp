@@ -17,7 +17,7 @@ ArrayCache::~ArrayCache() {
 }
 
 const Array *
-ArrayCache::CreateArray(const std::string &_name, uint64_t _size,
+ArrayCache::CreateArray(const std::string &_name, ref<Expr> _size,
                         const ref<ConstantExpr> *constantValuesBegin,
                         const ref<ConstantExpr> *constantValuesEnd,
                         Expr::Width _domain, Expr::Width _range) {
@@ -43,5 +43,14 @@ ArrayCache::CreateArray(const std::string &_name, uint64_t _size,
     concreteArrays.push_back(array); // For deletion later
     return array;
   }
+}
+
+const Array *
+ArrayCache::CreateArray(const std::string &_name, uint64_t _size,
+                        const ref<ConstantExpr> *constantValuesBegin,
+                        const ref<ConstantExpr> *constantValuesEnd,
+                        Expr::Width _domain, Expr::Width _range) {
+  return CreateArray(_name, ConstantExpr::create(_size, 64), constantValuesBegin,
+                     constantValuesEnd, _domain, _range);
 }
 }

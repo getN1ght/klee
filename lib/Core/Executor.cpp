@@ -1396,11 +1396,11 @@ ref<Expr> Executor::toUnique(const ExecutionState &state,
   if (!isa<ConstantExpr>(result)) {
     ref<ConstantExpr> value;
     bool isTrue = false;
-    result = optimizer.optimizeExpr(result, true);
+    result = optimizer.optimizeExpr(result, true, state.symcretes);
     solver->setTimeout(coreSolverTimeout);
     if (solver->getValue(state.evaluateConstraintsWithSymcretes(), result, value, state.queryMetaData)) {
       ref<Expr> cond = EqExpr::create(e, value);
-      cond = optimizer.optimizeExpr(cond, false);
+      cond = optimizer.optimizeExpr(cond, false, state.symcretes);
       if (solver->mustBeTrue(state.evaluateConstraintsWithSymcretes(),
                              state.evaluateWithSymcretes(cond), isTrue,
                              state.queryMetaData) &&
@@ -1455,7 +1455,7 @@ void Executor::executeGetValue(ExecutionState &state,
     seedMap.find(&state);
   if (it==seedMap.end() || isa<ConstantExpr>(e)) {
     ref<ConstantExpr> value;
-    e = optimizer.optimizeExpr(e, true);
+    e = optimizer.optimizeExpr(e, true, state.symcretes);
     bool success = solver->getValue(state.evaluateConstraintsWithSymcretes(),
                                     state.evaluateWithSymcretes(e), value,
                                     state.queryMetaData);
@@ -1467,7 +1467,7 @@ void Executor::executeGetValue(ExecutionState &state,
     for (std::vector<SeedInfo>::iterator siit = it->second.begin(), 
            siie = it->second.end(); siit != siie; ++siit) {
       ref<Expr> cond = siit->assignment.evaluate(state.evaluateWithSymcretes(e));
-      cond = optimizer.optimizeExpr(cond, true);
+      cond = optimizer.optimizeExpr(cond, true, state.symcretes);
       ref<ConstantExpr> value;
       bool success =
           solver->getValue(state.evaluateConstraintsWithSymcretes(), cond, value, state.queryMetaData);
@@ -2358,7 +2358,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
              "Wrong operand index!");
       ref<Expr> cond = eval(ki, 0, state).value;
 
-      cond = optimizer.optimizeExpr(cond, false);
+      cond = optimizer.optimizeExpr(cond, false, state.symcretes);
 
       Executor::StatePair branches = fork(state, cond, false, BranchType::ConditionalBranch);
 
@@ -2503,7 +2503,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
         // Check if control flow could take this case
         bool result;
-        match = optimizer.optimizeExpr(match, false);
+        match = optimizer.optimizeExpr(match, false, state.symcretes);
         bool success = solver->mayBeTrue(state.constraints, match, result,
                                          state.queryMetaData);
         assert(success && "FIXME: Unhandled solver failure");
@@ -2531,7 +2531,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       }
 
       // Check if control could take the default case
-      defaultValue = optimizer.optimizeExpr(defaultValue, false);
+      defaultValue = optimizer.optimizeExpr(defaultValue, false, state.symcretes);
       bool res;
       bool success = solver->mayBeTrue(state.constraints, defaultValue, res,
                                        state.queryMetaData);
@@ -2659,7 +2659,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
          have already got a value. But in the end the caches should
          handle it for us, albeit with some overhead. */
       do {
-        v = optimizer.optimizeExpr(v, true);
+        v = optimizer.optimizeExpr(v, true, state.symcretes);
         ref<ConstantExpr> value;
         bool success =
             solver->getValue(free->constraints, v, value, free->queryMetaData);
@@ -4468,7 +4468,7 @@ void Executor::callExternalFunction(ExecutionState &state,
   for (std::vector<ref<Expr> >::iterator ai = arguments.begin(), 
        ae = arguments.end(); ai!=ae; ++ai) {
     if (ExternalCalls == ExternalCallPolicy::All) { // don't bother checking uniqueness
-      *ai = optimizer.optimizeExpr(*ai, true);
+      *ai = optimizer.optimizeExpr(*ai, true, state.symcretes);
       ref<ConstantExpr> ce;
       bool success =
           solver->getValue(state.evaluateConstraintsWithSymcretes(), *ai, ce, state.queryMetaData);
@@ -4617,9 +4617,9 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   // and return it.
   
   static unsigned id;
-  const Array *array =
-      arrayCache.CreateArray("rrws_arr" + llvm::utostr(++id),
-                             Expr::getMinBytesForWidth(e->getWidth()));
+  const Array *array = arrayCache.CreateArray(
+      "rrws_arr" + llvm::utostr(++id),
+      Expr::createPointer(Expr::getMinBytesForWidth(e->getWidth())));
   ref<Expr> res = Expr::createTempRead(array, e->getWidth());
   ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, res));
   llvm::errs() << "Making symbolic: " << eq << "\n";
@@ -4650,7 +4650,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
                                  size_t allocationAlignment) {
   /// Try to find existing solution
   ref<Expr> optimizedSize = optimizer.optimizeExpr(
-      state.evaluateWithSymcretes(toUnique(state, size)), true);
+      state.evaluateWithSymcretes(toUnique(state, size)), true, state.symcretes);
 
   size_t modelSize; 
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(optimizedSize)) {
@@ -4710,16 +4710,19 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     // FIXME: temporary soliton. We do not want to have static variables.
     static int addressCounter = 0;
 
+    ref<ConstantExpr> pointerWidth =
+        Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT);
+
     /// We'll use this address to make realloc's later.
     const Array *addressArray = memory->getArrayCache()->CreateArray(
         std::string("symAddress") + std::to_string(addressCounter),
-        Context::get().getPointerWidth() / CHAR_BIT);
+        pointerWidth);
     ref<Expr> addressExpr =
         Expr::createTempRead(addressArray, Context::get().getPointerWidth());
     
     const Array *sizeArray = memory->getArrayCache()->CreateArray(
         std::string("symSize") + std::to_string(addressCounter),
-        Context::get().getPointerWidth() / CHAR_BIT);
+        pointerWidth);
     ref<Expr> sizeExpr =
         Expr::createTempRead(sizeArray, Context::get().getPointerWidth());
     addConstraint(state, EqExpr::create(sizeExpr, size));
@@ -4769,7 +4772,7 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
 void Executor::executeFree(ExecutionState &state,
                            ref<Expr> address,
                            KInstruction *target) {
-  address = optimizer.optimizeExpr(address, true);
+  address = optimizer.optimizeExpr(address, true, state.symcretes);
   StatePair zeroPointer =
       fork(state, Expr::createIsZero(address), true, BranchType::Free);
   if (zeroPointer.first) {
@@ -4804,7 +4807,7 @@ void Executor::executeFree(ExecutionState &state,
 void Executor::resolveExact(ExecutionState &state, ref<Expr> p, KType *type,
                             ExactResolutionList &results,
                             const std::string &name) {
-  p = optimizer.optimizeExpr(p, true);
+  p = optimizer.optimizeExpr(p, true, state.symcretes);
   // XXX we may want to be capping this?
   ResolutionList rl;
 
@@ -4875,7 +4878,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       value = ConstraintManager::simplifyExpr(state.constraints, value);
   }
 
-  address = optimizer.optimizeExpr(address, true);
+  address = optimizer.optimizeExpr(address, true, state.symcretes);
 
   // fast path: single in-bounds resolution
   ObjectPair op;
@@ -4900,7 +4903,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
     ref<Expr> offset = mo->getOffsetExpr(address);
     ref<Expr> check = mo->getBoundsCheckOffset(offset, bytes);
-    check = optimizer.optimizeExpr(check, true);
+    check = optimizer.optimizeExpr(check, true, state.symcretes);
 
     bool inBounds;
     solver->setTimeout(coreSolverTimeout);
@@ -4950,7 +4953,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   // we are on an error path (no resolution, multiple resolution, one
   // resolution with out of bounds)
 
-  address = optimizer.optimizeExpr(address, true);
+  address = optimizer.optimizeExpr(address, true, state.symcretes);
   ResolutionList rl;
   ResolutionList rlSkipped;
 
@@ -5185,7 +5188,7 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
   return lazyInstantiate(state, targetType, /*isLocal=*/false, mo);
 }
 
-const Array *Executor::makeArray(ExecutionState &state, const uint64_t size,
+const Array *Executor::makeArray(ExecutionState &state, ref<Expr> size,
                                  const std::string &name) {
   static uint64_t id = 0;
   // std::string uniqueName = name + "#" + std::to_string(id++);
@@ -5205,7 +5208,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
   if (!replayKTest) {
     // Find a unique name for this array.  First try the original name,
     // or if that fails try adding a unique identifier.
-    const Array *array = makeArray(state, mo->size, name);
+    const Array *array = makeArray(state, mo->getSizeExpr(), name);
     const_cast<MemoryObject *>(mo)->isKleeMakeSymbolic = true;
     ObjectState *os = bindObjectInState(state, mo, type, isLocal, array);
 
@@ -5423,7 +5426,7 @@ ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, uint6
     memory->allocate(size, true, /*isGlobal=*/false,
                      value, /*allocationAlignment=*/8);
   memory->deallocate(mo);
-  const Array *array = makeArray(state, size, name);
+  const Array *array = makeArray(state, Expr::createPointer(size), name);
   state.addSymbolic(mo, array);
   assert(value && "Attempted to make symbolic value from nullptr Value");
   ObjectState *os = new ObjectState(
@@ -5553,6 +5556,8 @@ void Executor::logState(ExecutionState &state, int id,
       continue;
     }
     *f << "Lazily instantiated\n";
+    /// FIXME: should not be commented
+
     // auto lisource = i.first->addressExpr;
     // *f << "Lazy Instantiation Source: ";
     // lisource->print(*f);
