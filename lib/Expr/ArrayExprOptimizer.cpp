@@ -273,7 +273,7 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(assignment.evaluate(read->updates.root->getSize()))) {
         size = CE->getZExtValue();
       } else {
-        assert(false && "Array size does not have concretization (ArrayExprOptimisation)");
+        assert(false && "Array size does not have concretization (ArrayExprOptimization)");
       }
       unsigned bytesPerElement = width / 8;
       unsigned elementsInArray = size / bytesPerElement;
@@ -353,7 +353,7 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(assignment.evaluate(read->updates.root->getSize()))) {
         size = CE->getZExtValue();
       } else {
-        assert(false && "Array size does not have concretization (ArrayExprOptimisation)");
+        assert(false && "Array size does not have concretization (ArrayExprOptimization)");
       }
       unsigned bytesPerElement = width / 8;
       unsigned elementsInArray = size / bytesPerElement;

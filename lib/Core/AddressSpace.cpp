@@ -13,6 +13,7 @@
 #include "Memory.h"
 #include "TimingSolver.h"
 
+#include "klee/ADT/BitArray.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Module/KType.h"
 #include "klee/Statistics/TimerStatIncrementer.h"

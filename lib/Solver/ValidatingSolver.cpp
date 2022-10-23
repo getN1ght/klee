@@ -120,7 +120,7 @@ bool ValidatingSolver::computeInitialValues(
         assert(symsize.size() == 8 &&
                "Size array does not have enought bytes in concretization");
 
-        for (int bit = 0; bit < symsize.size(); ++bit) {
+        for (unsigned bit = 0; bit < symsize.size(); ++bit) {
           size |= (symsize[bit] << bit);
         }
       }

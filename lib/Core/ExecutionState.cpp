@@ -13,6 +13,7 @@
 
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprHashMap.h"
+#include "klee/Expr/ExprUtil.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"
@@ -208,6 +209,20 @@ void ExecutionState::addSymbolic(const MemoryObject *mo, const Array *array) {
   symbolics.emplace_back(ref<const MemoryObject>(mo), array);
 }
 
+void ExecutionState::addSymSize(MemoryObject *mo, const Array *array) {
+  symsizes.emplace(array, ref<MemoryObject>(mo));
+}
+
+void ExecutionState::addSymAddress(MemoryObject *mo, const Array *array) {
+  symAddresses.emplace(mo, array);
+}
+
+const Array *ExecutionState::findSymAddress(const MemoryObject *mo) const {
+  if (!symAddresses.count(mo)) {
+    return nullptr;
+  }
+  return symAddresses.at(mo);
+}
 
 ref<const MemoryObject>
 ExecutionState::findMemoryObject(const Array *array) const {
@@ -219,6 +234,19 @@ ExecutionState::findMemoryObject(const Array *array) const {
   }
   return nullptr;
 }
+
+
+// FIXME: linear search
+const Array *ExecutionState::findSymbolicArray(ref<const MemoryObject> mo) const {
+  for (unsigned i = 0; i != symbolics.size(); ++i) {
+    const auto &symbolic = symbolics[i];
+    if (mo == symbolic.first) {
+      return symbolic.second;
+    }
+  }
+  return nullptr;
+}
+
 
 bool ExecutionState::isSymcrete(const Array *array) {
   return symcretes.bindings.count(array);
@@ -242,7 +270,76 @@ void ExecutionState::addSymcrete(
       Expr::createPointer(value)));
 }
 
-ref<Expr> ExecutionState::evaluateWithSymcretes(ref<Expr> e) const {
+
+static std::vector<unsigned char> addressToBytes(uint64_t value) {
+  unsigned char *addressBytesIterator =
+      reinterpret_cast<unsigned char *>(&value);
+  return std::vector<unsigned char>(addressBytesIterator,
+                                    addressBytesIterator + sizeof(value));
+}
+
+
+void ExecutionState::updateSymcretes(Assignment &assignment) {
+  symcretes.bindings.clear();
+
+  constraintsWithSymcretes = ConstraintSet();
+  for (const auto &assign: assignment.bindings) {
+    uint64_t value = 0; 
+    const std::vector<unsigned char> &concretization = assign.second;
+    assert(concretization.size() == Context::get().getPointerWidth() / CHAR_BIT &&
+           "Symcrete must be a 64-bit value");
+    for (unsigned bit = 0; bit < concretization.size(); ++bit) {
+      value |= (concretization[bit] << bit);
+    }
+    if (symsizes.count(assign.first) == 0) {
+      // FIXME: assert, that address will appear in such case
+      addSymcrete(assign.first, concretization, value);
+    }
+  }
+
+  ConstraintManager cs(constraintsWithSymcretes);
+
+  for (const auto &constraint: constraints) {
+    cs.addConstraint(evaluateWithSymcretes(constraint));
+  }
+
+  for (auto &symsizeToMO: symsizes) {
+    MemoryObject *mo = symsizeToMO.second.get();
+    ObjectState *os = const_cast<ObjectState *>(addressSpace.findObject(mo));
+    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(
+            evaluateWithSymcretes(symsizeToMO.second->getSizeExpr()))) {
+      uint64_t oldSize = mo->size;
+      if (CE->getZExtValue() <= oldSize) {
+        continue;
+      }
+
+      uint64_t newSize =
+          std::max(2 * static_cast<uint64_t>(mo->size), CE->getZExtValue());
+      assert(mo->parent);
+      MemoryObject *newMO = mo->parent->allocate(newSize, mo->isLocal, /*isGlobal=*/mo->isGlobal, mo->allocSite,
+                          /* FIXME: allocation alignment should be saved in MO */ 8, mo->addressExpr, mo->sizeExpr);
+
+      const Array *oldArray = findSymbolicArray(mo);
+      ObjectState *newOS =
+          oldArray ? new ObjectState(newMO, oldArray, os->getDynamicType())
+                   : new ObjectState(newMO, os->getDynamicType());
+      addressSpace.bindObject(newMO, newOS);
+      
+      /// Truncated size required if we have written 
+      for (unsigned i = 0; i < oldSize; i++) {
+        os->write(i, os->read8(i));
+      }
+
+      addSymcrete(findSymAddress(mo), addressToBytes(newMO->size), newMO->size);
+      addressSpace.unbindObject(mo);
+    } else {
+      assert(0 && "Size is not concrete");
+    }
+  }
+}
+
+
+ref<Expr> ExecutionState::evaluateWithSymcretes(const ref<Expr> e) const {
   return symcretes.evaluate(e);
 }
 
@@ -469,8 +566,16 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
 void ExecutionState::addConstraint(ref<Expr> e) {
   ConstraintManager c(constraints);
   ConstraintManager cs(constraintsWithSymcretes);
+  
+  std::vector<const Array *> arrays;
+  findSymbolicObjects(e, arrays);
   c.addConstraint(e);
-  cs.addConstraint(evaluateWithSymcretes(e));
+  ref<Expr> evaluatedConstraint = cs.addConstraint(evaluateWithSymcretes(e));
+  for (const auto *array : arrays) {
+    if (isSymcrete(array)) {
+      symcreteToConstraints[evaluatedConstraint].insert(array);
+    }
+  }
 }
 
 void ExecutionState::addCexPreference(const ref<Expr> &cond) {

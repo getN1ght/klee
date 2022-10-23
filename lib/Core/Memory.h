@@ -92,17 +92,8 @@ public:
   MemoryObject(uint64_t _address) 
     : id(counter++),
       address(_address),
-      addressExpr(nullptr),
-      size(0),
-      isFixed(true),
-      parent(NULL),
-      allocSite(0) {
-  }
-
-  MemoryObject(ref<Expr> _lazyInstantiatedSource)
-    : id(counter++),
-      address((uint64_t)0xffffffffffffffff),
-      addressExpr(_lazyInstantiatedSource),
+      addressExpr(Expr::createPointer(_address)),
+      sizeExpr(Expr::createPointer(0)),
       size(0),
       isFixed(true),
       parent(NULL),

@@ -81,6 +81,10 @@ public:
                        ValidityCore &validityCore, bool &result,
                        SolverQueryMetaData &metaData);
 
+  // bool getValidAssignment(const ConstraintSet &, ref<Expr>,
+  //                         ValidityCore &validityCore, bool &result,
+  //                         Assignment &symcretes) const;
+
   std::pair<ref<Expr>, ref<Expr>> getRange(const ConstraintSet &,
                                            ref<Expr> query,
                                            SolverQueryMetaData &metaData,
