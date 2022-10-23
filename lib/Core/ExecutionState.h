@@ -24,6 +24,7 @@
 
 #include "llvm/IR/Function.h"
 
+#include <set>
 #include <map>
 #include <memory>
 #include <unordered_set>
@@ -237,6 +238,15 @@ public:
   /// @brief Symcrete concretisations for this state
   mutable Assignment symcretes = Assignment(true);
 
+  /// @brief Mapping from symcrete to actual constraint
+  ExprHashMap<std::set<const Array *>> symcreteToConstraints;
+
+  /// @brief Mapping from array of sizes to corresponding Memory Objects
+  std::unordered_map<const Array *, ref<MemoryObject>> symsizes;
+
+  /// @brief TODO:
+  std::unordered_map<const MemoryObject *, const Array *> symAddresses;
+
   /// @brief The objects handling the klee_open_merge calls this state ran through
   std::vector<ref<MergeHandler>> openMergeStack;
 
@@ -301,18 +311,23 @@ public:
 
   void addSymbolic(const MemoryObject *mo, const Array *array);
 
-  void addSymsize(const MemoryObject *mo, const Array *array);
+  void addSymSize(MemoryObject *mo, const Array *array);
 
-  void addSymaddress(const MemoryObject *mo, const Array *array);
+  void addSymAddress(MemoryObject *mo, const Array *array);
+
+  const Array *findSymAddress(const MemoryObject *mo) const;
 
   ref<const MemoryObject> findMemoryObject(const Array *array) const;
+  const Array *findSymbolicArray(ref<const MemoryObject> mo) const;
 
   bool isSymcrete(const Array *array);
 
   void addSymcrete(const Array *array,
                    const std::vector<unsigned char> &concretisation, uint64_t value);
 
-  ref<Expr> evaluateWithSymcretes(ref<Expr> e) const;
+  void updateSymcretes(Assignment &assignment);
+
+  ref<Expr> evaluateWithSymcretes(const ref<Expr> e) const;
   ConstraintSet evaluateConstraintsWithSymcretes() const;
 
   void addConstraint(ref<Expr> e);

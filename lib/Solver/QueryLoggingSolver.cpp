@@ -203,15 +203,17 @@ bool QueryLoggingSolver::computeInitialValues(
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(array->getSize())) {
           size = CE->getZExtValue();
         } else if (ReadExpr *RE =
-                        AssignmentGenerator::hasOrderedReads(array->getSize())) {
+                       AssignmentGenerator::hasOrderedReads(array->getSize())) {
           std::vector<unsigned char> &symsize =
               arrayToConcreteValue[RE->updates.root];
           assert(symsize.size() == 8 &&
-                  "Size array does not have enought bytes in concretization");
+                 "Size array does not have enought bytes in concretization");
 
-          for (int bit = 0; bit < symsize.size(); ++bit) {
+          for (unsigned bit = 0; bit < symsize.size(); ++bit) {
             size |= (symsize[bit] << bit);
           }
+        } else {
+          assert(false && "Array size expression is not correct!");
         }
 
         for (unsigned j = 0; j < size; j++) {
@@ -265,7 +267,7 @@ bool QueryLoggingSolver::check(const Query &query, ref<SolverRespone> &result) {
           assert(symsize.size() == 8 &&
                  "Size array does not have enought bytes in concretization");
 
-          for (int bit = 0; bit < symsize.size(); ++bit) {
+          for (unsigned bit = 0; bit < symsize.size(); ++bit) {
             size |= (symsize[bit] << bit);
           }
         }

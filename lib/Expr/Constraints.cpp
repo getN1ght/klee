@@ -116,7 +116,7 @@ ref<Expr> ConstraintManager::simplifyExpr(const ConstraintSet &constraints,
 }
 
 void ConstraintManager::addConstraintInternal(const ref<Expr> &e) {
-  // rewrite any known equalities and split Ands into different conjuncts
+  // rewrite any known equalities and split Ands into different conjuncts 
 
   switch (e->getKind()) {
   case Expr::Constant:
@@ -155,9 +155,10 @@ void ConstraintManager::addConstraintInternal(const ref<Expr> &e) {
   }
 }
 
-void ConstraintManager::addConstraint(const ref<Expr> &e) {
+ref<Expr> ConstraintManager::addConstraint(const ref<Expr> &e) {
   ref<Expr> simplified = simplifyExpr(constraints, e);
   addConstraintInternal(simplified);
+  return simplified;
 }
 
 ConstraintManager::ConstraintManager(ConstraintSet &_constraints)

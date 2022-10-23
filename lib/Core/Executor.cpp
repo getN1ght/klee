@@ -4728,10 +4728,6 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     addConstraint(state, EqExpr::create(sizeExpr, size));
     ++addressCounter;
 
-    /// TODO:
-    /// Moreother, we need to add sizeArray to list of known sizes
-    /// as we need to make `Array`s to have symcrete sizes.
-
     mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
                           allocationAlignment, addressExpr, sizeExpr);
 
@@ -5183,7 +5179,7 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
     return ObjectPair(nullptr, nullptr);
   }
 
-  state.addConstraint(EqExpr::create(mo->getBaseExpr(), address));
+  addConstraint(state, EqExpr::create(mo->getBaseExpr(), address));
 
   return lazyInstantiate(state, targetType, /*isLocal=*/false, mo);
 }

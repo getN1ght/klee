@@ -34,7 +34,8 @@ namespace klee {
     const ConstraintSet &constraints;
     ref<Expr> expr;
     bool produceValidityCore = false;
-
+    
+    // FIXME: change core to false
     Query(const ConstraintSet &_constraints, ref<Expr> _expr,
           bool _produceValidityCore = false)
         : constraints(_constraints), expr(_expr),
