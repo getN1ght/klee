@@ -590,7 +590,7 @@ void SpecialFunctionHandler::handleAssume(ExecutionState &state,
     e = NeExpr::create(e, ConstantExpr::create(0, e->getWidth()));
   
   bool res;
-  bool success __attribute__((unused)) = executor.solver->mustBeFalse(
+  bool success __attribute__((unused)) = executor.solver->mustBeFalse(state, 
       state.evaluateConstraintsWithSymcretes(), state.evaluateWithSymcretes(e),
       res, state.queryMetaData);
   assert(success && "FIXME: Unhandled solver failure");
@@ -703,9 +703,9 @@ void SpecialFunctionHandler::handlePrintRange(ExecutionState &state,
         state.evaluateWithSymcretes(arguments[1]), value, state.queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");
     bool res;
-    success = executor.solver->mustBeTrue(
+    success = executor.solver->mustBeTrue(state, 
         state.evaluateConstraintsWithSymcretes(),
-        state.evaluateWithSymcretes(EqExpr::create(arguments[1], value)), res,
+        EqExpr::create(arguments[1], value), res,
         state.queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");
     if (res) {
@@ -951,9 +951,9 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
     // FIXME: Type coercion should be done consistently somewhere.
     bool res;
     bool success __attribute__((unused)) = executor.solver->mustBeTrue(
-        s->evaluateConstraintsWithSymcretes(),
+        *s, s->evaluateConstraintsWithSymcretes(),
         EqExpr::create(
-            s->evaluateWithSymcretes(ZExtExpr::create(arguments[1], Context::get().getPointerWidth())),
+            ZExtExpr::create(arguments[1], Context::get().getPointerWidth()),
             mo->getSizeExpr()),
         res, s->queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");

@@ -59,7 +59,7 @@ KTestObject *SeedInfo::getNextInput(const MemoryObject *mo,
   }
 }
 
-void SeedInfo::patchSeed(const ExecutionState &state, 
+void SeedInfo::patchSeed(ExecutionState &state, 
                          ref<Expr> condition,
                          TimingSolver *solver) {
   ConstraintSet required(state.constraints);
@@ -98,7 +98,7 @@ void SeedInfo::patchSeed(const ExecutionState &state,
                                                             Expr::Int8));
       bool res;
       bool success =
-          solver->mustBeFalse(required, isSeed, res, state.queryMetaData);
+          solver->mustBeFalse(state, required, isSeed, res, state.queryMetaData);
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
       if (res) {
@@ -118,7 +118,7 @@ void SeedInfo::patchSeed(const ExecutionState &state,
 
   bool res;
   bool success =
-      solver->mayBeTrue(state.constraints, assignment.evaluate(condition), res,
+      solver->mayBeTrue(state, state.constraints, assignment.evaluate(condition), res,
                         state.queryMetaData);
   assert(success && "FIXME: Unhandled solver failure");
   (void) success;
@@ -141,7 +141,7 @@ void SeedInfo::patchSeed(const ExecutionState &state,
                                                             Expr::Int8));
       bool res;
       bool success =
-          solver->mustBeFalse(required, isSeed, res, state.queryMetaData);
+          solver->mustBeFalse(state, required, isSeed, res, state.queryMetaData);
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
       if (res) {
@@ -163,7 +163,7 @@ void SeedInfo::patchSeed(const ExecutionState &state,
   {
     bool res;
     bool success =
-        solver->mayBeTrue(state.constraints, assignment.evaluate(condition),
+        solver->mayBeTrue(state, state.constraints, assignment.evaluate(condition),
                           res, state.queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");            
     (void) success;
