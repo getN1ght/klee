@@ -242,8 +242,10 @@ public:
   ExprHashMap<std::set<const Array *>> symcreteToConstraints;
 
   /// @brief Mapping from array of sizes to corresponding Memory Objects
-  std::unordered_map<const Array *, ref<MemoryObject>> symsizes;
+  std::unordered_map<const Array *, ref<MemoryObject>> symsizesToMO;
 
+  std::unordered_map<const MemoryObject *, const Array *> symSizes;
+  
   /// @brief TODO:
   std::unordered_map<const MemoryObject *, const Array *> symAddresses;
 
@@ -325,7 +327,7 @@ public:
   void addSymcrete(const Array *array,
                    const std::vector<unsigned char> &concretisation, uint64_t value);
 
-  void updateSymcretes(Assignment &assignment);
+  void updateSymcretes(const Assignment &assignment);
 
   ref<Expr> evaluateWithSymcretes(const ref<Expr> e) const;
   ConstraintSet evaluateConstraintsWithSymcretes() const;

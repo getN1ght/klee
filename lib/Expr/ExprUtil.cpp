@@ -91,9 +91,13 @@ protected:
       visit(un->value);
     }
 
-    if (!findOnlySymbolicObjects || ul.root->isSymbolicArray())
-      if (results.insert(ul.root).second)
-        objects.push_back(ul.root);
+    if (!findOnlySymbolicObjects || ul.root->isSymbolicArray()) {
+      visit(ul.root->getSize());
+      
+      if (ul.root->isSymbolicArray())
+        if (results.insert(ul.root).second)
+          objects.push_back(ul.root);
+    }
 
     return Action::doChildren();
   }
@@ -164,6 +168,7 @@ template void klee::findSymbolicObjects<B>(B, B, std::vector<const Array*> &);
 
 typedef ExprHashSet::iterator C;
 template void klee::findSymbolicObjects<C>(C, C, std::vector<const Array*> &);
+
 
 bool klee::isReadFromSymbolicArray(ref<Expr> e) {
   if (!isa<ReadExpr>(e) && !isa<ConcatExpr>(e)) {
