@@ -571,6 +571,7 @@ void ExecutionState::addConstraint(ref<Expr> e) {
   findSymbolicObjects(e, arrays);
   c.addConstraint(e);
   ref<Expr> evaluatedConstraint = cs.addConstraint(evaluateWithSymcretes(e));
+  
   for (const auto *array : arrays) {
     if (isSymcrete(array)) {
       symcreteToConstraints[evaluatedConstraint].insert(array);

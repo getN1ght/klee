@@ -91,7 +91,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     ref<ConstantExpr> cex;
     
     if (!solver->getValue(state.evaluateConstraintsWithSymcretes(),
-                          state.evaluateWithSymcretes(address), cex,
+                          address, cex,
                           state.queryMetaData))
       return false;
 
@@ -129,10 +129,10 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
       }
 
       bool mayBeTrue;
-      if (!solver->mayBeTrue(
+      if (!solver->mayBeTrue(state, 
               state.evaluateConstraintsWithSymcretes(),
-              state.evaluateWithSymcretes(mo->getBoundsCheckPointer(address)),
-              mayBeTrue, state.queryMetaData))
+              mo->getBoundsCheckPointer(address),
+              mayBeTrue, state.queryMetaData, true))
         return false;
       if (mayBeTrue) {
         result.first = oi->first;
@@ -140,10 +140,12 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
         success = true;
         return true;
       } else {
+        /// HERE
+        
         bool mustBeTrue;
-        if (!solver->mustBeTrue(state.evaluateConstraintsWithSymcretes(),
-                                state.evaluateWithSymcretes(UgeExpr::create(
-                                    address, mo->getBaseExpr())),
+        if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                                UgeExpr::create(
+                                    address, mo->getBaseExpr()),
                                 mustBeTrue, state.queryMetaData))
           return false;
         
@@ -161,9 +163,8 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
       }
 
       bool mustBeTrue;
-      if (!solver->mustBeTrue(state.evaluateConstraintsWithSymcretes(),
-                              state.evaluateWithSymcretes(
-                                  UltExpr::create(address, mo->getBaseExpr())),
+      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                                  UltExpr::create(address, mo->getBaseExpr()),
                               mustBeTrue, state.queryMetaData))
         return false;
       if (mustBeTrue) {
@@ -171,9 +172,9 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
       } else {
         bool mayBeTrue;
 
-        if (!solver->mayBeTrue(
+        if (!solver->mayBeTrue(state, 
                 state.evaluateConstraintsWithSymcretes(),
-                state.evaluateWithSymcretes(mo->getBoundsCheckPointer(address)),
+                mo->getBoundsCheckPointer(address),
                 mayBeTrue, state.queryMetaData))
           return false;
         if (mayBeTrue) {
@@ -198,11 +199,10 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
   // mustBeTrue before mayBeTrue for the first result. easy
   // to add I just want to have a nice symbolic test case first.
   const MemoryObject *mo = op.first;
-  ref<Expr> inBoundsWithSymcretes =
-      state.evaluateWithSymcretes(mo->getBoundsCheckPointer(p));
+  ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
   bool mayBeTrue;
-  if (!solver->mayBeTrue(state.evaluateConstraintsWithSymcretes(),
-                         inBoundsWithSymcretes, mayBeTrue,
+  if (!solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                         inBounds, mayBeTrue,
                          state.queryMetaData)) {
     return 1;
   }
@@ -214,8 +214,8 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
     auto size = rl.size();
     if (size == 1) {
       bool mustBeTrue;
-      if (!solver->mustBeTrue(state.evaluateConstraintsWithSymcretes(),
-                              inBoundsWithSymcretes, mustBeTrue,
+      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                              inBounds, mustBeTrue,
                               state.queryMetaData))
         return 1;
       if (mustBeTrue)
@@ -293,7 +293,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
         return incomplete ? true : false;
 
       bool mustBeTrue;
-      if (!solver->mustBeTrue(state.evaluateConstraintsWithSymcretes(),
+      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                               state.evaluateWithSymcretes(
                                   UgeExpr::create(p, mo->getBaseExpr())),
                               mustBeTrue, state.queryMetaData))
@@ -315,9 +315,8 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
       }
 
       bool mustBeTrue;
-      if (!solver->mustBeTrue(state.evaluateConstraintsWithSymcretes(),
-                              state.evaluateWithSymcretes(
-                                  UltExpr::create(p, mo->getBaseExpr())),
+      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                                  UltExpr::create(p, mo->getBaseExpr()),
                               mustBeTrue, state.queryMetaData))
         return true;
       if (mustBeTrue)
@@ -400,9 +399,8 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
         return incomplete ? true : false;
 
       bool mustBeTrue;
-      if (!solver->mustBeTrue(state.evaluateConstraintsWithSymcretes(),
-                              state.evaluateWithSymcretes(
-                                  UgeExpr::create(p, mo->getBaseExpr())),
+      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                                  UgeExpr::create(p, mo->getBaseExpr()),
                               mustBeTrue, state.queryMetaData))
         return true;
       if (mustBeTrue)
@@ -423,9 +421,8 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
         return true;
 
       bool mustBeTrue;
-      if (!solver->mustBeTrue(state.evaluateConstraintsWithSymcretes(),
-                              state.evaluateWithSymcretes(
-                                  UltExpr::create(p, mo->getBaseExpr())),
+      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                                  UltExpr::create(p, mo->getBaseExpr()),
                               mustBeTrue, state.queryMetaData))
         return true;
       if (mustBeTrue)

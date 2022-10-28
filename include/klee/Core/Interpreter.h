@@ -174,7 +174,7 @@ public:
                                 std::string &res,
                                 LogType logFormat = STP) = 0;
 
-  virtual bool getSymbolicSolution(const ExecutionState &state,
+  virtual bool getSymbolicSolution(ExecutionState &state,
                                    TestCase &res) = 0;
 
   virtual int resolveLazyInstantiation(ExecutionState& state) = 0;

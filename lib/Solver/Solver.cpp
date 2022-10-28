@@ -78,6 +78,10 @@ bool Solver::mayBeFalse(const Query& query, bool &result) {
   return true;
 }
 
+bool Solver::check(const Query &query, ref<SolverRespone> &queryResult) {
+  return impl->check(query, queryResult);
+}
+
 bool Solver::getValue(const Query& query, ref<ConstantExpr> &result) {
   // Maintain invariants implementation expect.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(query.expr)) {

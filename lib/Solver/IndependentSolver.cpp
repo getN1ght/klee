@@ -612,7 +612,7 @@ bool IndependentSolver::check(const Query &query, ref<SolverRespone> &result) {
     }
     ConstraintSet tmp(it->exprs);
     ref<SolverRespone> tempResult;
-    std::map<const Array *, std::vector<unsigned char>> tempValues;
+    std::vector<std::vector<unsigned char>> tempValues;
     if (!solver->impl->check(Query(tmp, ConstantExpr::alloc(0, Expr::Bool),
                                    query.produceValidityCore),
                              tempResult)) {
@@ -623,7 +623,8 @@ bool IndependentSolver::check(const Query &query, ref<SolverRespone> &result) {
       result = tempResult;
       return true;
     } else {
-      tempResult->getInitialValues(tempValues);
+      assert(tempResult->getInitialValuesFor(arraysInFactor, tempValues) &&
+             "Can not get initial values (Independent solver)!");
       assert(tempValues.size() == arraysInFactor.size() &&
              "Should be equal number arrays and answers");
       for (unsigned i = 0; i < tempValues.size(); i++) {
@@ -632,17 +633,17 @@ bool IndependentSolver::check(const Query &query, ref<SolverRespone> &result) {
           // so we need to place the answers to the new query into the right
           // spot while avoiding the undetermined values also in the array
           std::vector<unsigned char> *tempPtr = &retMap[arraysInFactor[i]];
-          assert(tempPtr->size() == tempValues[arraysInFactor[i]].size() &&
+          assert(tempPtr->size() == tempValues[i].size() &&
                  "we're talking about the same array here");
           ::DenseSet<unsigned> *ds = &(it->elements[arraysInFactor[i]]);
           for (std::set<unsigned>::iterator it2 = ds->begin(); it2 != ds->end();
                it2++) {
             unsigned index = *it2;
-            (*tempPtr)[index] = tempValues[arraysInFactor[i]][index];
+            (*tempPtr)[index] = tempValues[i][index];
           }
         } else {
           // Dump all the new values into the array
-          retMap[arraysInFactor[i]] = tempValues[arraysInFactor[i]];
+          retMap[arraysInFactor[i]] = tempValues[i];
         }
       }
     }

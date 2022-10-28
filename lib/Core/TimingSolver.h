@@ -12,15 +12,19 @@
 
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprHashMap.h"
+#include "klee/Expr/Assignment.h"
 #include "klee/Solver/Solver.h"
 #include "klee/System/Time.h"
 
+#include <unordered_map>
 #include <memory>
 #include <vector>
 
 namespace klee {
 class ConstraintSet;
 class Solver;
+class ExecutionState;
 
 /// TimingSolver - A simple class which wraps a solver and handles
 /// tracking the statistics that we care about.
@@ -52,19 +56,19 @@ public:
                 ref<SolverRespone> &negateQueryResult,
                 SolverQueryMetaData &metaData);
 
-  bool mustBeTrue(const ConstraintSet &, ref<Expr>, bool &result,
+  bool mustBeTrue(ExecutionState &state, const ConstraintSet &, ref<Expr>, bool &result,
                   SolverQueryMetaData &metaData,
                   bool produceValidityCore = false);
 
-  bool mustBeFalse(const ConstraintSet &, ref<Expr>, bool &result,
+  bool mustBeFalse(ExecutionState &state, const ConstraintSet &, ref<Expr>, bool &result,
                    SolverQueryMetaData &metaData,
                    bool produceValidityCore = false);
 
-  bool mayBeTrue(const ConstraintSet &, ref<Expr>, bool &result,
+  bool mayBeTrue(ExecutionState &state, const ConstraintSet &, ref<Expr>, bool &result,
                  SolverQueryMetaData &metaData,
                  bool produceValidityCore = false);
 
-  bool mayBeFalse(const ConstraintSet &, ref<Expr>, bool &result,
+  bool mayBeFalse(ExecutionState &state, const ConstraintSet &, ref<Expr>, bool &result,
                   SolverQueryMetaData &metaData,
                   bool produceValidityCore = false);
 
@@ -81,9 +85,14 @@ public:
                        ValidityCore &validityCore, bool &result,
                        SolverQueryMetaData &metaData);
 
-  // bool getValidAssignment(const ConstraintSet &, ref<Expr>,
-  //                         ValidityCore &validityCore, bool &result,
-  //                         Assignment &symcretes) const;
+  bool getValidAssignment(const ConstraintSet &, ref<Expr>,
+                          ValidityCore validityCore,
+                          Assignment symcretes,
+                          const std::unordered_map<const Array *, ref<MemoryObject>> &symsizes,
+                          const ExprHashMap<std::set<const Array *>> &exprToSymcretes,
+                          bool &hasResult,
+                          Assignment &result,
+                          SolverQueryMetaData &metaData) const;
 
   std::pair<ref<Expr>, ref<Expr>> getRange(const ConstraintSet &,
                                            ref<Expr> query,

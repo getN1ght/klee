@@ -373,6 +373,8 @@ namespace klee {
     bool getValidityCore(const Query &, ValidityCore &validityCore,
                          bool &result);
 
+    bool check(const Query &, ref<SolverRespone> &queryResult);
+
     /// getRange - Compute a tight range of possible values for a given
     /// expression.
     ///

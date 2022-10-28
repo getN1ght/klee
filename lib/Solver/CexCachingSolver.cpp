@@ -426,6 +426,37 @@ bool CexCachingSolver::check(const Query &query, ref<SolverRespone> &result) {
     return true;
   }
 
+  ExprHashSet expressions;
+  expressions.insert(query.constraints.begin(), query.constraints.end());
+  expressions.insert(query.expr);
+
+  std::vector<const Array *> objects;
+  findSymbolicObjects(expressions.begin(), expressions.end(), objects);
+  for (unsigned i = 0; i < objects.size(); ++i) {
+    const Array *os = objects[i];
+    Assignment::bindings_ty::iterator it = a->bindings.find(os);
+
+    uint64_t size = 0;
+    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(os->getSize())) {
+      size = CE->getZExtValue();
+    } else if (ReadExpr *RE =
+                   AssignmentGenerator::hasOrderedReads(os->getSize())) {
+      std::vector<unsigned char> &symsize = a->bindings[RE->updates.root];
+      assert(symsize.size() == 8 &&
+             "Size array does not have enought bytes in concretization");
+
+      for (unsigned bit = 0; bit < symsize.size(); ++bit) {
+        size |= (symsize[bit] << bit);
+      }
+    } else {
+      assert(0 && "Cannot receive array size from binding (CexCaching)");
+    }
+
+    if (it == a->bindings.end()) {
+      a->bindings[os] = std::vector<unsigned char>(size, 0);
+    }
+  }
+
   result = new InvalidResponse(a->bindings);
 
   return true;
