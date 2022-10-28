@@ -1145,7 +1145,8 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   solver->setTimeout(timeout);
 
   ref<SolverRespone> trueRespone, falseRespone;
-  Assignment trueSymcretes, falseSymcretes;
+  Assignment trueSymcretes = current.symcretes,
+             falseSymcretes = current.symcretes;
   ValidityCore trueCore, falseCore;
 
   solver->evaluate(current.evaluateConstraintsWithSymcretes(),
@@ -1160,7 +1161,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   if (trueRespone->getValidityCore(trueCore)) {
     bool hasResult;
     assert(solver->getValidAssignment(current.constraints, condition, trueCore,
-                               current.symcretes, current.symsizes,
+                               current.symcretes, current.symsizesToMO,
                                current.symcreteToConstraints, hasResult,
                                trueSymcretes, current.queryMetaData));
     /// res = Unknown if hasResult else res = True
@@ -1172,7 +1173,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   if (falseRespone->getValidityCore(falseCore)) {
     bool hasResult;
     assert(solver->getValidAssignment(current.constraints, Expr::createIsZero(condition), falseCore,
-                               current.symcretes, current.symsizes,
+                               current.symcretes, current.symsizesToMO,
                                current.symcreteToConstraints, hasResult,
                                falseSymcretes, current.queryMetaData));
     if (!hasResult) {
@@ -4784,6 +4785,8 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
 
     state.addSymcrete(addressArray, addressToBytes(mo->address), mo->address);
     state.addSymcrete(sizeArray, addressToBytes(modelSize), modelSize);
+    state.addSymAddress(mo, addressArray);
+    state.addSymSize(mo, sizeArray);
   }
   return mo;
 }
@@ -5193,7 +5196,6 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
                                              KType *targetType, ref<Expr> size) {
   assert(!isa<ConstantExpr>(address));
   const llvm::Value *allocSite = target ? target->inst : nullptr;
-  /// TODO: make similar to executeAlloc
   MemoryObject *mo = allocate(state, size, false, allocSite,
                               /*allocationAlignment=*/8);
   mo->wasLazyInstantiated = true;
@@ -5254,8 +5256,12 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
     ObjectState *os = bindObjectInState(state, mo, type, isLocal, array);
 
     if (AlignSymbolicPointers) {
-      if (ref<Expr> alignmentRestrictions =
-              type->getContentRestrictions(os->read(0, os->size * CHAR_BIT))) {
+      ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()));
+      assert(CE && "Object should have constant size during execution!");
+
+      if (ref<Expr> alignmentRestrictions = type->getContentRestrictions(
+              os->read(0, CE->getZExtValue() * CHAR_BIT))) {
+        alignmentRestrictions->dump();
         addConstraint(state, alignmentRestrictions);
       }
     }

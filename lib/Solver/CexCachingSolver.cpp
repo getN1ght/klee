@@ -431,7 +431,7 @@ bool CexCachingSolver::check(const Query &query, ref<SolverRespone> &result) {
   expressions.insert(query.expr);
 
   std::vector<const Array *> objects;
-  findSymbolicObjects(expressions.begin(), expressions.end(), objects);
+  findObjects(expressions.begin(), expressions.end(), objects);
   for (unsigned i = 0; i < objects.size(); ++i) {
     const Array *os = objects[i];
     Assignment::bindings_ty::iterator it = a->bindings.find(os);

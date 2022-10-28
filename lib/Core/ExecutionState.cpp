@@ -210,19 +210,14 @@ void ExecutionState::addSymbolic(const MemoryObject *mo, const Array *array) {
 }
 
 void ExecutionState::addSymSize(MemoryObject *mo, const Array *array) {
-  symsizes.emplace(array, ref<MemoryObject>(mo));
+  symsizesToMO.emplace(array, ref<MemoryObject>(mo));
+  symSizes.emplace(mo, array);
 }
 
 void ExecutionState::addSymAddress(MemoryObject *mo, const Array *array) {
   symAddresses.emplace(mo, array);
 }
 
-const Array *ExecutionState::findSymAddress(const MemoryObject *mo) const {
-  if (!symAddresses.count(mo)) {
-    return nullptr;
-  }
-  return symAddresses.at(mo);
-}
 
 ref<const MemoryObject>
 ExecutionState::findMemoryObject(const Array *array) const {
@@ -278,23 +273,30 @@ static std::vector<unsigned char> addressToBytes(uint64_t value) {
                                     addressBytesIterator + sizeof(value));
 }
 
+static uint64_t bytesToAddress(const std::vector<unsigned char> &concretization) {
+  uint64_t value = 0;
+  assert(concretization.size() == Context::get().getPointerWidth() / CHAR_BIT &&
+          "Symcrete must be a 64-bit value");
+  for (unsigned bit = 0; bit < concretization.size(); ++bit) {
+    value |= (concretization[bit] << bit);
+  }
+  return value;
+} 
 
-void ExecutionState::updateSymcretes(Assignment &assignment) {
-  symcretes.bindings.clear();
-
+void ExecutionState::updateSymcretes(const Assignment &assignment) {
   constraintsWithSymcretes = ConstraintSet();
-  for (const auto &assign: assignment.bindings) {
-    uint64_t value = 0; 
+
+  Assignment copy = symcretes;
+  for (const auto &assign : assignment.bindings) {
+    copy.bindings[assign.first] = assign.second;
+    assert(symAddresses.count(symsizesToMO[assign.first].get()));
+    copy.bindings.erase(symAddresses[symsizesToMO[assign.first].get()]);
+  }
+
+  symcretes.bindings.clear();
+  for (const auto &assign : copy.bindings) {
     const std::vector<unsigned char> &concretization = assign.second;
-    assert(concretization.size() == Context::get().getPointerWidth() / CHAR_BIT &&
-           "Symcrete must be a 64-bit value");
-    for (unsigned bit = 0; bit < concretization.size(); ++bit) {
-      value |= (concretization[bit] << bit);
-    }
-    if (symsizes.count(assign.first) == 0) {
-      // FIXME: assert, that address will appear in such case
-      addSymcrete(assign.first, concretization, value);
-    }
+    addSymcrete(assign.first, concretization, bytesToAddress(concretization));
   }
 
   ConstraintManager cs(constraintsWithSymcretes);
@@ -303,13 +305,14 @@ void ExecutionState::updateSymcretes(Assignment &assignment) {
     cs.addConstraint(evaluateWithSymcretes(constraint));
   }
 
-  for (auto &symsizeToMO: symsizes) {
+  for (auto &symsizeToMO: symsizesToMO) {
     MemoryObject *mo = symsizeToMO.second.get();
     ObjectState *os = const_cast<ObjectState *>(addressSpace.findObject(mo));
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(
             evaluateWithSymcretes(symsizeToMO.second->getSizeExpr()))) {
       uint64_t oldSize = mo->size;
       if (CE->getZExtValue() <= oldSize) {
+        addSymcrete(symAddresses[mo], addressToBytes(mo->address), mo->address);
         continue;
       }
 
@@ -330,7 +333,11 @@ void ExecutionState::updateSymcretes(Assignment &assignment) {
         os->write(i, os->read8(i));
       }
 
-      addSymcrete(findSymAddress(mo), addressToBytes(newMO->size), newMO->size);
+      addSymcrete(symAddresses[mo], addressToBytes(newMO->address), newMO->address);
+      
+      addSymAddress(newMO, symAddresses[mo]);
+      addSymSize(newMO, symSizes[mo]);
+
       addressSpace.unbindObject(mo);
     } else {
       assert(0 && "Size is not concrete");

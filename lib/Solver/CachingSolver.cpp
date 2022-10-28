@@ -313,6 +313,7 @@ bool CachingSolver::computeValidity(const Query &query,
 bool CachingSolver::computeTruth(const Query& query,
                                  bool &isValid) {
   IncompleteSolver::PartialValidity cachedResult;
+  ValidityCore cachedValidityCore;
   bool cacheHit = cacheLookup(query, cachedResult);
 
   // a cached result of MayBeTrue forces us to check whether
@@ -326,8 +327,11 @@ bool CachingSolver::computeTruth(const Query& query,
   ++stats::queryCacheMisses;
   
   // cache miss: query solver
-  if (!solver->impl->computeTruth(query, isValid))
+  if (query.produceValidityCore ? !solver->impl->computeValidityCore(
+                                      query, cachedValidityCore, isValid)
+                                : !solver->impl->computeTruth(query, isValid)) {
     return false;
+  }
 
   if (isValid) {
     cachedResult = IncompleteSolver::MustBeTrue;
@@ -341,6 +345,9 @@ bool CachingSolver::computeTruth(const Query& query,
   }
   
   cacheInsert(query, cachedResult);
+  if (isValid && query.produceValidityCore) {
+    validityCoreCacheInsert(query, cachedValidityCore);
+  }
   return true;
 }
 

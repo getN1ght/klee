@@ -623,6 +623,9 @@ bool IndependentSolver::check(const Query &query, ref<SolverRespone> &result) {
       result = tempResult;
       return true;
     } else {
+      assert(tempResult && (isa<ValidResponse>(tempResult) ||
+                            isa<InvalidResponse>(tempResult)));
+
       assert(tempResult->getInitialValuesFor(arraysInFactor, tempValues) &&
              "Can not get initial values (Independent solver)!");
       assert(tempValues.size() == arraysInFactor.size() &&

@@ -78,7 +78,7 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
 
     Assignment newAssignment(true);
     getValidAssignment(state.constraints, expr, core, state.symcretes,
-                       state.symsizes, state.symcreteToConstraints, hasSolution,
+                       state.symsizesToMO, state.symcreteToConstraints, hasSolution,
                        newAssignment, metaData);
     if (hasSolution) {
       state.updateSymcretes(newAssignment);
@@ -221,13 +221,12 @@ bool TimingSolver::getValidAssignment(
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(validityCore.expr)) {
     if (validityCore.constraints.empty() && CE->isTrue()) {
       hasResult = false;
-      result = symcretes; 
       return true;
     }
   }
 
   bool foundSymcreteDependendentConstraint = false;
-  std::vector<const Array *> requestedSymcretes;
+  std::vector<const Array *> requestedSizeSymcretes;
 
   ref<SolverRespone> solverRespone;
   ConstraintSet constraintsWithSymcretes;
@@ -261,7 +260,7 @@ bool TimingSolver::getValidAssignment(
 
           /// FIXME: MOVE THIS TO EXECUTION STATE
           if (symsizes.count(brokenSymcrete)) {
-            requestedSymcretes.emplace_back(brokenSymcrete);
+            requestedSizeSymcretes.emplace_back(brokenSymcrete);
             
             ref<Expr> readFromSizeSymcrete = Expr::createTempRead(brokenSymcrete, Context::get().getPointerWidth());
             if (optimizationRead.isNull()) {
@@ -311,7 +310,7 @@ bool TimingSolver::getValidAssignment(
     return true;
   }
 
-  if (requestedSymcretes.empty()) {
+  if (requestedSizeSymcretes.empty()) {
     hasResult = false;
     return true;
   }
@@ -326,7 +325,7 @@ bool TimingSolver::getValidAssignment(
 
   /// In the beggining we will take solution from model.
   std::vector<std::vector<uint8_t>> requestedSymcretesConcretization;
-  assert(solverRespone->getInitialValuesFor(requestedSymcretes, requestedSymcretesConcretization));
+  assert(solverRespone->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization));
 
   for (const auto &concretization: requestedSymcretesConcretization) {
     uint64_t value = bytesToAddress(concretization);
@@ -372,12 +371,12 @@ bool TimingSolver::getValidAssignment(
   hasResult = true;
   
   requestedSymcretesConcretization.clear();
-  result = symcretes;
 
+  result = Assignment(true);
   /* Here we do not have cocretizations for sym addresses */
-  solverRespone->getInitialValuesFor(requestedSymcretes, requestedSymcretesConcretization);
-  for (unsigned idx = 0; idx < requestedSymcretes.size(); ++idx) {
-    result.bindings[requestedSymcretes[idx]] = requestedSymcretesConcretization[idx];
+  solverRespone->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization);
+  for (unsigned idx = 0; idx < requestedSizeSymcretes.size(); ++idx) {
+    result.bindings[requestedSizeSymcretes[idx]] = requestedSymcretesConcretization[idx];
   }
 
   return true;

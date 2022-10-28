@@ -301,7 +301,7 @@ bool Z3SolverImpl::check(const Query &query,
   expressions.insert(query.expr);
 
   std::vector<const Array *> objects;
-  findSymbolicObjects(expressions.begin(), expressions.end(), objects);
+  findObjects(expressions.begin(), expressions.end(), objects);
   std::vector<std::vector<unsigned char>> values;
 
   ValidityCore validityCore;
