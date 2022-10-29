@@ -94,8 +94,8 @@ bool Solver::getValue(const Query& query, ref<ConstantExpr> &result) {
   return true;
 }
 
-bool Solver::evaluate(const Query &query, ref<SolverRespone> &queryResult,
-                      ref<SolverRespone> &negateQueryResult) {
+bool Solver::evaluate(const Query &query, ref<SolverResponse> &queryResult,
+                      ref<SolverResponse> &negateQueryResult) {
   assert(query.expr->getWidth() == Expr::Bool && "Invalid expression type!");
 
   // Maintain invariants implementations expect.
@@ -149,6 +149,11 @@ static std::pair<ref<ConstantExpr>, ref<ConstantExpr>> getDefaultRange() {
 
 static bool tooLate(const time::Span &timeout, const time::Point &start_time) {
   return timeout && time::getWallTime() - start_time > timeout;
+}
+
+
+bool Solver::check(const Query &query, ref<SolverResponse> &queryResult) {
+  return impl->check(query, queryResult);
 }
 
 std::pair<ref<Expr>, ref<Expr>> Solver::getRange(const Query &query,
