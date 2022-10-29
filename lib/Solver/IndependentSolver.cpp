@@ -549,7 +549,7 @@ bool IndependentSolver::computeInitialValues(const Query& query,
         }
       }
       for (unsigned i = 0; i < tempValues.size(); ++i) {
-        arrayToConcreteValue[objects[i]] = tempValues[i];
+        arrayToConcreteValue[arraysInFactor[i]] = tempValues[i];
       }
     }
   }
@@ -568,13 +568,15 @@ bool IndependentSolver::computeInitialValues(const Query& query,
       } else if (ReadExpr *RE =
                      AssignmentGenerator::hasOrderedReads(arr->getSize())) {
         std::vector<unsigned char> &symsize =
-            arrayToConcreteValue[RE->updates.root];
+            arrayToConcreteValue.at(RE->updates.root);
         assert(symsize.size() == 8 &&
                "Size array does not have enought bytes in concretization");
 
         for (unsigned bit = 0; bit < symsize.size(); ++bit) {
           size |= (symsize[bit] << bit);
         }
+      } else {
+        assert(0 && "Size is not either read or constant expression!");
       }
       
       std::vector<unsigned char> ret(size);
