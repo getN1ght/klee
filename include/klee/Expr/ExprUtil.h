@@ -41,6 +41,11 @@ namespace klee {
                            std::vector<const Array*> &results);
 
   bool isReadFromSymbolicArray(ref<Expr> e);
+  template <typename InputIterator>
+  void findObjects(InputIterator begin, InputIterator end,
+                   std::vector<const Array *> &results);
+
+  void findObjects(ref<Expr> e, std::vector<const Array *> &results);
 
   class ConstantArrayFinder : public ExprVisitor {
   protected:
