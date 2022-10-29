@@ -14,6 +14,7 @@
 
 #include "klee/ADT/RNG.h"
 #include "klee/Module/KModule.h"
+#include "klee/Module/Locations.h"
 #include "klee/System/Time.h"
 
 #include "llvm/Support/CommandLine.h"
@@ -33,17 +34,25 @@ class Executor;
 struct Target {
 private:
   KBlock *block;
+  ReachWithError error;
 
 public:
-  explicit Target(KBlock *_block) : block(_block) {}
+  Target(KBlock *_block, ReachWithError error) : block(_block), error(error) {}
+  explicit Target(KBlock *_block) : Target(_block, ReachWithError::None) {} //TODO: [Aleksandr Misonizhnik], I think, this constructor should be entirely deleted
 
-  bool operator<(const Target &other) const { return block < other.block; }
+  bool operator<(const Target &other) const {
+    return block < other.block || (block == other.block && error < other.error);
+  }
 
-  bool operator==(const Target &other) const { return block == other.block; }
+  bool operator==(const Target &other) const {
+    return block == other.block && error == other.error;
+  }
 
   bool atReturn() const { return isa<KReturnBlock>(block); }
 
   KBlock *getBlock() const { return block; }
+  ReachWithError getError() const { return error; }
+  bool shouldStopOnThisTarget() const { return error != ReachWithError::None; }
 
   bool isNull() const { return block == nullptr; }
 

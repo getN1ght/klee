@@ -14,6 +14,7 @@
 #include "klee/ADT/TreeStream.h"
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
+#include "klee/Module/Locations.h"
 #include "klee/ADT/KTest.h"
 #include "klee/ADT/TestCaseUtils.h"
 #include "klee/Support/OptionCategories.h"
@@ -193,22 +194,25 @@ namespace {
                              cl::cat(StartCat));
 
   enum class ExecutionKind {
-    Default, // Defualt symbolic execution
-    Guided,  // Use GuidedSearcher and guidedRun
+    Default,        // Default symbolic execution
+    CoverageGuided, // Use GuidedSearcher and guidedRun to maximize full code coverage
+    ErrorGuided     // Use GuidedSearcher and guidedRun to maximize specified targets coverage
   };
 
   cl::opt<ExecutionKind> ExecutionMode(
       "execution-mode",
       cl::values(clEnumValN(ExecutionKind::Default, "default",
                             "Use basic klee symbolic execution"),
-                 clEnumValN(ExecutionKind::Guided, "guided",
+                 clEnumValN(ExecutionKind::CoverageGuided, "coverage-guided",
                             "Takes place in two steps. First, all acyclic "
                             "paths are executed, "
                             "then the execution is guided to sections of the "
                             "program not yet covered. "
                             "These steps are repeated until all blocks of the "
-                            "program are covered")),
-      cl::init(ExecutionKind::Guided), cl::desc("Kind of execution mode"),
+                            "program are covered"),
+                 clEnumValN(ExecutionKind::ErrorGuided, "error-guided",
+                            "//TODO")), //TODO: [Aleksandr Misonizhnik], please fill the description
+      cl::init(ExecutionKind::CoverageGuided), cl::desc("Kind of execution mode"),
       cl::cat(StartCat));
 
 
@@ -1570,8 +1574,11 @@ static int run_klee_on_function(
       case ExecutionKind::Default:
         interpreter->runFunctionAsMain(mainFn, out->numArgs, out->args, pEnvp);
         break;
-      case ExecutionKind::Guided:
+      case ExecutionKind::CoverageGuided:
         interpreter->runMainAsGuided(mainFn, out->numArgs, out->args, pEnvp);
+        break;
+      case ExecutionKind::ErrorGuided:
+        interpreter->runThroughLocations(paths, mainFn, pArgc, pArgv, pEnvp);
         break;
       }
       if (interrupted)
@@ -1628,8 +1635,11 @@ static int run_klee_on_function(
     case ExecutionKind::Default:
       interpreter->runFunctionAsMain(mainFn, pArgc, pArgv, pEnvp);
       break;
-    case ExecutionKind::Guided:
+    case ExecutionKind::CoverageGuided:
       interpreter->runMainAsGuided(mainFn, pArgc, pArgv, pEnvp);
+      break;
+    case ExecutionKind::ErrorGuided:
+      interpreter->runThroughLocations(paths, mainFn, pArgc, pArgv, pEnvp);
       break;
     }
 

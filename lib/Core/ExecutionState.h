@@ -13,6 +13,7 @@
 #include "AddressSpace.h"
 #include "MergeHandler.h"
 #include "Target.h"
+#include "TargetForest.h"
 
 #include "klee/ADT/ImmutableSet.h"
 #include "klee/ADT/TreeStream.h"
@@ -201,6 +202,12 @@ public:
 
   /// @brief Constraints collected so far
   ConstraintSet constraints;
+
+  /// @brief Key points which should be visited through execution
+  TargetForest whitelist;
+
+  /// @brief If not null, current block execution should terminate with error from target
+  Target *targetOfCurrentKBlock = nullptr;
 
   /// Statistics and information
 

@@ -2207,12 +2207,16 @@ void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
   
   // XXX this lookup has to go ?
   KFunction *kf = state.stack.back().kf;
-  state.pc = kf->blockMap[dst]->instructions;
+  auto kdst = kf->blockMap[dst];
+  state.pc = kdst->instructions;
   state.increaseLevel();
   if (state.pc->inst->getOpcode() == Instruction::PHI) {
     PHINode *first = static_cast<PHINode*>(state.pc->inst);
     state.incomingBBIndex = first->getBasicBlockIndex(src);
   }
+  if (targetedExecutionManager.stepTo(state, kdst))
+    terminateStateEarly(state, "Interpreter walked past target",
+      StateTerminationType::SilentExit); //TODO: note that we will miss some False Negatives as we terminate state now
 }
 
 void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
@@ -3802,6 +3806,7 @@ bool Executor::checkMemoryUsage() {
 }
 
 void Executor::doDumpStates() {
+  targetedExecutionManager.reportFalsePositives();
   if (!DumpStatesOnHalt || states.empty()) {
     interpreterHandler->incPathsExplored(states.size());
     return;
@@ -4241,6 +4246,30 @@ const InstructionInfo & Executor::getLastNonKleeInternalInstruction(const Execut
 bool shouldExitOn(StateTerminationType reason) {
   auto it = std::find(ExitOnErrorType.begin(), ExitOnErrorType.end(), reason);
   return it != ExitOnErrorType.end();
+}
+
+void Executor::terminateStateOnTargetError(ExecutionState &state,
+                                           ReachWithError error) {
+  if (!state.targetOfCurrentKBlock || state.targetOfCurrentKBlock->getError() != error) {
+    targetedExecutionManager.reportFalseNegative();
+  } else {
+    targetedExecutionManager.reportTruePositive();
+  }
+
+  // Proceed with normal `terminateStateOnError` call
+  std::string messaget;
+  StateTerminationType terminationType;
+  switch (error) {
+    case ReachWithError::NullPointerException:
+      messaget = "memory error: null pointer exception";
+      terminationType = StateTerminationType::Ptr;
+      break;
+    case ReachWithError::None:
+    default:
+      messaget = "unspecified error";
+      terminationType = StateTerminationType::User;
+  }
+  terminateStateOnError(state, messaget, terminationType);
 }
 
 void Executor::terminateStateOnError(ExecutionState &state,
@@ -4925,8 +4954,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         fork(*unbound, Expr::createIsZero(base), true, BranchType::MemOp);
     ExecutionState *bound = branches.first;
     if (bound) {
-      terminateStateOnError(*bound, "memory error: null pointer exception",
-                            StateTerminationType::Ptr);
+      terminateStateOnTargetError(*bound, ReachWithError::NullPointerException);
     }
     unbound = branches.second;
   }
@@ -5255,7 +5283,6 @@ ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, uint6
   MemoryObject *mo = 
     memory->allocate(size, true, /*isGlobal=*/false,
                      value, /*allocationAlignment=*/8);
-  memory->deallocate(mo);
   const Array *array = makeArray(state, size, name);
   const_cast<Array*>(array)->binding = mo;
   state.addSymbolic(mo, array);
@@ -5304,6 +5331,21 @@ void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
   ExecutionState *initialState = state->withKFunction(kf);
   prepareSymbolicArgs(*initialState, kf);
   runGuided(*initialState, kf);
+}
+
+void Executor::runThroughLocations(std::vector<Locations> &paths, Function *mainFn, int argc, char **argv, char **envp) {
+  ExecutionState *state = formState(mainFn, argc, argv, envp);
+  state->popFrame();
+  bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
+  auto targets = targetedExecutionManager.prepareTargets(kmodule.get(), paths);
+  for (auto &startBlockAndWhiteList : targets) {
+    auto copy_state = state->copy();
+    copy_state->whitelist = *startBlockAndWhiteList.second;
+    auto kf = startBlockAndWhiteList.first;
+    ExecutionState *initialState = copy_state->withKFunction(kf);
+    prepareSymbolicArgs(*initialState, kf);
+    runGuided(*initialState, kf);
+  }
 }
 
 void Executor::runMainAsGuided(Function *mainFn, int argc, char **argv,

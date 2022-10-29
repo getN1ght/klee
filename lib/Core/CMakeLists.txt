@@ -14,6 +14,8 @@ klee_add_component(kleeCore
   CoreStats.cpp
   CXXTypeSystem/CXXTypeManager.cpp
   ExecutionState.cpp
+  TargetForest.cpp
+  TargetedExecutionManager.cpp
   Executor.cpp
   ExecutorUtil.cpp
   ExternalDispatcher.cpp

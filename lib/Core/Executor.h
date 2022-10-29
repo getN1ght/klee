@@ -17,6 +17,7 @@
 
 #include "ExecutionState.h"
 #include "UserSearcher.h"
+#include "TargetedExecutionManager.h"
 
 #include "klee/ADT/RNG.h"
 #include "klee/Core/BranchTypes.h"
@@ -171,6 +172,9 @@ private:
   /// Map of legal function addresses to the corresponding Function.
   /// Used to validate and dereference function pointers.
   std::unordered_map<std::uint64_t, llvm::Function*> legalFunctions;
+
+  /// Manager for everything related to targeted execution mode
+  TargetedExecutionManager targetedExecutionManager;
 
   /// When non-null the bindings that will be used for calls to
   /// klee_make_symbolic in order replay.
@@ -470,6 +474,11 @@ private:
   void terminateStateEarly(ExecutionState &state, const llvm::Twine &message,
                            StateTerminationType terminationType);
 
+  /// Save extra information in targeted mode
+  /// Then just call `terminateStateOnError`
+  void terminateStateOnTargetError(ExecutionState &state,
+                                   ReachWithError error);
+
   /// Call error handler and terminate state in case of program errors
   /// (e.g. free()ing globals, out-of-bound accesses)
   void terminateStateOnError(ExecutionState &state, const llvm::Twine &message,
@@ -585,6 +594,8 @@ public:
                          char **envp) override;
 
   void runFunctionGuided(llvm::Function *fn, int argc, char **argv, char **envp) override;
+
+  void runThroughLocations(std::vector<Locations> &paths, llvm::Function *mainFn, int argc, char **argv, char **envp) override;
 
   void runMainAsGuided(llvm::Function *f, int argc, char **argv,
                        char **envp) override;
