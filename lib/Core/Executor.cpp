@@ -1142,20 +1142,21 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   time::Span timeout = coreSolverTimeout;
   if (isSeeding)
     timeout *= static_cast<unsigned>(it->second.size());
-  solver->setTimeout(timeout);
 
   ref<SolverRespone> trueRespone, falseRespone;
-  Assignment trueSymcretes = current.symcretes,
-             falseSymcretes = current.symcretes;
+  Assignment trueSymcretes, falseSymcretes;
   ValidityCore trueCore, falseCore;
 
-  solver->evaluate(current.evaluateConstraintsWithSymcretes(),
-                       condition, trueRespone,
-                       falseRespone, current.queryMetaData);
-
-  Solver::Validity res1;
-  bool success = solver->evaluate(current.evaluateConstraintsWithSymcretes(),
-                       condition, res1, current.queryMetaData);
+  solver->setTimeout(timeout);
+  bool success =
+      solver->evaluate(current.evaluateConstraintsWithSymcretes(), condition,
+                       trueRespone, falseRespone, current.queryMetaData);
+  solver->setTimeout(time::Span());
+  if (!success) {
+    current.pc = current.prevPC;
+    terminateStateOnSolverError(current, "Query timed out (fork).");
+    return StatePair(nullptr, nullptr);
+  }
 
   int resInt = 0;
   if (trueRespone->getValidityCore(trueCore)) {
@@ -1191,15 +1192,6 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   case 1:
     res = Solver::Solver::True;
     break;
-  }
-  assert(res == res1);
-
-
-  solver->setTimeout(time::Span());
-  if (!success) {
-    current.pc = current.prevPC;
-    terminateStateOnSolverError(current, "Query timed out (fork).");
-    return StatePair(nullptr, nullptr);
   }
 
   if (!isSeeding) {
@@ -4710,8 +4702,6 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   } else {
     /* In order to minimize size of allocations we will make a binary search
     on sizes to determine the least possible size of allocation */
-
-    /* TODO: we can start from example for greater model */
     
     ref<ConstantExpr> greaterModelInstance;
     solver->setTimeout(coreSolverTimeout);
@@ -5261,7 +5251,6 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
 
       if (ref<Expr> alignmentRestrictions = type->getContentRestrictions(
               os->read(0, CE->getZExtValue() * CHAR_BIT))) {
-        alignmentRestrictions->dump();
         addConstraint(state, alignmentRestrictions);
       }
     }

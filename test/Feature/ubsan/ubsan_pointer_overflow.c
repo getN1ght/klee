@@ -24,11 +24,11 @@ int main() {
   // CHECK-C-10: ubsan_pointer_overflow.c:[[@LINE+1]]: applying zero offset to null pointer
   result_ptr = base1_ptr + 0;
 
-  // CHECK-10: ubsan_pointer_overflow.c:[[@LINE+2]]: applying non-zero offset 1 to null pointer
+  // CHECK-10: ubsan_pointer_overflow.c:[[@LINE+2]]: {{(applying non-zero offset 1 to null pointer)|(applying non-zero offset to non-null pointer 0x[0-9a-f]* produced null pointer)}}
   // CHECK: ubsan_pointer_overflow.c:[[@LINE+1]]: applying non-zero offset to non-null pointer 0x{{.*}} produced null pointer
   result_ptr = base2_ptr + 1;
 
-  // CHECK-10: ubsan_pointer_overflow.c:[[@LINE+1]]: applying non-zero offset to non-null pointer 0x{{.*}} produced null pointer
+  // CHECK-10: ubsan_pointer_overflow.c:[[@LINE+1]]: {{(applying non-zero offset 1 to null pointer)|(applying non-zero offset to non-null pointer 0x[0-9a-f]* produced null pointer)}}
   result_ptr = base3_ptr - 1;
 
   char c;
