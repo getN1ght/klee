@@ -11,6 +11,7 @@
 #include "klee/Config/Version.h"
 #include "klee/Module/KCallable.h"
 #include "klee/Module/KModule.h"
+#include "klee/Support/ErrorHandling.h"
 
 #if LLVM_VERSION_CODE < LLVM_VERSION(8, 0)
 #include "llvm/IR/CallSite.h"
@@ -28,9 +29,12 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/TargetSelect.h"
 
+#include <sys/types.h>
+#include <unistd.h>
 #include <csetjmp>
 #include <csignal>
 #include <cfenv>
+#include <exception>
 
 using namespace llvm;
 using namespace klee;
@@ -252,7 +256,12 @@ bool ExternalDispatcherImpl::runProtectedCall(Function *f, uint64_t *args) {
     res = false;
   } else {
     errno = lastErrno;
-    executionEngine->runFunction(f, gvArgs);
+    try {
+      executionEngine->runFunction(f, gvArgs);
+    } catch (const std::exception &e) {
+      klee_warning("External call failed with exception %s", f->getName().str().c_str());
+      kill(getpid(), SIGSEGV);
+    }
     // Explicitly acquire errno information
     lastErrno = errno;
     res = true;

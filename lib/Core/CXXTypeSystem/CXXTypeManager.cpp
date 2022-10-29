@@ -237,7 +237,7 @@ bool cxxtypes::KCXXType::isAccessableFrom(KType *accessingType) const {
 
 ref<Expr> cxxtypes::KCXXType::getContentRestrictions(ref<Expr> object) const {
   if (type == nullptr) {
-    return nullptr;
+    return getPointersRestrictions(object);
   }
   llvm::Type *elementType = type->getPointerElementType();
   return llvm::cast<cxxtypes::KCXXType>(parent->getWrappedType(elementType))

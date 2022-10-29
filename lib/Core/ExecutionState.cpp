@@ -210,7 +210,7 @@ void ExecutionState::addSymbolic(const MemoryObject *mo, const Array *array) {
 }
 
 void ExecutionState::addSymSize(MemoryObject *mo, const Array *array) {
-  symsizesToMO.emplace(array, ref<MemoryObject>(mo));
+  symsizesToMO[array] = ref<MemoryObject>(mo);
   symSizes.emplace(mo, array);
 }
 
@@ -285,12 +285,14 @@ static uint64_t bytesToAddress(const std::vector<unsigned char> &concretization)
 
 void ExecutionState::updateSymcretes(const Assignment &assignment) {
   constraintsWithSymcretes = ConstraintSet();
+  ConstraintManager cs(constraintsWithSymcretes);
 
   Assignment copy = symcretes;
   for (const auto &assign : assignment.bindings) {
     copy.bindings[assign.first] = assign.second;
-    assert(symAddresses.count(symsizesToMO[assign.first].get()));
-    copy.bindings.erase(symAddresses[symsizesToMO[assign.first].get()]);
+    assert(symsizesToMO.count(assign.first));
+    assert(symAddresses.count(symsizesToMO.at(assign.first).get()));
+    copy.bindings.erase(symAddresses.at(symsizesToMO.at(assign.first).get()));
   }
 
   symcretes.bindings.clear();
@@ -299,17 +301,15 @@ void ExecutionState::updateSymcretes(const Assignment &assignment) {
     addSymcrete(assign.first, concretization, bytesToAddress(concretization));
   }
 
-  ConstraintManager cs(constraintsWithSymcretes);
-
   for (const auto &constraint: constraints) {
     cs.addConstraint(evaluateWithSymcretes(constraint));
   }
 
-  for (auto &symsizeToMO: symsizesToMO) {
-    MemoryObject *mo = symsizeToMO.second.get();
+  for (auto &symsizeToConcrete : assignment.bindings) {
+    MemoryObject *mo = symsizesToMO.at(symsizeToConcrete.first).get();
     ObjectState *os = const_cast<ObjectState *>(addressSpace.findObject(mo));
-    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(
-            evaluateWithSymcretes(symsizeToMO.second->getSizeExpr()))) {
+    if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(
+            evaluateWithSymcretes(mo->getSizeExpr()))) {
       uint64_t oldSize = mo->size;
       if (CE->getZExtValue() <= oldSize) {
         addSymcrete(symAddresses[mo], addressToBytes(mo->address), mo->address);
@@ -335,12 +335,12 @@ void ExecutionState::updateSymcretes(const Assignment &assignment) {
 
       addSymcrete(symAddresses[mo], addressToBytes(newMO->address), newMO->address);
       
-      addSymAddress(newMO, symAddresses[mo]);
-      addSymSize(newMO, symSizes[mo]);
+      addSymAddress(newMO, symAddresses.at(mo));
+      addSymSize(newMO, symSizes.at(mo));
 
       addressSpace.unbindObject(mo);
     } else {
-      assert(0 && "Size is not concrete");
+      assert(0 && "Size does not have concretization (updateSymcretes)!");
     }
   }
 }

@@ -261,7 +261,7 @@ bool TimingSolver::getValidAssignment(
           /// FIXME: MOVE THIS TO EXECUTION STATE
           if (symsizes.count(brokenSymcrete)) {
             requestedSizeSymcretes.emplace_back(brokenSymcrete);
-            
+                        
             ref<Expr> readFromSizeSymcrete = Expr::createTempRead(brokenSymcrete, Context::get().getPointerWidth());
             if (optimizationRead.isNull()) {
               optimizationRead = readFromSizeSymcrete;
@@ -377,6 +377,7 @@ bool TimingSolver::getValidAssignment(
   solverResponse->getInitialValuesFor(requestedSizeSymcretes,
                                       requestedSymcretesConcretization);
   for (unsigned idx = 0; idx < requestedSizeSymcretes.size(); ++idx) {
+    (llvm::errs() << requestedSizeSymcretes[idx]->getName() << "\n").flush();
     result.bindings[requestedSizeSymcretes[idx]] = requestedSymcretesConcretization[idx];
   }
 
