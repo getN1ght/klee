@@ -39,6 +39,11 @@ void klee::findReads(ref<Expr> e,
       // repeats.
       results.push_back(re);
 
+      ref<Expr> sizeExpr = re->updates.root->getSize();
+      if (!isa<ConstantExpr>(sizeExpr)) {
+        stack.push_back(sizeExpr);
+      }
+
       if (!isa<ConstantExpr>(re->index) &&
           visited.insert(re->index).second)
         stack.push_back(re->index);

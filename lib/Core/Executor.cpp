@@ -5101,8 +5101,22 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     } else if (LazyInstantiation && isReadFromSymbolicArray(state.evaluateWithSymcretes(base)) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 (UseGEPExpr && isGEPExpr(address)))) {
-      ObjectPair p =
-          lazyInstantiateVariable(*unbound, base, target, baseTargetType, Expr::createPointer(size));
+
+      const Array *lazyInstantiationsSizeArray =
+          makeArray(*unbound, Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
+                    "lazyInstantiationCount");
+
+      ref<Expr> lazyInstantiationsSizeExpr =
+          Expr::createTempRead(lazyInstantiationsSizeArray,
+                               Context::get().getPointerWidth());
+
+      /* sizeof Lazy Instantiated object sholud be at least sizeof type */
+      addConstraint(*unbound, UgeExpr::create(lazyInstantiationsSizeExpr,
+                                              Expr::createPointer(size)));
+
+      ObjectPair p = lazyInstantiateVariable(
+          *unbound, base, target, baseTargetType,
+          lazyInstantiationsSizeExpr);
       if (p.first == nullptr && p.second == nullptr) {
         return;
       }
@@ -5113,24 +5127,19 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       
       ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
 
-      bool mayBeLazyInstantiated;
-      time::Span timeout = coreSolverTimeout;
-      solver->setTimeout(timeout);
       /// Here we check SAT for constarint and need to evaluate with symbolics
-      solver->mayBeTrue(*unbound, unbound->evaluateConstraintsWithSymcretes(),
-                       inBounds, mayBeLazyInstantiated,
-                       unbound->queryMetaData);
-      solver->setTimeout(time::Span());
+      StatePair sp = fork(*unbound, inBounds, true, BranchType::MemOp);
+      ExecutionState *inbound = sp.first;
+      unbound = sp.second;
 
-      if (!mayBeLazyInstantiated) {
+      if (unbound) {
         terminateStateOnError(*unbound, "memory error: out of bound pointer",
                               StateTerminationType::Ptr,
                               getAddressInfo(*unbound, address, mo));
       } else {
-        addConstraint(*unbound, inBounds);
         /* FIXME: same as above. Wasting memory. */
         ObjectState *wos =
-            unbound->addressSpace.getWriteable(p.first, p.second);
+            inbound->addressSpace.getWriteable(p.first, p.second);
         switch (operation) {
         case Write: {
           wos->getDynamicType()->handleMemoryAccess(
@@ -5148,7 +5157,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
               false);
           // Here we are trying to simplify write by using constant addresses
           ref<Expr> result = wos->read(p.first->getOffsetExpr(address), type);
-          bindLocal(target, *unbound, result);
+          bindLocal(target, *inbound, result);
           break;
         }
         }
