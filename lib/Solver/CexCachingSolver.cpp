@@ -398,7 +398,7 @@ CexCachingSolver::computeInitialValues(const Query& query,
              "Size array does not have enought bytes in concretization");
 
       for (unsigned bit = 0; bit < symsize.size(); ++bit) {
-        size |= (symsize[bit] << bit);
+        size |= (symsize[bit] << (CHAR_BIT * bit));
       }
     } else {
       assert(0 && "Cannot receive array size from binding (CexCaching)");
@@ -446,7 +446,7 @@ bool CexCachingSolver::check(const Query &query, ref<SolverResponse> &result) {
              "Size array does not have enought bytes in concretization");
 
       for (unsigned bit = 0; bit < symsize.size(); ++bit) {
-        size |= (symsize[bit] << bit);
+        size |= (symsize[bit] << (CHAR_BIT * bit));
       }
     } else {
       assert(0 && "Cannot receive array size from binding (CexCaching)");

@@ -1294,8 +1294,8 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     falseState = trueState->branch();
     addedStates.push_back(falseState);
 
-    trueState->updateSymcretes(trueSymcretes);
-    falseState->updateSymcretes(falseSymcretes);
+    trueState->updateSymcretes(falseSymcretes);
+    falseState->updateSymcretes(trueSymcretes);
 
     if (it != seedMap.end()) {
       std::vector<SeedInfo> seeds = it->second;
@@ -4767,6 +4767,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
         pointerWidth);
     ref<Expr> sizeExpr =
         Expr::createTempRead(sizeArray, Context::get().getPointerWidth());
+    
     addConstraint(state, EqExpr::create(sizeExpr, size));
     ++addressCounter;
 

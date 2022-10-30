@@ -136,6 +136,10 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     cexPreferences(state.cexPreferences),
     arrayNames(state.arrayNames),
     symcretes(state.symcretes),
+    symcreteToConstraints(state.symcreteToConstraints),
+    symsizesToMO(state.symsizesToMO),
+    symSizes(state.symSizes),
+    symAddresses(state.symAddresses),
     openMergeStack(state.openMergeStack),
     steppedInstructions(state.steppedInstructions),
     steppedMemoryInstructions(state.steppedMemoryInstructions),
@@ -260,17 +264,29 @@ void ExecutionState::addSymcrete(
 
   symcretes.bindings[array] = concretisation;
   ConstraintManager cs(constraintsWithSymcretes);
-  cs.addConstraint(EqExpr::create(
+
+  ref<Expr> eqSymcreteExpr = EqExpr::create(
       ReadExpr::createTempRead(array, Context::get().getPointerWidth()),
-      Expr::createPointer(value)));
+      Expr::createPointer(value));
+
+  std::vector<const Array *> arrays;
+  findSymbolicObjects(eqSymcreteExpr, arrays);
+  ref<Expr> evaluatedConstraint = cs.addConstraint(eqSymcreteExpr);
+  
+  for (const auto *array : arrays) {
+    if (isSymcrete(array)) {
+      symcreteToConstraints[evaluatedConstraint].insert(array);
+    }
+  }
 }
 
 
 static std::vector<unsigned char> addressToBytes(uint64_t value) {
   unsigned char *addressBytesIterator =
       reinterpret_cast<unsigned char *>(&value);
-  return std::vector<unsigned char>(addressBytesIterator,
-                                    addressBytesIterator + sizeof(value));
+  std::vector<unsigned char> result(addressBytesIterator, addressBytesIterator + sizeof(value));
+  std::reverse(result.begin(), result.end());
+  return result;
 }
 
 static uint64_t bytesToAddress(const std::vector<unsigned char> &concretization) {
@@ -278,7 +294,7 @@ static uint64_t bytesToAddress(const std::vector<unsigned char> &concretization)
   assert(concretization.size() == Context::get().getPointerWidth() / CHAR_BIT &&
           "Symcrete must be a 64-bit value");
   for (unsigned bit = 0; bit < concretization.size(); ++bit) {
-    value |= (concretization[bit] << bit);
+    value |= (concretization[bit] << (CHAR_BIT * bit));
   }
   return value;
 } 

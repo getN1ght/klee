@@ -121,7 +121,7 @@ bool ValidatingSolver::computeInitialValues(
                "Size array does not have enought bytes in concretization");
 
         for (unsigned bit = 0; bit < symsize.size(); ++bit) {
-          size |= (symsize[bit] << bit);
+          size |= (symsize[bit] << (CHAR_BIT * bit));
         }
       }
 

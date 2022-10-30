@@ -210,7 +210,7 @@ bool QueryLoggingSolver::computeInitialValues(
                  "Size array does not have enought bytes in concretization");
 
           for (unsigned bit = 0; bit < symsize.size(); ++bit) {
-            size |= (symsize[bit] << bit);
+            size |= (symsize[bit] << (CHAR_BIT * bit));
           }
         } else {
           assert(false && "Array size expression is not correct!");
@@ -268,7 +268,7 @@ bool QueryLoggingSolver::check(const Query &query, ref<SolverResponse> &result) 
                  "Size array does not have enought bytes in concretization");
 
           for (unsigned bit = 0; bit < symsize.size(); ++bit) {
-            size |= (symsize[bit] << bit);
+            size |= (symsize[bit] << (CHAR_BIT * bit));
           }
         }
 
