@@ -204,7 +204,7 @@ static uint64_t bytesToAddress(const std::vector<uint8_t> &bytes) {
           "Symcrete must be a 64-bit value");
   
   for (unsigned bit = 0; bit < bytes.size(); ++bit) {
-    value |= (bytes[bit] << bit);
+    value |= (bytes[bit] << (CHAR_BIT * bit));
   }
   return value;
 } 
@@ -242,7 +242,7 @@ bool TimingSolver::getValidAssignment(
 
     std::vector<ref<Expr>> unsatConstraints(validityCore.constraints.begin(),
                                             validityCore.constraints.end());
-    unsatConstraints.push_back(validityCore.expr);
+    unsatConstraints.push_back(expr);
     for (const auto &brokenConstraint : unsatConstraints) {
       if (!exprToSymcretes.count(brokenConstraint)) {
         /// We can't fix it as it does not have symcrete.
@@ -293,7 +293,7 @@ bool TimingSolver::getValidAssignment(
 
     TimerStatIncrementer timer(stats::solverTime);
     bool success = solver->check(
-        Query(constraintsWithSymcretes, symcretes.evaluate(expr), true),
+        Query(constraintsWithSymcretes, symcretes.evaluate(expr), true), // FIXME:
         solverRespone);
     metaData.queryCost += timer.delta();
     
@@ -340,13 +340,13 @@ bool TimingSolver::getValidAssignment(
   }
 
   ConstraintManager cs(constraintsWithSymcretes);
-  cs.addConstraint(symcretes.evaluate(expr));
+  cs.addConstraint(NotExpr::create(symcretes.evaluate(expr)));
+  // cs.addConstraint(symcretes.evaluate(expr));
 
   /// TODO: this formula is too complex. Maybe we should use another way?
   while (minSumModel < maxSumModel - 1) {
     uint64_t middleSumModel = (minSumModel + maxSumModel) / 2;
     ref<Expr> ask = UleExpr::create(optimizationRead, Expr::createPointer(middleSumModel));
-
     ref<SolverRespone> newSolverRespone;
 
     TimerStatIncrementer timer(stats::solverTime);
@@ -376,7 +376,6 @@ bool TimingSolver::getValidAssignment(
   /* Here we do not have cocretizations for sym addresses */
   solverRespone->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization);
   for (unsigned idx = 0; idx < requestedSizeSymcretes.size(); ++idx) {
-    (llvm::errs() << requestedSizeSymcretes[idx]->getName() << "\n").flush();
     result.bindings[requestedSizeSymcretes[idx]] = requestedSymcretesConcretization[idx];
   }
 

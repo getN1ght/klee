@@ -39,7 +39,7 @@ namespace klee {
     Query(const ConstraintSet &_constraints, ref<Expr> _expr,
           bool _produceValidityCore = false)
         : constraints(_constraints), expr(_expr),
-          produceValidityCore(_produceValidityCore) {}
+          produceValidityCore(true) {}
 
     Query(const Query &query)
         : constraints(query.constraints), expr(query.expr),
