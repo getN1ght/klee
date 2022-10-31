@@ -162,21 +162,18 @@ public:
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
-    if (size==0) {
-      return EqExpr::create(offset, 
-                            ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-    } else {
-      return UltExpr::create(offset, getSizeExpr());
-    }
+    return UltExpr::create(offset, getSizeExpr());
   }
+
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
-    if (bytes<=size) {
-      return UltExpr::create(offset, 
-                             ConstantExpr::alloc(size - bytes + 1, 
-                                                 Context::get().getPointerWidth()));
-    } else {
-      return ConstantExpr::alloc(0, Expr::Bool);
-    }
+    ref<Expr> offsetSizeCheck = UleExpr::create(
+        ConstantExpr::alloc(bytes, Context::get().getPointerWidth()),
+        getSizeExpr());
+    ref<Expr> writeInSizeCheck = UleExpr::create(
+        offset, SubExpr::create(getSizeExpr(),
+                                ConstantExpr::alloc(
+                                    bytes, Context::get().getPointerWidth())));
+    return AndExpr::create(offsetSizeCheck, writeInSizeCheck);
   }
 
   /// Compare this object with memory object b.
