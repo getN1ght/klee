@@ -517,8 +517,10 @@ const std::unordered_set <Intrinsic::ID> Executor::modelledFPIntrinsics = {
 static std::vector<unsigned char> addressToBytes(uint64_t value) {
   unsigned char *addressBytesIterator =
       reinterpret_cast<unsigned char *>(&value);
-  return std::vector<unsigned char>(addressBytesIterator,
+  std::vector<unsigned char> result(addressBytesIterator,
                                     addressBytesIterator + sizeof(value));
+  // reverse(result.begin(), result.end());
+  return result;
 }
 
 Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
@@ -1435,17 +1437,19 @@ void Executor::bindArgument(KFunction *kf, unsigned index,
 
 ref<Expr> Executor::toUnique(ExecutionState &state, 
                              ref<Expr> &e) {
-  ref<Expr> result = state.evaluateWithSymcretes(e);
+  ref<Expr> result = e;
 
   if (!isa<ConstantExpr>(result)) {
     ref<ConstantExpr> value;
     bool isTrue = false;
     result = optimizer.optimizeExpr(result, true, state.symcretes);
     solver->setTimeout(coreSolverTimeout);
-    if (solver->getValue(state.evaluateConstraintsWithSymcretes(), result, value, state.queryMetaData)) {
+    if (solver->getValue(state.evaluateConstraintsWithSymcretes(),
+                         state.evaluateWithSymcretes(result), value,
+                         state.queryMetaData)) {
       ref<Expr> cond = EqExpr::create(e, value);
       cond = optimizer.optimizeExpr(cond, false, state.symcretes);
-      if (solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+      if (solver->mustBeTrue(state, state.constraints,
                              cond, isTrue,
                              state.queryMetaData) &&
           isTrue)
@@ -4693,8 +4697,8 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
                                  bool isLocal, const llvm::Value *allocSite,
                                  size_t allocationAlignment) {
   /// Try to find existing solution
-  ref<Expr> optimizedSize = optimizer.optimizeExpr(
-      state.evaluateWithSymcretes(toUnique(state, size)), true, state.symcretes);
+  ref<Expr> optimizedSize =
+      optimizer.optimizeExpr(toUnique(state, size), true, state.symcretes);
 
   size_t modelSize; 
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(optimizedSize)) {
@@ -4768,7 +4772,6 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     ref<Expr> sizeExpr =
         Expr::createTempRead(sizeArray, Context::get().getPointerWidth());
     
-    addConstraint(state, EqExpr::create(sizeExpr, size));
     ++addressCounter;
 
     mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
@@ -4778,6 +4781,8 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     state.addSymcrete(sizeArray, addressToBytes(modelSize), modelSize);
     state.addSymAddress(mo, addressArray);
     state.addSymSize(mo, sizeArray);
+    
+    addConstraint(state, EqExpr::create(sizeExpr, size));
   }
   return mo;
 }
@@ -5257,6 +5262,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
 
     if (AlignSymbolicPointers) {
       ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()));
+      /// FIXME: alignment should be made for entire object
       assert(CE && "Object should have constant size during execution!");
 
       if (ref<Expr> alignmentRestrictions = type->getContentRestrictions(

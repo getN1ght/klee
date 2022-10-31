@@ -50,6 +50,24 @@ std::uint32_t ExecutionState::nextID = 1;
 
 /***/
 
+static std::vector<unsigned char> addressToBytes(uint64_t value) {
+  unsigned char *addressBytesIterator =
+      reinterpret_cast<unsigned char *>(&value);
+  std::vector<unsigned char> result(addressBytesIterator, addressBytesIterator + sizeof(value));
+  // std::reverse(result.begin(), result.end());
+  return result;
+}
+
+static uint64_t bytesToAddress(const std::vector<unsigned char> &concretization) {
+  uint64_t value = 0;
+  assert(concretization.size() == Context::get().getPointerWidth() / CHAR_BIT &&
+          "Symcrete must be a 64-bit value");
+  for (unsigned bit = 0; bit < concretization.size(); ++bit) {
+    value |= (static_cast<uint64_t>(concretization[bit]) << (CHAR_BIT * bit));
+  }
+  return value;
+} 
+
 StackFrame::StackFrame(KInstIterator _caller, KFunction *_kf)
   : caller(_caller), kf(_kf), callPathNode(0), 
     minDistToUncoveredOnReturn(0), varargs(0) {
@@ -272,7 +290,7 @@ void ExecutionState::addSymcrete(
   std::vector<const Array *> arrays;
   findSymbolicObjects(eqSymcreteExpr, arrays);
   ref<Expr> evaluatedConstraint = cs.addConstraint(eqSymcreteExpr);
-  
+
   for (const auto *array : arrays) {
     if (isSymcrete(array)) {
       symcreteToConstraints[evaluatedConstraint].insert(array);
@@ -280,24 +298,6 @@ void ExecutionState::addSymcrete(
   }
 }
 
-
-static std::vector<unsigned char> addressToBytes(uint64_t value) {
-  unsigned char *addressBytesIterator =
-      reinterpret_cast<unsigned char *>(&value);
-  std::vector<unsigned char> result(addressBytesIterator, addressBytesIterator + sizeof(value));
-  std::reverse(result.begin(), result.end());
-  return result;
-}
-
-static uint64_t bytesToAddress(const std::vector<unsigned char> &concretization) {
-  uint64_t value = 0;
-  assert(concretization.size() == Context::get().getPointerWidth() / CHAR_BIT &&
-          "Symcrete must be a 64-bit value");
-  for (unsigned bit = 0; bit < concretization.size(); ++bit) {
-    value |= (concretization[bit] << (CHAR_BIT * bit));
-  }
-  return value;
-} 
 
 void ExecutionState::updateSymcretes(const Assignment &assignment) {
   constraintsWithSymcretes = ConstraintSet();
@@ -318,7 +318,15 @@ void ExecutionState::updateSymcretes(const Assignment &assignment) {
   }
 
   for (const auto &constraint: constraints) {
-    cs.addConstraint(evaluateWithSymcretes(constraint));
+    std::vector<const Array *> arrays;
+    findSymbolicObjects(constraint, arrays);
+    ref<Expr> evaluatedConstraint = cs.addConstraint(evaluateWithSymcretes(constraint));
+    
+    for (const auto *array : arrays) {
+      if (isSymcrete(array)) {
+        symcreteToConstraints[evaluatedConstraint].insert(array);
+      }
+    }
   }
 
   for (auto &symsizeToConcrete : assignment.bindings) {
@@ -349,8 +357,8 @@ void ExecutionState::updateSymcretes(const Assignment &assignment) {
         os->write(i, os->read8(i));
       }
 
-      addSymcrete(symAddresses[mo], addressToBytes(newMO->address), newMO->address);
-      
+      addSymcrete(symAddresses.at(mo), addressToBytes(newMO->address), newMO->address);
+
       addSymAddress(newMO, symAddresses.at(mo));
       addSymSize(newMO, symSizes.at(mo));
 
