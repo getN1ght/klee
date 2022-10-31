@@ -61,8 +61,8 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
 
   TimerStatIncrementer timer(stats::solverTime);
 
-  if (simplifyExprs)
-    expr = ConstraintManager::simplifyExpr(constraints, expr);
+  // if (simplifyExprs)
+  //   expr = ConstraintManager::simplifyExpr(constraints, expr);
 
   bool success =
       solver->mustBeTrue(Query(constraints, expr, true), result);
@@ -70,17 +70,13 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
   if (result) {
     ValidityCore core;
     bool hasSolution;
-    solver->getValidityCore(Query(constraints, expr, true), core, hasSolution);
-    
-    if (hasSolution) {
-      metaData.queryCost += timer.delta();
-      return success;
-    }
+    assert(solver->getValidityCore(Query(constraints, expr, true), core,
+                                   hasSolution));
 
     Assignment newAssignment(true);
-    getValidAssignment(state.constraints, expr, core, state.symcretes,
-                       state.symsizesToMO, state.symcreteToConstraints, hasSolution,
-                       newAssignment, metaData);
+    assert(getValidAssignment(state.constraints, expr, core, state.symcretes,
+                              state.symsizesToMO, state.symcreteToConstraints,
+                              hasSolution, newAssignment, metaData));
     if (hasSolution) {
       state.updateSymcretes(newAssignment);
       result = false;
@@ -240,7 +236,7 @@ bool TimingSolver::getValidAssignment(
   findSymbolicObjects(expr, arrays);
   for (const auto *array : arrays) {
     if (symcretes.bindings.count(array)) {
-      exprToSymcretes[expr].insert(array);
+      exprToSymcretes[validityCore.expr].insert(array);
     }
   }
 
@@ -303,7 +299,7 @@ bool TimingSolver::getValidAssignment(
 
     TimerStatIncrementer timer(stats::solverTime);
     bool success = solver->check(
-        Query(constraintsWithSymcretes, symcretes.evaluate(expr), true), // FIXME:
+        Query(constraintsWithSymcretes, symcretes.evaluate(expr), true), // FIXME: without one symcrete it is unknown
         solverRespone);
     metaData.queryCost += timer.delta();
     
