@@ -5020,6 +5020,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   // XXX there is some query wasteage here. who cares?
   ExecutionState *unbound = &state;
 
+  ref<Expr> outOfBound = ConstantExpr::create(1, Expr::Bool);
+
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = i->first;
     const ObjectState *os = i->second;
@@ -5051,6 +5053,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       addedStates.push_back(bound);
       processTree->attach(unbound->ptreeNode, bound, unbound, BranchType::MemOp);
       addConstraint(*bound, inBounds);
+      outOfBound = AndExpr::create(outOfBound, NotExpr::create(inBounds));
     }
 
     if (bound) {
@@ -5142,7 +5145,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         terminateStateOnError(*unbound, "memory error: out of bound pointer",
                               StateTerminationType::Ptr,
                               getAddressInfo(*unbound, address, mo));
-      } else {
+        return;  
+      } 
+
+      if (inbound) {
         /* FIXME: same as above. Wasting memory. */
         ObjectState *wos =
             inbound->addressSpace.getWriteable(p.first, p.second);
@@ -5169,9 +5175,25 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         }
       }
     } else {
-      terminateStateOnError(*unbound, "memory error: out of bound pointer",
-                            StateTerminationType::Ptr,
-                            getAddressInfo(*unbound, address));
+      bool mayBeOutOfBound = false;
+      
+      solver->setTimeout(coreSolverTimeout);
+      bool success = solver->mayBeTrue(
+          *unbound, unbound->evaluateConstraintsWithSymcretes(), outOfBound,
+          mayBeOutOfBound, unbound->queryMetaData);
+      solver->setTimeout(time::Span());
+      if (!success) {
+        terminateStateOnSolverError(*unbound, "Query timed out (executeMemoryOperation)");
+        return;
+      }
+
+      if (mayBeOutOfBound) {
+        terminateStateOnError(*unbound, "memory error: out of bound pointer",
+                              StateTerminationType::Ptr,
+                              getAddressInfo(*unbound, address));
+      } else {
+        terminateStateEarly(*unbound, "", StateTerminationType::SilentExit);
+      }
     }
   }
 }
