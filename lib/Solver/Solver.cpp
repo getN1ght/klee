@@ -298,3 +298,15 @@ void Query::dump() const {
   expr->dump();
   llvm::errs() << "]\n";
 }
+
+
+void ValidityCore::dump() const {
+  llvm::errs() << "Constraints [\n";
+  for (const auto &constraint : constraints)
+    constraint->dump();
+
+  llvm::errs() << "]\n";
+  llvm::errs() << "Query [\n";
+  expr->dump();
+  llvm::errs() << "]\n";
+}

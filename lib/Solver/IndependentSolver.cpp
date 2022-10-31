@@ -573,7 +573,7 @@ bool IndependentSolver::computeInitialValues(const Query& query,
                "Size array does not have enought bytes in concretization");
 
         for (unsigned bit = 0; bit < symsize.size(); ++bit) {
-          size |= (symsize[bit] << (CHAR_BIT * bit));
+          size |= (static_cast<uint64_t>(symsize[bit]) << (CHAR_BIT * bit));
         }
       } else {
         assert(0 && "Size is not either read or constant expression!");

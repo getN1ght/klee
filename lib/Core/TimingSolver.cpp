@@ -13,6 +13,7 @@
 
 #include "klee/Config/Version.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprUtil.h"
 #include "klee/Statistics/Statistics.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
 #include "klee/Solver/Solver.h"
@@ -164,8 +165,8 @@ bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
                             SolverQueryMetaData &metaData) {
   TimerStatIncrementer timer(stats::solverTime);
 
-  if (simplifyExprs)
-    expr = ConstraintManager::simplifyExpr(constraints, expr);
+  // if (simplifyExprs)
+  //   expr = ConstraintManager::simplifyExpr(constraints, expr);
 
   bool success = solver->evaluate(Query(constraints, expr, true), queryResult,
                                   negatedQueryResult);
@@ -204,7 +205,7 @@ static uint64_t bytesToAddress(const std::vector<uint8_t> &bytes) {
           "Symcrete must be a 64-bit value");
   
   for (unsigned bit = 0; bit < bytes.size(); ++bit) {
-    value |= (bytes[bit] << (CHAR_BIT * bit));
+    value |= (static_cast<uint64_t>(bytes[bit]) << (CHAR_BIT * bit));
   }
   return value;
 } 
@@ -214,7 +215,7 @@ bool TimingSolver::getValidAssignment(
     /* FIXME: full copy */ ValidityCore validityCore,
     /* FIXME: full copy */ Assignment symcretes,
     const std::unordered_map<const Array *, ref<MemoryObject>> &symsizes,
-    const ExprHashMap<std::set<const Array *>> &exprToSymcretes,
+    ExprHashMap<std::set<const Array *>> &exprToSymcretes,
     bool &hasResult, Assignment &result, SolverQueryMetaData &metaData) const {
   
   /// Received core for SAT query 
@@ -235,6 +236,14 @@ bool TimingSolver::getValidAssignment(
   /// FIXME: MOVE THIS TO EXECUTION STATE
   ref<Expr> optimizationRead = nullptr;
 
+  std::vector<const Array *> arrays;
+  findSymbolicObjects(expr, arrays);
+  for (const auto *array : arrays) {
+    if (symcretes.bindings.count(array)) {
+      exprToSymcretes[expr].insert(array);
+    }
+  }
+
   do {
     foundSymcreteDependendentConstraint = false;
     constraintsWithSymcretes = ConstraintSet(); 
@@ -242,7 +251,8 @@ bool TimingSolver::getValidAssignment(
 
     std::vector<ref<Expr>> unsatConstraints(validityCore.constraints.begin(),
                                             validityCore.constraints.end());
-    unsatConstraints.push_back(expr);
+    unsatConstraints.push_back(validityCore.expr);
+
     for (const auto &brokenConstraint : unsatConstraints) {
       if (!exprToSymcretes.count(brokenConstraint)) {
         /// We can't fix it as it does not have symcrete.
@@ -325,7 +335,10 @@ bool TimingSolver::getValidAssignment(
 
   /// In the beggining we will take solution from model.
   std::vector<std::vector<uint8_t>> requestedSymcretesConcretization;
-  assert(solverRespone->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization));
+  if (!solverRespone->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization)) {
+    hasResult = false;
+    return true;
+  }
 
   for (const auto &concretization: requestedSymcretesConcretization) {
     uint64_t value = bytesToAddress(concretization);

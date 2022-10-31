@@ -89,7 +89,7 @@ public:
                           ValidityCore validityCore,
                           Assignment symcretes,
                           const std::unordered_map<const Array *, ref<MemoryObject>> &symsizes,
-                          const ExprHashMap<std::set<const Array *>> &exprToSymcretes,
+                          ExprHashMap<std::set<const Array *>> &exprToSymcretes,
                           bool &hasResult,
                           Assignment &result,
                           SolverQueryMetaData &metaData) const;
