@@ -354,7 +354,7 @@ void ExecutionState::updateSymcretes(const Assignment &assignment) {
       
       /// Truncated size required if we have written 
       for (unsigned i = 0; i < oldSize; i++) {
-        os->write(i, os->read8(i));
+        newOS->write(i, os->read8(i));
       }
 
       addSymcrete(symAddresses.at(mo), addressToBytes(newMO->address), newMO->address);

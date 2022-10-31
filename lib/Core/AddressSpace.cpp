@@ -82,113 +82,114 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   if (ref<ConstantExpr> CE =
           dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(address))) {
     success = resolveOne(CE, objectType, result);
-    return true;
-  } else {
-    TimerStatIncrementer timer(stats::resolveTime);
+    if (success || isa<ConstantExpr>(address)) {
+      return true;
+    }
+  }
+  TimerStatIncrementer timer(stats::resolveTime);
 
-    // try cheap search, will succeed for any inbounds pointer
+  // try cheap search, will succeed for any inbounds pointer
 
-    ref<ConstantExpr> cex;
-    
-    if (!solver->getValue(state.evaluateConstraintsWithSymcretes(),
-                          address, cex,
-                          state.queryMetaData))
-      return false;
+  ref<ConstantExpr> cex;
+  
+  if (!solver->getValue(state.evaluateConstraintsWithSymcretes(),
+                        address, cex,
+                        state.queryMetaData))
+    return false;
 
-    uint64_t example = cex->getZExtValue();
-    MemoryObject hack(example);
-    
-    const auto res = objects.lookup_previous(&hack);
+  uint64_t example = cex->getZExtValue();
+  MemoryObject hack(example);
+  
+  const auto res = objects.lookup_previous(&hack);
 
-    if (res) {
-      const MemoryObject *mo = res->first;
-      const auto &os = findObject(mo);
-      if (example - mo->address < os->size) {
-        if (res->second->isAccessableFrom(objectType)) {
-          result.first = res->first;
-          result.second = res->second.get();
-          success = true;
-          return true;
-        }
+  if (res) {
+    const MemoryObject *mo = res->first;
+    const auto &os = findObject(mo);
+    if (example - mo->address < os->size) {
+      if (res->second->isAccessableFrom(objectType)) {
+        result.first = res->first;
+        result.second = res->second.get();
+        success = true;
+        return true;
       }
     }
+  }
 
-    // didn't work, now we have to search
-        
-    MemoryMap::iterator oi = objects.upper_bound(&hack);
-    MemoryMap::iterator begin = objects.begin();
-    MemoryMap::iterator end = objects.end();
+  // didn't work, now we have to search
       
-    MemoryMap::iterator start = oi;
-    while (oi!=begin) {
-      --oi;
-      const auto &mo = oi->first;
+  MemoryMap::iterator oi = objects.upper_bound(&hack);
+  MemoryMap::iterator begin = objects.begin();
+  MemoryMap::iterator end = objects.end();
+    
+  MemoryMap::iterator start = oi;
+  while (oi!=begin) {
+    --oi;
+    const auto &mo = oi->first;
 
-      if (!oi->second->isAccessableFrom(objectType)) {
-        continue;
-      }
+    if (!oi->second->isAccessableFrom(objectType)) {
+      continue;
+    }
 
+    bool mayBeTrue;
+    if (!solver->mayBeTrue(state, 
+            state.evaluateConstraintsWithSymcretes(),
+            mo->getBoundsCheckPointer(address),
+            mayBeTrue, state.queryMetaData, true))
+      return false;
+    if (mayBeTrue) {
+      result.first = oi->first;
+      result.second = oi->second.get();
+      success = true;
+      return true;
+    } else {
+      /// HERE
+      
+      bool mustBeTrue;
+      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                              UgeExpr::create(
+                                  address, mo->getBaseExpr()),
+                              mustBeTrue, state.queryMetaData))
+        return false;
+      
+      if (mustBeTrue)
+        break;
+    }
+  }
+
+  // search forwards
+  for (oi=start; oi!=end; ++oi) {
+    const auto &mo = oi->first;
+
+    if (!oi->second->isAccessableFrom(objectType)) {
+      continue;
+    }
+
+    bool mustBeTrue;
+    if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                                UltExpr::create(address, mo->getBaseExpr()),
+                            mustBeTrue, state.queryMetaData))
+      return false;
+    if (mustBeTrue) {
+      break;
+    } else {
       bool mayBeTrue;
+
       if (!solver->mayBeTrue(state, 
               state.evaluateConstraintsWithSymcretes(),
               mo->getBoundsCheckPointer(address),
-              mayBeTrue, state.queryMetaData, true))
+              mayBeTrue, state.queryMetaData))
         return false;
       if (mayBeTrue) {
         result.first = oi->first;
         result.second = oi->second.get();
         success = true;
         return true;
-      } else {
-        /// HERE
-        
-        bool mustBeTrue;
-        if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                                UgeExpr::create(
-                                    address, mo->getBaseExpr()),
-                                mustBeTrue, state.queryMetaData))
-          return false;
-        
-        if (mustBeTrue)
-          break;
       }
     }
-
-    // search forwards
-    for (oi=start; oi!=end; ++oi) {
-      const auto &mo = oi->first;
-
-      if (!oi->second->isAccessableFrom(objectType)) {
-        continue;
-      }
-
-      bool mustBeTrue;
-      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                                  UltExpr::create(address, mo->getBaseExpr()),
-                              mustBeTrue, state.queryMetaData))
-        return false;
-      if (mustBeTrue) {
-        break;
-      } else {
-        bool mayBeTrue;
-
-        if (!solver->mayBeTrue(state, 
-                state.evaluateConstraintsWithSymcretes(),
-                mo->getBoundsCheckPointer(address),
-                mayBeTrue, state.queryMetaData))
-          return false;
-        if (mayBeTrue) {
-          result.first = oi->first;
-          result.second = oi->second.get();
-          success = true;
-          return true;
-        }
-      }
-    }
-
-    success = false;
-    return true;
   }
+
+  success = false;
+  return true;
 }
 
 int AddressSpace::checkPointerInObject(ExecutionState &state,
@@ -236,98 +237,101 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
   if (ref<ConstantExpr> CE =
           dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(p))) {
     ObjectPair res;
-    if (resolveOne(CE, objectType, res))
+    if (resolveOne(CE, objectType, res)) {
       rl.push_back(res);
-    return false;
-  } else {
-    TimerStatIncrementer timer(stats::resolveTime);
+      return false;
+    }
+    /// Did no succeed in constant case
+    if (isa<ConstantExpr>(p)) { 
+      return false;
+    }
+  } 
+  TimerStatIncrementer timer(stats::resolveTime);
 
-    // XXX in general this isn't exactly what we want... for
-    // a multiple resolution case (or for example, a \in {b,c,0})
-    // we want to find the first object, find a cex assuming
-    // not the first, find a cex assuming not the second...
-    // etc.
+  // XXX in general this isn't exactly what we want... for
+  // a multiple resolution case (or for example, a \in {b,c,0})
+  // we want to find the first object, find a cex assuming
+  // not the first, find a cex assuming not the second...
+  // etc.
 
-    // XXX how do we smartly amortize the cost of checking to
-    // see if we need to keep searching up/down, in bad cases?
-    // maybe we don't care?
+  // XXX how do we smartly amortize the cost of checking to
+  // see if we need to keep searching up/down, in bad cases?
+  // maybe we don't care?
 
-    // XXX we really just need a smart place to start (although
-    // if its a known solution then the code below is guaranteed
-    // to hit the fast path with exactly 2 queries). we could also
-    // just get this by inspection of the expr.
+  // XXX we really just need a smart place to start (although
+  // if its a known solution then the code below is guaranteed
+  // to hit the fast path with exactly 2 queries). we could also
+  // just get this by inspection of the expr.
 
-    ref<ConstantExpr> cex;
-    if (!solver->getValue(state.evaluateConstraintsWithSymcretes(),
-                          state.evaluateWithSymcretes(p), cex,
-                          state.queryMetaData))
+  ref<ConstantExpr> cex;
+  if (!solver->getValue(state.evaluateConstraintsWithSymcretes(),
+                        state.evaluateWithSymcretes(p), cex,
+                        state.queryMetaData))
+    return true;
+  uint64_t example = cex->getZExtValue();
+  MemoryObject hack(example);
+
+  MemoryMap::iterator oi = objects.upper_bound(&hack);
+  MemoryMap::iterator begin = objects.begin();
+  MemoryMap::iterator end = objects.end();
+
+  MemoryMap::iterator start = oi;
+  // search backwards, start with one minus because this
+  // is the object that p *should* be within, which means we
+  // get write off the end with 4 queries
+  while (oi != begin) {
+    --oi;
+    const MemoryObject *mo = oi->first;
+    if (!oi->second->isAccessableFrom(objectType)) {
+      rlSkipped.emplace_back(mo, oi->second.get());
+      continue;
+    }
+
+    if (timeout && timeout < timer.delta()) {
       return true;
-    uint64_t example = cex->getZExtValue();
-    MemoryObject hack(example);
-
-    MemoryMap::iterator oi = objects.upper_bound(&hack);
-    MemoryMap::iterator begin = objects.begin();
-    MemoryMap::iterator end = objects.end();
-
-    MemoryMap::iterator start = oi;
-    // search backwards, start with one minus because this
-    // is the object that p *should* be within, which means we
-    // get write off the end with 4 queries
-    while (oi != begin) {
-      --oi;
-      const MemoryObject *mo = oi->first;
-      if (!oi->second->isAccessableFrom(objectType)) {
-        rlSkipped.emplace_back(mo, oi->second.get());
-        continue;
-      }
-
-      if (timeout && timeout < timer.delta()) {
-        return true;
-      }
-
-      auto op = std::make_pair<>(mo, oi->second.get());
-
-      int incomplete =
-          checkPointerInObject(state, solver, p, op, rl, maxResolutions);
-      if (incomplete != 2)
-        return incomplete ? true : false;
-
-      bool mustBeTrue;
-      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                              state.evaluateWithSymcretes(
-                                  UgeExpr::create(p, mo->getBaseExpr())),
-                              mustBeTrue, state.queryMetaData))
-        return true;
-      if (mustBeTrue)
-        break;
     }
 
-    // search forwards
-    for (oi = start; oi != end; ++oi) {
-      const MemoryObject *mo = oi->first;
-      if (!oi->second->isAccessableFrom(objectType)) {
-        rlSkipped.emplace_back(mo, oi->second.get());
-        continue;
-      }
+    auto op = std::make_pair<>(mo, oi->second.get());
 
-      if (timeout && timeout < timer.delta()) {
-        return true;
-      }
+    int incomplete =
+        checkPointerInObject(state, solver, p, op, rl, maxResolutions);
+    if (incomplete != 2)
+      return incomplete ? true : false;
 
-      bool mustBeTrue;
-      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                                  UltExpr::create(p, mo->getBaseExpr()),
-                              mustBeTrue, state.queryMetaData))
-        return true;
-      if (mustBeTrue)
-        break;
-      auto op = std::make_pair<>(mo, oi->second.get());
+    bool mustBeTrue;
+    if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                            UgeExpr::create(p, mo->getBaseExpr()), mustBeTrue,
+                            state.queryMetaData))
+      return true;
+    if (mustBeTrue)
+      break;
+  }
 
-      int incomplete =
-          checkPointerInObject(state, solver, p, op, rl, maxResolutions);
-      if (incomplete != 2)
-        return incomplete ? true : false;
+  // search forwards
+  for (oi = start; oi != end; ++oi) {
+    const MemoryObject *mo = oi->first;
+    if (!oi->second->isAccessableFrom(objectType)) {
+      rlSkipped.emplace_back(mo, oi->second.get());
+      continue;
     }
+
+    if (timeout && timeout < timer.delta()) {
+      return true;
+    }
+
+    bool mustBeTrue;
+    if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                            UltExpr::create(p, mo->getBaseExpr()), mustBeTrue,
+                            state.queryMetaData))
+      return true;
+    if (mustBeTrue)
+      break;
+    auto op = std::make_pair<>(mo, oi->second.get());
+
+    int incomplete =
+        checkPointerInObject(state, solver, p, op, rl, maxResolutions);
+    if (incomplete != 2)
+      return incomplete ? true : false;
   }
 
   return false;

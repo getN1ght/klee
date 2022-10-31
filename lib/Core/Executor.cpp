@@ -5034,9 +5034,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     bool mayBeDereferenced;
 
     solver->setTimeout(coreSolverTimeout);
-    bool success = solver->mayBeTrue(*unbound, unbound->evaluateConstraintsWithSymcretes(),
-                                    unbound->evaluateWithSymcretes(inBounds),
-                                    mayBeDereferenced, unbound->queryMetaData);
+    bool success =
+        solver->mayBeTrue(*unbound, unbound->evaluateConstraintsWithSymcretes(),
+                          inBounds, mayBeDereferenced, unbound->queryMetaData);
     solver->setTimeout(time::Span());
     if (!success) {
       terminateStateOnSolverError(state, "Query timed out (resolve)");
@@ -5215,8 +5215,7 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
   solver->setTimeout(coreSolverTimeout);
   bool success =
       solver->mustBeFalse(state, state.evaluateConstraintsWithSymcretes(),
-                          state.evaluateWithSymcretes(checkPointerExpr),
-                          mustBeFalse, state.queryMetaData);
+                          checkPointerExpr, mustBeFalse, state.queryMetaData);
   solver->setTimeout(time::Span());
 
   if (!success) {
