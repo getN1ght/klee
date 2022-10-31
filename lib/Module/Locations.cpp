@@ -9,33 +9,40 @@
 
 #include "klee/Module/Locations.h"
 #include "klee/Module/KModule.h"
-#include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"
 
 using namespace klee;
 using namespace llvm;
 
+bool Location::isTheSameAsIn(KInstruction *instr) const {
+  return instr->info->line == line;
+}
 
-ResolvedLocations::ResolvedLocations(const KModule *kmodule, const Locations &locs) : ResolvedLocations() {
-  const auto &infos = kmodule->infos;
-  for (const auto &loc : locs) {
-    const auto &file = loc.first;
-    auto line = loc.second;
+bool Location::isInside(const FunctionInfo &info) const {
+  return info.file == filename;
+}
+
+bool Location::isInside(KBlock *block) const {
+  auto first = block->getFirstInstruction()->info->line;
+  if (first > line)
+    return false;
+  auto last = block->getLastInstruction()->info->line;
+  return line <= last; // and `first <= line` from above
+}
+
+ResolvedLocations::ResolvedLocations(const KModule *kmodule, const Locations *locs) : ResolvedLocations() {
+  auto infos = kmodule->infos.get();
+  for (auto loc : *locs) {
     std::unordered_set<KBlock *> resolvedLocations;
     for (const auto &kfunc : kmodule->functions) {
       const auto &fi = infos->getFunctionInfo(*kfunc->function);
-      if (fi.file != file)
+      if (!loc->isInside(fi))
         continue;
       for (const auto &kblock : kfunc->blocks) {
-        auto first = kblock->getFirstInstruction()->info->line;
-        if (first > line)
-          continue;
-        auto last = kblock->getLastInstruction()->info->line;
-        if (line <= last) { // and `first <= line` from above
+        if (loc->isInside(kblock.get()))
           resolvedLocations.insert(kblock.get());
-        }
       }
     }
-    locations.push_back(resolvedLocations);
+    locations.emplace_back(loc, resolvedLocations);
   }
 }

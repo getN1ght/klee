@@ -17,7 +17,8 @@ using klee::TargetForest;
 TEST(TargetForestTest, DoubleStep) {
   std::unordered_map<KBlock *, Target *> block2target;
   ResolvedLocations rl;
-  rl.locations.push_back({(KBlock*)1, (KBlock*)2, (KBlock*)3});
+  std::unordered_set<KBlock *> blocks = {(KBlock*)1, (KBlock*)2, (KBlock*)3};
+  rl.locations.emplace_back(nullptr, blocks);
   block2target[(KBlock*)1] = (Target*)10;
   block2target[(KBlock*)2] = (Target*)20;
   block2target[(KBlock*)3] = (Target*)30;

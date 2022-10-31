@@ -227,7 +227,8 @@ bool KModule::link(std::vector<std::unique_ptr<llvm::Module>> &modules,
                    const std::string &entryPoint) {
   auto numRemainingModules = modules.size();
   // Add the currently active module to the list of linkables
-  modules.push_back(std::move(module));
+  if (module)
+    modules.push_back(std::move(module));
   std::string error;
   module = std::unique_ptr<llvm::Module>(
       klee::linkModules(modules, entryPoint, error));

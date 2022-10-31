@@ -25,21 +25,31 @@
 namespace klee {
 
 class TargetForest {
-  struct Layer {
+  class Layer {
     using InternalLayer = std::unordered_map<Target *, ref<TargetForest>>;
+    InternalLayer *forest;
+
+    Layer(InternalLayer *forest) : forest(forest) {}
+    void unionWith(const Layer *other);
+
+  public:
     using iterator = InternalLayer::iterator;
 
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;
-    InternalLayer *forest;
 
-    Layer() : forest(new InternalLayer()) {}
+    Layer() : Layer(new InternalLayer()) {}
+    ~Layer() {
+      delete forest;
+    }
+
     iterator find(Target *b) { return forest->find(b); }
     iterator begin() { return forest->begin(); }
     iterator end() { return forest->end(); }
     void insert(Target *loc, TargetForest *nextLayer) { forest->insert(std::make_pair(loc, nextLayer)); }
     bool empty() const { return forest->empty(); }
     size_t size() const { return forest->size(); }
+    Layer *replaceChildWith(Target *child, const Layer *other) const;
   };
   ref<Layer> forest;
 

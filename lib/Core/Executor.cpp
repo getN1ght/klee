@@ -4250,11 +4250,9 @@ bool shouldExitOn(StateTerminationType reason) {
 
 void Executor::terminateStateOnTargetError(ExecutionState &state,
                                            ReachWithError error) {
-  if (!state.targetOfCurrentKBlock || state.targetOfCurrentKBlock->getError() != error) {
+  bool reportedTruePositive = targetedExecutionManager.reportTruePositive(state, error);
+  if (!reportedTruePositive)
     targetedExecutionManager.reportFalseNegative();
-  } else {
-    targetedExecutionManager.reportTruePositive();
-  }
 
   // Proceed with normal `terminateStateOnError` call
   std::string messaget;
@@ -5333,17 +5331,18 @@ void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
   runGuided(*initialState, kf);
 }
 
-void Executor::runThroughLocations(std::vector<Locations> &paths, Function *mainFn, int argc, char **argv, char **envp) {
+void Executor::runThroughLocations(std::vector<Locations *> &paths, Function *mainFn, int argc, char **argv, char **envp) {
   ExecutionState *state = formState(mainFn, argc, argv, envp);
   state->popFrame();
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   auto targets = targetedExecutionManager.prepareTargets(kmodule.get(), paths);
   for (auto &startBlockAndWhiteList : targets) {
     auto copy_state = state->copy();
-    copy_state->whitelist = *startBlockAndWhiteList.second;
     auto kf = startBlockAndWhiteList.first;
     ExecutionState *initialState = copy_state->withKFunction(kf);
     prepareSymbolicArgs(*initialState, kf);
+    copy_state->whitelist = *startBlockAndWhiteList.second;
+    targetedExecutionManager.stepTo(*initialState, initialState->pc->parent);
     runGuided(*initialState, kf);
   }
 }
