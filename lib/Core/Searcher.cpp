@@ -506,8 +506,9 @@ void GuidedSearcher::innerUpdate(
       assert(target && "Target shoud be not null!");
       targets.insert(target);
     }
-  } else if (current && std::find(removedStates.begin(), removedStates.end(),
-                                  current) == removedStates.end()) {
+  } else if (current &&
+             std::find(baseRemovedStates.begin(), baseRemovedStates.end(),
+                       current) == baseRemovedStates.end()) {
     targetlessStates.push_back(current);
   }
 
@@ -612,7 +613,8 @@ void GuidedSearcher::clearReached() {
 }
 
 bool GuidedSearcher::empty() {
-  return baseSearcher->empty();
+  return CoverageGuidance == guidance ? baseSearcher->empty()
+                                      : targetedSearchers.empty();
 }
 
 void GuidedSearcher::printName(llvm::raw_ostream &os) {
