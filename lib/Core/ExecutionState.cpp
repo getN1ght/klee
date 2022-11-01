@@ -141,8 +141,7 @@ ExecutionState::ExecutionState(const ExecutionState& state):
                              ? state.unwindingInformation->clone()
                              : nullptr),
     coveredNew(state.coveredNew),
-    forkDisabled(state.forkDisabled),
-    targets(state.targets) {
+    forkDisabled(state.forkDisabled) {
   for (const auto &cur_mergehandler: openMergeStack)
     cur_mergehandler->addOpenState(this);
 }

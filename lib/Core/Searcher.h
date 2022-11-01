@@ -136,7 +136,7 @@ namespace klee {
 
     std::unique_ptr<WeightedQueue<ExecutionState *, ExecutionStateIDCompare>>
         states;
-    Target target;
+    ref<Target> target;
     CodeGraphDistance &codeGraphDistance;
     const std::unordered_map<KFunction *, unsigned int> &distanceToTargetFunction;
     std::vector<ExecutionState *> reachedOnLastUpdate;
@@ -150,7 +150,7 @@ namespace klee {
     WeightResult tryGetWeight(ExecutionState *es, weight_type &weight);
 
   public:
-    TargetedSearcher(Target target, CodeGraphDistance &distance);
+    TargetedSearcher(ref<Target> target, CodeGraphDistance &distance);
     ~TargetedSearcher() override;
 
     ExecutionState &selectState() override;
@@ -164,23 +164,25 @@ namespace klee {
   };
 
   class GuidedSearcher final : public Searcher {
-
   private:
+    using TargetToSearcherMap = std::unordered_map<ref<Target>, std::unique_ptr<TargetedSearcher>, TargetHash, TargetCmp>;
+    using TargetToStateSetMap = std::unordered_map<ref<Target>, std::unordered_set<ExecutionState *>, TargetHash, TargetCmp>;
+    using TargetToStateVectorMap = std::unordered_map<ref<Target>, std::vector<ExecutionState *>, TargetHash, TargetCmp>;
+
     std::unique_ptr<Searcher> baseSearcher;
-    std::map<Target, std::unique_ptr<TargetedSearcher>> targetedSearchers;
+    TargetToSearcherMap targetedSearchers;
     CodeGraphDistance &codeGraphDistance;
     TargetCalculator &stateHistory;
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates;
     std::size_t bound;
     unsigned index{1};
-    void addTarget(Target target);
+    void addTarget(ref<Target> target);
     void innerUpdate(ExecutionState *current,
                      const std::vector<ExecutionState *> &addedStates,
                      const std::vector<ExecutionState *> &removedStates);
 
     void clearReached();
-    void collectReached(
-        std::map<Target, std::unordered_set<ExecutionState *>> &reachedStates);
+    void collectReached(TargetToStateSetMap &reachedStates);
 
   public:
     GuidedSearcher(
@@ -197,7 +199,7 @@ namespace klee {
         ExecutionState *current,
         const std::vector<ExecutionState *> &addedStates,
         const std::vector<ExecutionState *> &removedStates,
-        std::map<Target, std::unordered_set<ExecutionState *>> &reachedStates);
+        TargetToStateSetMap &reachedStates);
 
     bool empty() override;
     void printName(llvm::raw_ostream &os) override;

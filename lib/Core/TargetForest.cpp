@@ -15,12 +15,12 @@ using namespace klee;
 using namespace llvm;
 
 
-TargetForest::TargetForest(const std::vector<ResolvedLocations> &paths, const std::unordered_map<KBlock *, Target *> &block2target) : TargetForest() {
+TargetForest::TargetForest(const std::vector<ResolvedLocations> &paths, const std::unordered_map<KBlock *, ref<Target>> &block2target) : TargetForest() {
   for (const auto &path : paths)
     addPath(path, block2target);
 }
 
-void TargetForest::addPath(const ResolvedLocations &rl, const std::unordered_map<KBlock *, Target *> &block2target) {
+void TargetForest::addPath(const ResolvedLocations &rl, const std::unordered_map<KBlock *, ref<Target> > &block2target) {
   const auto &path = rl.locations;
   auto n = path.size();
   if (n == 0)
@@ -67,20 +67,54 @@ void TargetForest::Layer::unionWith(const TargetForest::Layer *other) {
   }
 }
 
-TargetForest::Layer *TargetForest::Layer::replaceChildWith(Target *const child, const TargetForest::Layer *other) const {
+TargetForest::Layer *TargetForest::Layer::removeChild(ref<Target> child) const {
   auto layer = new InternalLayer(*forest);
   layer->erase(child);
-  auto result = new Layer(layer);
+  return new Layer(layer);
+}
+
+TargetForest::Layer *TargetForest::Layer::addChild(ref<Target> child) const {
+  auto layer = new InternalLayer(*forest);
+  layer->insert({child, new TargetForest()});
+  return new Layer(layer);
+}
+
+TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<Target> const child, const TargetForest::Layer *other) const {
+  auto result = removeChild(child);
   result->unionWith(other);
   return result;
 }
 
-void TargetForest::stepTo(Target *loc) {
+void TargetForest::stepTo(ref<Target> loc) {
   auto res = forest->find(loc);
   if (res == forest->end()) {
     return;
   }
   forest = forest->replaceChildWith(loc, res->second->forest.get());
+}
+
+void TargetForest::add(ref<Target> target) {
+  auto res = forest->find(target);
+  if (res != forest->end()) {
+    return;
+  }
+  forest = forest->addChild(target);
+}
+
+void TargetForest::remove(ref<Target> target) {
+  auto res = forest->find(target);
+  if (res == forest->end()) {
+    return;
+  }
+  forest = forest->removeChild(target);
+}
+
+void TargetForest::dump() const {
+  llvm::errs() << "THE FIRST LAYER:\n";
+  for (const auto &kv : *forest) {
+    llvm::errs() << kv.first->toString();
+  }
+  llvm::errs() << "\n";
 }
 
 void TargetForest::debugStepToRandomLoc() {

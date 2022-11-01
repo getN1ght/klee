@@ -165,12 +165,12 @@ static unsigned int ulog2(unsigned int val) {
 
 ///
 
-TargetedSearcher::TargetedSearcher(Target target, CodeGraphDistance &_distance)
+TargetedSearcher::TargetedSearcher(ref<Target> target, CodeGraphDistance &_distance)
     : states(std::make_unique<
              WeightedQueue<ExecutionState *, ExecutionStateIDCompare>>()),
       target(target), codeGraphDistance(_distance),
       distanceToTargetFunction(
-          codeGraphDistance.getBackwardDistance(target.getBlock()->parent)) {}
+          codeGraphDistance.getBackwardDistance(target->getBlock()->parent)) {}
 
 ExecutionState &TargetedSearcher::selectState() { return *states->choose(0); }
 
@@ -179,7 +179,7 @@ bool TargetedSearcher::distanceInCallGraph(KFunction *kf, KBlock *kb,
   distance = UINT_MAX;
   const std::unordered_map<KBlock *, unsigned> &dist =
       codeGraphDistance.getDistance(kb);
-  KBlock *targetBB = target.getBlock();
+  KBlock *targetBB = target->getBlock();
   KFunction *targetF = targetBB->parent;
 
   if (kf == targetF && dist.count(targetBB) != 0) {
@@ -262,18 +262,18 @@ TargetedSearcher::tryGetPostTargetWeight(ExecutionState *es, weight_type &weight
 
 TargetedSearcher::WeightResult
 TargetedSearcher::tryGetTargetWeight(ExecutionState *es, weight_type &weight) {
-  std::vector<KBlock *> localTargets = {target.getBlock()};
+  std::vector<KBlock *> localTargets = {target->getBlock()};
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
   return res;
 }
 
 TargetedSearcher::WeightResult
 TargetedSearcher::tryGetWeight(ExecutionState *es, weight_type &weight) {
-  if (target.atReturn()) {
-    if (es->prevPC->parent == target.getBlock() &&
-        es->prevPC == target.getBlock()->getLastInstruction()) {
+  if (target->atReturn()) {
+    if (es->prevPC->parent == target->getBlock() &&
+        es->prevPC == target->getBlock()->getLastInstruction()) {
       return Done;
-    } else if (es->pc->parent == target.getBlock()) {
+    } else if (es->pc->parent == target->getBlock()) {
       weight = 0;
       return Continue;
     }
@@ -335,7 +335,7 @@ void TargetedSearcher::update(
       reachedOnLastUpdate.push_back(current);
       break;
     case Miss:
-      current->targets.erase(target);
+      current->whitelist.remove(target);
       states->remove(current);
       break;
     }
@@ -352,18 +352,18 @@ void TargetedSearcher::update(
       reachedOnLastUpdate.push_back(state);
       break;
     case Miss:
-      state->targets.erase(target);
+      state->whitelist.remove(target);
       break;
     }
   }
 
   // remove states
   for (const auto state : removedStates) {
-    if (target.atReturn() &&
-        state->prevPC == target.getBlock()->getLastInstruction())
+    if (target->atReturn() &&
+        state->prevPC == target->getBlock()->getLastInstruction())
       reachedOnLastUpdate.push_back(state);
     else {
-      state->targets.erase(target);
+      state->whitelist.remove(target);
       states->remove(state);
     }
   }
@@ -378,7 +378,7 @@ void TargetedSearcher::printName(llvm::raw_ostream &os) {
 TargetedSearcher::~TargetedSearcher() {
   while (!states->empty()) {
     auto &state = selectState();
-    state.targets.erase(target);
+    state.whitelist.remove(target);
     states->remove(&state);
   }
 }
@@ -390,7 +390,7 @@ std::vector<ExecutionState *> TargetedSearcher::reached() {
 void TargetedSearcher::removeReached() {
   for (auto state : reachedOnLastUpdate) {
     states->remove(state);
-    state->targets.erase(target);
+    state->whitelist.remove(target);
   }
   reachedOnLastUpdate.clear();
 }
@@ -414,7 +414,7 @@ ExecutionState &GuidedSearcher::selectState() {
     index = index % size;
     auto it = targetedSearchers.begin();
     std::advance(it, index);
-    Target target = it->first;
+    ref<Target> target = it->first;
     assert(targetedSearchers.find(target) != targetedSearchers.end() &&
            !targetedSearchers[target]->empty());
     return targetedSearchers[target]->selectState();
@@ -424,19 +424,20 @@ ExecutionState &GuidedSearcher::selectState() {
 void GuidedSearcher::innerUpdate(
     ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
     const std::vector<ExecutionState *> &removedStates) {
-  std::map<Target, std::vector<ExecutionState *>> addedTStates;
-  std::map<Target, std::vector<ExecutionState *>> removedTStates;
+  TargetToStateVectorMap addedTStates;
+  TargetToStateVectorMap removedTStates;
   std::vector<ExecutionState *> targetlessStates;
   std::vector<ExecutionState *> addedTargetlessStates(addedStates.begin(),
                                                       addedStates.end());
   std::vector<ExecutionState *> removedTargetlessStates(removedStates.begin(),
                                                         removedStates.end());
 
-  std::set<Target> targets;
+  std::set<ref<Target>> targets;
 
   for (const auto state : addedStates) {
-    if (!state->targets.empty()) {
-      for (auto target : state->targets) {
+    if (!state->whitelist.empty()) {
+      for (auto &targetF : state->whitelist) {
+        auto target = targetF.first;
         targets.insert(target);
         addedTStates[target].push_back(state);
       }
@@ -446,19 +447,26 @@ void GuidedSearcher::innerUpdate(
   }
 
   for (const auto state : removedStates) {
-    for (auto target : state->targets) {
+    for (auto &targetF : state->whitelist) {
+      auto target = targetF.first;
       targets.insert(target);
       removedTStates[target].push_back(state);
     }
   }
 
-  std::set<Target> currTargets;
+  std::set<ref<Target>> currTargets;
   if (current) {
-    currTargets = current->targets;
+    for (auto &kv : current->whitelist) {
+      if (!kv.first) {
+        assert(0);
+      }
+      currTargets.insert(kv.first);
+    }
   }
 
   if (current && !currTargets.empty()) {
-    for (auto target : current->targets) {
+    for (auto &targetF : current->whitelist) {
+      auto target = targetF.first;
       targets.insert(target);
     }
   } else if (current && std::find(removedStates.begin(), removedStates.end(),
@@ -484,9 +492,9 @@ void GuidedSearcher::innerUpdate(
     KInstruction *prevKI = state->prevPC;
     if (prevKI->inst->isTerminator() &&
         state->multilevel.count(state->getPCBlock()) > bound) {
-      Target target(stateHistory.calculateByBlockHistory(*state));
+      ref<Target> target(stateHistory.calculateByBlockHistory(*state));
       if (target) {
-        state->targets.insert(target);
+        state->whitelist.add(target);
         targets.insert(target);
         addedTStates[target].push_back(state);
       } else {
@@ -521,7 +529,7 @@ void GuidedSearcher::innerUpdate(
 void GuidedSearcher::update(
     ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
     const std::vector<ExecutionState *> &removedStates,
-    std::map<Target, std::unordered_set<ExecutionState *>> &reachedStates) {
+    TargetToStateSetMap &reachedStates) {
   innerUpdate(current, addedStates, removedStates);
   collectReached(reachedStates);
   clearReached();
@@ -534,10 +542,9 @@ void GuidedSearcher::update(
   clearReached();
 }
 
-void GuidedSearcher::collectReached(
-    std::map<Target, std::unordered_set<ExecutionState *>> &reachedStates) {
-  std::map<Target, std::unordered_set<ExecutionState *>> ret;
-  std::vector<Target> targets;
+void GuidedSearcher::collectReached(TargetToStateSetMap &reachedStates) {
+  TargetToStateSetMap ret;
+  std::vector<ref<Target>> targets;
   for (auto const &targetSearcher : targetedSearchers)
     targets.push_back(targetSearcher.first);
   for (auto target : targets) {
@@ -550,7 +557,7 @@ void GuidedSearcher::collectReached(
 }
 
 void GuidedSearcher::clearReached() {
-  std::vector<Target> targets;
+  std::vector<ref<Target>> targets;
   for (auto const &targetSearcher : targetedSearchers)
     targets.push_back(targetSearcher.first);
   for (auto target : targets) {
@@ -571,7 +578,7 @@ void GuidedSearcher::printName(llvm::raw_ostream &os) {
   os << "GuidedSearcher";
 }
 
-void GuidedSearcher::addTarget(Target target) {
+void GuidedSearcher::addTarget(ref<Target> target) {
   targetedSearchers[target] =
       std::make_unique<TargetedSearcher>(target, codeGraphDistance);
 }

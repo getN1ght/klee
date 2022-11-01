@@ -62,7 +62,7 @@ bool TargetCalculator::differenceIsEmpty(
   return diff.empty();
 }
 
-Target TargetCalculator::calculateBy(HistoryKind kind, ExecutionState &state) {
+ref<Target> TargetCalculator::calculateBy(HistoryKind kind, ExecutionState &state) {
   BasicBlock *initialBlock = state.getInitPCBlock();
   std::map<llvm::BasicBlock *, VisitedBlocks> &history =
       blocksHistory[initialBlock];
@@ -71,7 +71,7 @@ Target TargetCalculator::calculateBy(HistoryKind kind, ExecutionState &state) {
   BasicBlock *bb = state.getPCBlock();
   KFunction *kf = module.functionMap.at(bb->getParent());
   KBlock *kb = kf->blockMap[bb];
-  KBlock *nearestBlock = nullptr;
+  ref<Target> nearestBlock;
   unsigned int minDistance = UINT_MAX;
   unsigned int sfNum = 0;
   bool newCov = false;
@@ -107,13 +107,13 @@ Target TargetCalculator::calculateBy(HistoryKind kind, ExecutionState &state) {
         } else {
           newCov = true;
         }
-        nearestBlock = target;
+        nearestBlock = new Target(target);
         minDistance = distance;
       }
     }
 
     if (nearestBlock) {
-      return Target(nearestBlock);
+      return nearestBlock;
     }
 
     if (sfi->caller) {
@@ -121,13 +121,13 @@ Target TargetCalculator::calculateBy(HistoryKind kind, ExecutionState &state) {
     }
   }
 
-  return Target(nearestBlock);
+  return nearestBlock;
 }
 
-Target TargetCalculator::calculateByBlockHistory(ExecutionState &state) {
+ref<Target> TargetCalculator::calculateByBlockHistory(ExecutionState &state) {
   return calculateBy(HistoryKind::Blocks, state);
 }
 
-Target TargetCalculator::calculateByTransitionHistory(ExecutionState &state) {
+ref<Target> TargetCalculator::calculateByTransitionHistory(ExecutionState &state) {
   return calculateBy(HistoryKind::Transitions, state);
 }

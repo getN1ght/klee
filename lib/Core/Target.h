@@ -37,8 +37,20 @@ private:
   ReachWithError error;
 
 public:
+  /// @brief Required by klee::ref-managed objects
+  class ReferenceCounter _refCount;
+
   Target(KBlock *_block, ReachWithError error) : block(_block), error(error) {}
   explicit Target(KBlock *_block) : Target(_block, ReachWithError::None) {} //TODO: [Aleksandr Misonizhnik], I think, this constructor should be entirely deleted
+
+
+  int compare(const Target &other) const {
+    if (error != other.error)
+      return error < other.error ? -1 : 1;
+    if (block != other.block)
+      return block < other.block ? -1 : 1;
+    return 0;
+  }
 
   bool operator<(const Target &other) const {
     return block < other.block || (block == other.block && error < other.error);
@@ -58,7 +70,19 @@ public:
 
   explicit operator bool() const noexcept { return !isNull(); }
 
+  unsigned hash() const { return reinterpret_cast<uintptr_t>(block); }
+
   std::string toString() const;
+};
+
+struct TargetHash  {
+  unsigned operator()(const ref<Target> &t) const { return t->hash(); }
+};
+
+struct TargetCmp {
+  bool operator()(const ref<Target> &a, const ref<Target> &b) const {
+    return a==b;
+  }
 };
 
 typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;
@@ -87,8 +111,8 @@ class TargetCalculator {
       TransitionsHistory;
 
 public:
-  Target calculateByTransitionHistory(ExecutionState &state);
-  Target calculateByBlockHistory(ExecutionState &state);
+  ref<Target> calculateByTransitionHistory(ExecutionState &state);
+  ref<Target> calculateByBlockHistory(ExecutionState &state);
 
   TargetCalculator(const KModule &module, CodeGraphDistance &codeGraphDistance)
       : module(module), codeGraphDistance(codeGraphDistance) {}
@@ -107,7 +131,7 @@ private:
   bool differenceIsEmpty(
     const ExecutionState &state, const std::map<llvm::BasicBlock *, VisitedTransitions> &history,
     KBlock *target);
-  Target calculateBy(HistoryKind kind, ExecutionState &state);
+  ref<Target> calculateBy(HistoryKind kind, ExecutionState &state);
 };
 } // namespace klee
 

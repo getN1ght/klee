@@ -207,7 +207,7 @@ public:
   TargetForest whitelist;
 
   /// @brief If not null, current block execution should terminate with error from target
-  Target *targetOfCurrentKBlock = nullptr;
+  ref<Target> targetOfCurrentKBlock = nullptr;
 
   /// Statistics and information
 
@@ -272,9 +272,6 @@ public:
 
   /// @brief Disables forking for this state. Set by user code
   bool forkDisabled = false;
-
-  /// @brief The targets that the state must achieve
-  std::set<Target> targets;
 
 public:
 #ifdef KLEE_UNITTEST

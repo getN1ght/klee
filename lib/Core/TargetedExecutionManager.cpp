@@ -56,7 +56,7 @@ TargetedExecutionManager::prepareTargets(const KModule *kmodule, std::vector<Loc
 }
 
 bool TargetedExecutionManager::stepTo(ExecutionState &state, KBlock *dst) {
-  if (state.targetOfCurrentKBlock != nullptr)
+  if (state.targetOfCurrentKBlock)
     return true; // we missed target
   auto it = block2target.find(dst);
   if (it == block2target.end())
@@ -89,7 +89,4 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
   return true;
 }
 
-TargetedExecutionManager::~TargetedExecutionManager() {
-  for (auto &pair : block2target)
-    delete pair.second;
-}
+TargetedExecutionManager::~TargetedExecutionManager() {}

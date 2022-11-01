@@ -4005,7 +4005,7 @@ void Executor::targetedRun(ExecutionState &initialState, KBlock *target) {
 
   states.insert(&initialState);
 
-  TargetedSearcher *targetedSearcher = new TargetedSearcher(Target(target), *codeGraphDistance);
+  TargetedSearcher *targetedSearcher = new TargetedSearcher(new Target(target), *codeGraphDistance);
   searcher = targetedSearcher;
 
   std::vector<ExecutionState *> newStates(states.begin(), states.end());
