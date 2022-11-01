@@ -5295,6 +5295,7 @@ void Executor::runFunctionAsMain(Function *f,
                int argc,
                char **argv,
                char **envp) {
+  guidanceKind = GuidanceKind::NoGuidance;
   ExecutionState *state = formState(f, argc, argv, envp);
 
   if (pathWriter)
@@ -5322,6 +5323,7 @@ void Executor::runFunctionAsMain(Function *f,
 
 void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
                                  char **envp) {
+  guidanceKind = GuidanceKind::CoverageGuidance;
   ExecutionState *state = formState(fn, argc, argv, envp);
   state->popFrame();
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
@@ -5332,6 +5334,7 @@ void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
 }
 
 void Executor::runThroughLocations(std::vector<Locations *> &paths, Function *mainFn, int argc, char **argv, char **envp) {
+  guidanceKind = GuidanceKind::ErrorGuidance;
   ExecutionState *state = formState(mainFn, argc, argv, envp);
   state->popFrame();
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
@@ -5348,6 +5351,7 @@ void Executor::runThroughLocations(std::vector<Locations *> &paths, Function *ma
 
 void Executor::runMainAsGuided(Function *mainFn, int argc, char **argv,
                                char **envp) {
+  guidanceKind = GuidanceKind::CoverageGuidance;
   ExecutionState *state = formState(mainFn, argc, argv, envp);
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   KFunction *kf = kmodule->functionMap[mainFn];

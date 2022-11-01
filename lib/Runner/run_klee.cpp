@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/ADT/TestCaseUtils.h"
 #include "klee/ADT/TreeStream.h"
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
@@ -26,7 +27,6 @@
 #include "klee/Support/ModuleUtil.h"
 #include "klee/Support/PrintVersion.h"
 #include "klee/System/Time.h"
-#include "klee/ADT/TestCaseUtils.h"
 
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/Constants.h"
@@ -193,26 +193,21 @@ namespace {
                              cl::desc("Issue a warning on startup for all external symbols (default=false)."),
                              cl::cat(StartCat));
 
-  enum class ExecutionKind {
-    Default,        // Default symbolic execution
-    CoverageGuided, // Use GuidedSearcher and guidedRun to maximize full code coverage
-    ErrorGuided     // Use GuidedSearcher and guidedRun to maximize specified targets coverage
-  };
-
-  cl::opt<ExecutionKind> ExecutionMode(
+  cl::opt<Interpreter::GuidanceKind> ExecutionMode(
       "execution-mode",
-      cl::values(clEnumValN(ExecutionKind::Default, "default",
+      cl::values(clEnumValN(Interpreter::GuidanceKind::NoGuidance, "default",
                             "Use basic klee symbolic execution"),
-                 clEnumValN(ExecutionKind::CoverageGuided, "coverage-guided",
+                 clEnumValN(Interpreter::GuidanceKind::CoverageGuidance, "coverage-guided",
                             "Takes place in two steps. First, all acyclic "
                             "paths are executed, "
                             "then the execution is guided to sections of the "
                             "program not yet covered. "
                             "These steps are repeated until all blocks of the "
                             "program are covered"),
-                 clEnumValN(ExecutionKind::ErrorGuided, "error-guided",
-                            "//TODO")), //TODO: [Aleksandr Misonizhnik], please fill the description
-      cl::init(ExecutionKind::CoverageGuided), cl::desc("Kind of execution mode"),
+                 clEnumValN(Interpreter::GuidanceKind::ErrorGuidance, "error-guided",
+                            "The execution is guided to sections of the "
+                            "program errors not yet covered")),
+      cl::init(Interpreter::GuidanceKind::CoverageGuidance), cl::desc("Kind of execution mode"),
       cl::cat(StartCat));
 
 
@@ -1571,13 +1566,13 @@ static int run_klee_on_function(
                    << " (" << ++i << "/" << kTestFiles.size() << ")\n";
       // XXX should put envp in .ktest ?
       switch (ExecutionMode) {
-      case ExecutionKind::Default:
+      case Interpreter::GuidanceKind::NoGuidance:
         interpreter->runFunctionAsMain(mainFn, out->numArgs, out->args, pEnvp);
         break;
-      case ExecutionKind::CoverageGuided:
+      case Interpreter::GuidanceKind::CoverageGuidance:
         interpreter->runMainAsGuided(mainFn, out->numArgs, out->args, pEnvp);
         break;
-      case ExecutionKind::ErrorGuided:
+      case Interpreter::GuidanceKind::ErrorGuidance:
         interpreter->runThroughLocations(paths, mainFn, pArgc, pArgv, pEnvp);
         break;
       }
@@ -1632,13 +1627,13 @@ static int run_klee_on_function(
     }
 
     switch (ExecutionMode) {
-    case ExecutionKind::Default:
+    case Interpreter::GuidanceKind::NoGuidance:
       interpreter->runFunctionAsMain(mainFn, pArgc, pArgv, pEnvp);
       break;
-    case ExecutionKind::CoverageGuided:
+    case Interpreter::GuidanceKind::CoverageGuidance:
       interpreter->runMainAsGuided(mainFn, pArgc, pArgv, pEnvp);
       break;
-    case ExecutionKind::ErrorGuided:
+    case Interpreter::GuidanceKind::ErrorGuidance:
       interpreter->runThroughLocations(paths, mainFn, pArgc, pArgv, pEnvp);
       break;
     }

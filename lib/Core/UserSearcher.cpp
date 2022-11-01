@@ -13,6 +13,7 @@
 #include "MergeHandler.h"
 #include "Searcher.h"
 
+#include "klee/Core/Interpreter.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/OptionCategories.h"
 
@@ -167,9 +168,15 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
     searcher = ms;
   }
 
-  if (UseGuidedSearch) {
+  if (executor.guidanceKind == Interpreter::GuidanceKind::CoverageGuidance) {
     searcher = new GuidedSearcher(searcher, *executor.codeGraphDistance.get(),
                                   *executor.targetCalculator, executor.pausedStates,
+                                  MaxCycles - 1);
+  }
+
+  if (executor.guidanceKind == Interpreter::GuidanceKind::ErrorGuidance) {
+    delete searcher;
+    searcher = new GuidedSearcher(*executor.codeGraphDistance.get(), executor.pausedStates,
                                   MaxCycles - 1);
   }
 

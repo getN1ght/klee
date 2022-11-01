@@ -92,6 +92,12 @@ public:
     {}
   };
 
+  enum class GuidanceKind {
+    NoGuidance,       // Default symbolic execution
+    CoverageGuidance, // Use GuidedSearcher and guidedRun to maximize full code coverage
+    ErrorGuidance     // Use GuidedSearcher and guidedRun to maximize specified targets coverage
+  };
+
 protected:
   const InterpreterOptions interpreterOpts;
 

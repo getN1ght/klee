@@ -316,6 +316,9 @@ TargetedSearcher::tryGetWeight(ExecutionState *es, weight_type &weight) {
     res = tryGetPreTargetWeight(es, weight);
   else if (minSfNum != UINT_MAX)
     res = tryGetPostTargetWeight(es, weight);
+  if (Done == res && target->isError()) {
+    res = Continue;
+  }
   return res;
 }
 
@@ -402,15 +405,23 @@ GuidedSearcher::GuidedSearcher(
     TargetCalculator &stateHistory,
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
     std::size_t bound)
-    : baseSearcher(baseSearcher), codeGraphDistance(codeGraphDistance),
-      stateHistory(stateHistory), pausedStates(pausedStates), bound(bound) {}
+    : guidance(CoverageGuidance), baseSearcher(baseSearcher), codeGraphDistance(codeGraphDistance),
+      stateHistory(&stateHistory), pausedStates(pausedStates), bound(bound) {}
+
+GuidedSearcher::GuidedSearcher(
+    CodeGraphDistance &codeGraphDistance,
+    std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
+    std::size_t bound)
+    : guidance(ErrorGuidance), baseSearcher(nullptr), codeGraphDistance(codeGraphDistance),
+      stateHistory(nullptr), pausedStates(pausedStates), bound(bound) {}
 
 ExecutionState &GuidedSearcher::selectState() {
   unsigned size = targetedSearchers.size();
   index = (index + 1) % (size + 1);
-  if (index == size)
+  if (CoverageGuidance == guidance && index == size) {
+    assert(baseSearcher);
     return baseSearcher->selectState();
-  else {
+  } else {
     index = index % size;
     auto it = targetedSearchers.begin();
     std::advance(it, index);
@@ -421,23 +432,48 @@ ExecutionState &GuidedSearcher::selectState() {
   }
 }
 
+bool GuidedSearcher::isStuck(ExecutionState &state) {
+  KInstruction *prevKI = state.prevPC;
+  return (prevKI->inst->isTerminator() &&
+          state.multilevel.count(state.getPCBlock()) > bound);
+}
+
 void GuidedSearcher::innerUpdate(
     ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
     const std::vector<ExecutionState *> &removedStates) {
   TargetToStateVectorMap addedTStates;
   TargetToStateVectorMap removedTStates;
   std::vector<ExecutionState *> targetlessStates;
-  std::vector<ExecutionState *> addedTargetlessStates(addedStates.begin(),
-                                                      addedStates.end());
-  std::vector<ExecutionState *> removedTargetlessStates(removedStates.begin(),
-                                                        removedStates.end());
+  std::vector<ExecutionState *> baseAddedStates(addedStates.begin(),
+                                                     addedStates.end());
+  std::vector<ExecutionState *> baseRemovedStates(removedStates.begin(),
+                                                       removedStates.end());
 
   std::set<ref<Target>> targets;
 
-  for (const auto state : addedStates) {
+  if (ErrorGuidance == guidance) {
+    if (current && isStuck(*current)) {
+      baseRemovedStates.push_back(current);
+    }
+    for (const auto state : addedStates) {
+      if (isStuck(*state)) {
+        pausedStates.insert(state);
+        auto is = std::find(baseAddedStates.begin(),
+                            baseAddedStates.end(), state);
+        if (is != baseAddedStates.end()) {
+          baseAddedStates.erase(is);
+        } else {
+          baseRemovedStates.push_back(state);
+        }
+      }
+    }
+  }
+
+  for (const auto state : baseAddedStates) {
     if (!state->whitelist.empty()) {
       for (auto &targetF : state->whitelist) {
         auto target = targetF.first;
+        assert(target && "Target shoud be not null!");
         targets.insert(target);
         addedTStates[target].push_back(state);
       }
@@ -446,9 +482,10 @@ void GuidedSearcher::innerUpdate(
     }
   }
 
-  for (const auto state : removedStates) {
+  for (const auto state : baseRemovedStates) {
     for (auto &targetF : state->whitelist) {
       auto target = targetF.first;
+      assert(target && "Target shoud be not null!");
       targets.insert(target);
       removedTStates[target].push_back(state);
     }
@@ -456,17 +493,17 @@ void GuidedSearcher::innerUpdate(
 
   std::set<ref<Target>> currTargets;
   if (current) {
-    for (auto &kv : current->whitelist) {
-      if (!kv.first) {
-        assert(0);
-      }
-      currTargets.insert(kv.first);
+    for (auto &targetF : current->whitelist) {
+      auto target = targetF.first;
+      assert(target && "Target shoud be not null!");
+      currTargets.insert(target);
     }
   }
 
   if (current && !currTargets.empty()) {
     for (auto &targetF : current->whitelist) {
       auto target = targetF.first;
+      assert(target && "Target shoud be not null!");
       targets.insert(target);
     }
   } else if (current && std::find(removedStates.begin(), removedStates.end(),
@@ -474,38 +511,39 @@ void GuidedSearcher::innerUpdate(
     targetlessStates.push_back(current);
   }
 
-  if (!removedTargetlessStates.empty()) {
-    std::vector<ExecutionState *> alt = removedTargetlessStates;
+  if (!baseRemovedStates.empty()) {
+    std::vector<ExecutionState *> alt = baseRemovedStates;
     for (const auto state : alt) {
       auto it = pausedStates.find(state);
       if (it != pausedStates.end()) {
         pausedStates.erase(it);
-        removedTargetlessStates.erase(
-            std::remove(removedTargetlessStates.begin(),
-                        removedTargetlessStates.end(), state),
-            removedTargetlessStates.end());
+        baseRemovedStates.erase(
+            std::remove(baseRemovedStates.begin(),
+                        baseRemovedStates.end(), state),
+            baseRemovedStates.end());
       }
     }
   }
 
-  for (const auto state : targetlessStates) {
-    KInstruction *prevKI = state->prevPC;
-    if (prevKI->inst->isTerminator() &&
-        state->multilevel.count(state->getPCBlock()) > bound) {
-      ref<Target> target(stateHistory.calculateByBlockHistory(*state));
-      if (target) {
-        state->whitelist.add(target);
-        targets.insert(target);
-        addedTStates[target].push_back(state);
-      } else {
-        pausedStates.insert(state);
-        if (std::find(addedStates.begin(), addedStates.end(), state) !=
-            addedStates.end()) {
-          auto is = std::find(addedTargetlessStates.begin(),
-                              addedTargetlessStates.end(), state);
-          addedTargetlessStates.erase(is);
+  if (CoverageGuidance == guidance) {
+    assert(stateHistory);
+    for (const auto state : targetlessStates) {
+      if (isStuck(*state)) {
+        ref<Target> target(stateHistory->calculateByBlockHistory(*state));
+        if (target) {
+          state->whitelist.add(target);
+          targets.insert(target);
+          addedTStates[target].push_back(state);
         } else {
-          removedTargetlessStates.push_back(state);
+          pausedStates.insert(state);
+          if (std::find(addedStates.begin(), addedStates.end(), state) !=
+              addedStates.end()) {
+            auto is = std::find(baseAddedStates.begin(), baseAddedStates.end(),
+                                state);
+            baseAddedStates.erase(is);
+          } else {
+            baseRemovedStates.push_back(state);
+          }
         }
       }
     }
@@ -523,7 +561,10 @@ void GuidedSearcher::innerUpdate(
       targetedSearchers.erase(target);
   }
 
-  baseSearcher->update(current, addedTargetlessStates, removedTargetlessStates);
+  if (CoverageGuidance == guidance) {
+    assert(baseSearcher);
+    baseSearcher->update(current, baseAddedStates, baseRemovedStates);
+  }
 }
 
 void GuidedSearcher::update(

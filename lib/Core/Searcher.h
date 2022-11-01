@@ -168,15 +168,21 @@ namespace klee {
     using TargetToSearcherMap = std::unordered_map<ref<Target>, std::unique_ptr<TargetedSearcher>, TargetHash, TargetCmp>;
     using TargetToStateSetMap = std::unordered_map<ref<Target>, std::unordered_set<ExecutionState *>, TargetHash, TargetCmp>;
     using TargetToStateVectorMap = std::unordered_map<ref<Target>, std::vector<ExecutionState *>, TargetHash, TargetCmp>;
+    enum Guidance {
+      CoverageGuidance,
+      ErrorGuidance
+    };
 
+    Guidance guidance;
     std::unique_ptr<Searcher> baseSearcher;
     TargetToSearcherMap targetedSearchers;
     CodeGraphDistance &codeGraphDistance;
-    TargetCalculator &stateHistory;
+    TargetCalculator *stateHistory;
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates;
     std::size_t bound;
     unsigned index{1};
     void addTarget(ref<Target> target);
+    bool isStuck(ExecutionState &state);
     void innerUpdate(ExecutionState *current,
                      const std::vector<ExecutionState *> &addedStates,
                      const std::vector<ExecutionState *> &removedStates);
@@ -188,6 +194,10 @@ namespace klee {
     GuidedSearcher(
         Searcher *baseSearcher, CodeGraphDistance &codeGraphDistance,
         TargetCalculator &stateHistory,
+        std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
+        std::size_t bound);
+    GuidedSearcher(
+        CodeGraphDistance &codeGraphDistance,
         std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
         std::size_t bound);
     ~GuidedSearcher() override = default;

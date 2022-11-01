@@ -61,6 +61,7 @@ public:
   }
 
   bool atReturn() const { return isa<KReturnBlock>(block); }
+  bool isError() const { return error != None; }
 
   KBlock *getBlock() const { return block; }
   ReachWithError getError() const { return error; }

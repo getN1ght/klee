@@ -235,6 +235,8 @@ private:
   /// Typeids used during exception handling
   std::vector<ref<Expr>> eh_typeids;
 
+  GuidanceKind guidanceKind;
+
   /// Return the typeid corresponding to a certain `type_info`
   ref<ConstantExpr> getEhTypeidFor(ref<Expr> type_info);
 
