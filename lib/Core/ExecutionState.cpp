@@ -253,17 +253,17 @@ ExecutionState::findMemoryObject(const Array *array) const {
 }
 
 
-// FIXME: linear search
-const Array *ExecutionState::findSymbolicArray(ref<const MemoryObject> mo) const {
+const Array *ExecutionState::replaceSymbolicArray(ref<const MemoryObject> oldMo,
+                                          ref<const MemoryObject> newMo) {
   for (unsigned i = 0; i != symbolics.size(); ++i) {
-    const auto &symbolic = symbolics[i];
-    if (mo == symbolic.first) {
+    auto &symbolic = symbolics[i];
+    if (oldMo == symbolic.first) {
+      symbolic.first = newMo;
       return symbolic.second;
     }
   }
   return nullptr;
 }
-
 
 bool ExecutionState::isSymcrete(const Array *array) {
   return symcretes.bindings.count(array);
@@ -346,7 +346,7 @@ void ExecutionState::updateSymcretes(const Assignment &assignment) {
       MemoryObject *newMO = mo->parent->allocate(newSize, mo->isLocal, /*isGlobal=*/mo->isGlobal, mo->allocSite,
                           /* FIXME: allocation alignment should be saved in MO */ 8, mo->addressExpr, mo->sizeExpr);
 
-      const Array *oldArray = findSymbolicArray(mo);
+      const Array *oldArray = replaceSymbolicArray(mo, newMO);
       ObjectState *newOS =
           oldArray ? new ObjectState(newMO, oldArray, os->getDynamicType())
                    : new ObjectState(newMO, os->getDynamicType());

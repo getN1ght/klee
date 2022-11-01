@@ -1449,9 +1449,8 @@ ref<Expr> Executor::toUnique(ExecutionState &state,
                          state.queryMetaData)) {
       ref<Expr> cond = EqExpr::create(e, value);
       cond = optimizer.optimizeExpr(cond, false, state.symcretes);
-      if (solver->mustBeTrue(state, state.constraints,
-                             cond, isTrue,
-                             state.queryMetaData) &&
+      if (solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                             cond, isTrue, state.queryMetaData) &&
           isTrue)
         result = value;
     }
@@ -4141,13 +4140,13 @@ KBlock *Executor::calculateTarget(ExecutionState &state) {
       if ((sfNum > 0 || distance > 0) && distance < minDistance) {
         if (history[target->basicBlock].size() != 0) {
           std::vector<BasicBlock *> diff;
-          if (!newCov) {
-            std::set<BasicBlock *> left(state.level.begin(), state.level.end());
-            std::set<BasicBlock *> right(history[target->basicBlock].begin(),
-                                         history[target->basicBlock].end());
-            std::set_difference(left.begin(), left.end(), right.begin(),
-                                right.end(), std::inserter(diff, diff.begin()));
-          }
+          // if (!newCov) {
+          //   std::set<BasicBlock *> left(state.level.begin(), state.level.end());
+          //   std::set<BasicBlock *> right(history[target->basicBlock].begin(),
+          //                                history[target->basicBlock].end());
+          //   std::set_difference(left.begin(), left.end(), right.begin(),
+          //                       right.end(), std::inserter(diff, diff.begin()));
+          // }
           if (diff.empty()) {
             continue;
           }
@@ -4188,8 +4187,9 @@ void Executor::guidedRun(ExecutionState &initialState) {
   while (!states.empty() && !haltExecution) {
     while (!searcher->empty() && !haltExecution) {
       ExecutionState &state = searcher->selectState();
-      if (state.target)
+      if (state.target) {
         executeStep(state);
+      }
       else if (!tryBoundedExecuteStep(state, MaxCycles - 1)) {
         KBlock *target = calculateTarget(state);
         if (target) {
@@ -4701,7 +4701,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
       optimizer.optimizeExpr(toUnique(state, size), true, state.symcretes);
 
   size_t modelSize; 
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(optimizedSize)) {
+  if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(optimizedSize)) {
     modelSize = CE->getZExtValue();
   } else {
     /* In order to minimize size of allocations we will make a binary search
@@ -4754,25 +4754,19 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
                           allocationAlignment);
   } else {
     // FIXME: temporary soliton. We do not want to have static variables.
-    static int addressCounter = 0;
-
     ref<ConstantExpr> pointerWidth =
         Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT);
 
     /// We'll use this address to make realloc's later.
-    const Array *addressArray = memory->getArrayCache()->CreateArray(
-        std::string("symAddress") + std::to_string(addressCounter),
-        pointerWidth);
+    const Array *addressArray =
+        makeArray(state, pointerWidth, std::string("symAddress"));
     ref<Expr> addressExpr =
         Expr::createTempRead(addressArray, Context::get().getPointerWidth());
-    
-    const Array *sizeArray = memory->getArrayCache()->CreateArray(
-        std::string("symSize") + std::to_string(addressCounter),
-        pointerWidth);
+
+    const Array *sizeArray =
+        makeArray(state, pointerWidth, std::string("symSize"));
     ref<Expr> sizeExpr =
         Expr::createTempRead(sizeArray, Context::get().getPointerWidth());
-    
-    ++addressCounter;
 
     mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
                           allocationAlignment, addressExpr, sizeExpr);
@@ -4954,10 +4948,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     bool inBounds;
     solver->setTimeout(coreSolverTimeout);
 
-    /// FIXME: constrains should be also modified with symcretes!
-    bool success = solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                                      check,
-                                      inBounds, state.queryMetaData);
+    bool success =
+        solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                           check, inBounds, state.queryMetaData);
     solver->setTimeout(time::Span());
     if (!success) {
       state.pc = state.prevPC;
@@ -5054,9 +5047,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       processTree->attach(unbound->ptreeNode, bound, unbound, BranchType::MemOp);
       addConstraint(*bound, inBounds);
       outOfBound = AndExpr::create(outOfBound, NotExpr::create(inBounds));
-    }
 
-    if (bound) {
       /* FIXME: Notice, that here we are creating a new instance of object
       for every memory operation in order to handle type changes. This might
       waste too much memory as we do now always modify something. To fix this

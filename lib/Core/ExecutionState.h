@@ -320,7 +320,7 @@ public:
   const Array *findSymAddress(const MemoryObject *mo) const;
 
   ref<const MemoryObject> findMemoryObject(const Array *array) const;
-  const Array *findSymbolicArray(ref<const MemoryObject> mo) const;
+  const Array *replaceSymbolicArray(ref<const MemoryObject> oldMo, ref<const MemoryObject> newMo);
 
   bool isSymcrete(const Array *array);
 
