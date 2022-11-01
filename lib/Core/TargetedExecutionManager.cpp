@@ -18,7 +18,7 @@ using namespace llvm;
 using namespace klee;
 
 
-std::vector<std::pair<KFunction *, TargetForest *>>
+std::vector<std::pair<KFunction *, ref<TargetForest> > >
 TargetedExecutionManager::prepareTargets(const KModule *kmodule, std::vector<Locations *> &paths) {
   std::vector<ResolvedLocations> resolvedPaths;
   for (auto loc : paths) {
@@ -44,13 +44,13 @@ TargetedExecutionManager::prepareTargets(const KModule *kmodule, std::vector<Loc
   TargetForest whitelists(resolvedPaths, block2target);
 
   std::unordered_set<KFunction *> visited;
-  std::vector<std::pair<KFunction *, TargetForest *>> targets;
+  std::vector<std::pair<KFunction *, ref<TargetForest> > > targets;
   for (auto &startBlockAndWhiteList : whitelists) {
     auto kf = startBlockAndWhiteList.first->getBlock()->parent;
     if (visited.count(kf) != 0)
       continue;
     visited.insert(kf);
-    targets.emplace_back(kf, startBlockAndWhiteList.second.get());
+    targets.emplace_back(kf, startBlockAndWhiteList.second);
   }
   return targets;
 }

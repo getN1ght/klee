@@ -144,6 +144,24 @@ namespace {
                        cl::init("main"),
                        cl::cat(StartCat));
 
+    cl::opt<std::string>
+            AnalysisFile("analysis-file",
+                       cl::desc("Filename of C code in which source and sink to be checked are located"),
+                       cl::init(""),
+                       cl::cat(StartCat));
+
+    cl::opt<unsigned>
+            AnalysisSource("analysis-source",
+                       cl::desc("Line number of a source of a potential bug to be checked. Set to 0 to disable (default=0)"),
+                       cl::init(0),
+                       cl::cat(StartCat));
+
+    cl::opt<unsigned>
+            AnalysisSink("analysis-sink",
+                       cl::desc("Line number of a sink of a potential bug to be checked"),
+                       cl::init(0),
+                       cl::cat(StartCat));
+
     cl::opt<bool> UTBotMode("utbot", cl::desc("Klee was launched by utbot"),
                             cl::init(false), cl::cat(StartCat));
 
@@ -1469,7 +1487,18 @@ static int run_klee_on_function(
     std::vector<bool> &replayPath,
     std::vector<std::unique_ptr<llvm::Module>> &loadedModules) {
   Function *mainFn = finalModule->getFunction(EntryPoint);
-  if (!mainFn && ExecutionMode != Interpreter::GuidanceKind::ErrorGuidance) { // in error guided mode we do not need main function
+  std::vector<Locations *> paths;
+  if (ExecutionMode == Interpreter::GuidanceKind::ErrorGuidance) {
+    auto path1 = new Locations(ReachWithError::NullPointerException);
+    if (AnalysisFile == "")
+      klee_error("--analysis-file with potential errors is not provided in error-guidance mode");
+    if (AnalysisSink == 0)
+      klee_error("--analysis-sink line number of potential error is not provided in error-guidance mode");
+    unsigned source = AnalysisSource == 0 ? AnalysisSink : AnalysisSource;
+    path1->add(AnalysisFile, source);
+    path1->add(AnalysisFile, AnalysisSink);
+    paths.push_back(path1);
+  } else if (!mainFn) { // in error guided mode we do not need main function
     klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());
   }
   externalsAndGlobalsCheck(finalModule);
@@ -1643,6 +1672,9 @@ static int run_klee_on_function(
       seeds.pop_back();
     }
   }
+
+  for (auto path : paths)
+    delete path;
 
   auto endTime = std::time(nullptr);
   { // output end and elapsed time
