@@ -21,6 +21,9 @@ using namespace klee;
 
 std::string Target::toString() const {
   std::string repr = "Target: ";
+  if (shouldFailOnThisTarget()) {
+    repr += "error in ";
+  }
   repr += block->getAssemblyLocation();
   if (atReturn()) {
     repr += " (at the end)";

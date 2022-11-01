@@ -56,15 +56,14 @@ TargetedExecutionManager::prepareTargets(const KModule *kmodule, std::vector<Loc
 }
 
 bool TargetedExecutionManager::stepTo(ExecutionState &state, KBlock *dst) {
-  if (state.targetOfCurrentKBlock)
-    return true; // we missed target
   auto it = block2target.find(dst);
   if (it == block2target.end())
     return false;
   auto target = it->second;
-  state.whitelist.stepTo(target);
-  if (target->shouldFailOnThisTarget())
-    state.targetOfCurrentKBlock = target;
+  if (target->atReturn())
+    return false;
+  state.targetOfCurrentKBlock =
+      target->shouldFailOnThisTarget() ? target : nullptr;
   return false;
 }
 

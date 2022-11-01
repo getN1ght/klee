@@ -1523,6 +1523,10 @@ void Executor::stepInstruction(ExecutionState &state) {
   ++state.steppedInstructions;
   if (isa<LoadInst>(state.pc->inst) || isa<StoreInst>(state.pc->inst))
     ++state.steppedMemoryInstructions;
+
+  KBlock *kb = state.pc->parent;
+  targetedExecutionManager.stepTo(state, kb);
+
   state.prevPC = state.pc;
   ++state.pc;
 
@@ -2214,9 +2218,6 @@ void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
     PHINode *first = static_cast<PHINode*>(state.pc->inst);
     state.incomingBBIndex = first->getBasicBlockIndex(src);
   }
-  if (targetedExecutionManager.stepTo(state, kdst))
-    terminateStateEarly(state, "Interpreter walked past target",
-      StateTerminationType::SilentExit); //TODO: note that we will miss some False Negatives as we terminate state now
 }
 
 void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {

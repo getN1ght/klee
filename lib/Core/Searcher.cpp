@@ -393,7 +393,7 @@ std::vector<ExecutionState *> TargetedSearcher::reached() {
 void TargetedSearcher::removeReached() {
   for (auto state : reachedOnLastUpdate) {
     states->remove(state);
-    state->whitelist.remove(target);
+    state->whitelist.stepTo(target);
   }
   reachedOnLastUpdate.clear();
 }
