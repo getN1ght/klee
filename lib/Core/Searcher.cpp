@@ -316,7 +316,7 @@ TargetedSearcher::tryGetWeight(ExecutionState *es, weight_type &weight) {
     res = tryGetPreTargetWeight(es, weight);
   else if (minSfNum != UINT_MAX)
     res = tryGetPostTargetWeight(es, weight);
-  if (Done == res && target->isError()) {
+  if (Done == res && target->shouldFailOnThisTarget()) {
     res = Continue;
   }
   return res;

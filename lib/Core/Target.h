@@ -61,11 +61,10 @@ public:
   }
 
   bool atReturn() const { return isa<KReturnBlock>(block); }
-  bool isError() const { return error != None; }
 
   KBlock *getBlock() const { return block; }
   ReachWithError getError() const { return error; }
-  bool shouldStopOnThisTarget() const { return error != ReachWithError::None; }
+  bool shouldFailOnThisTarget() const { return error != ReachWithError::None; }
 
   bool isNull() const { return block == nullptr; }
 

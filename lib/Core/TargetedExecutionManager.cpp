@@ -63,7 +63,7 @@ bool TargetedExecutionManager::stepTo(ExecutionState &state, KBlock *dst) {
     return false;
   auto target = it->second;
   state.whitelist.stepTo(target);
-  if (target->shouldStopOnThisTarget())
+  if (target->shouldFailOnThisTarget())
     state.targetOfCurrentKBlock = target;
   return false;
 }

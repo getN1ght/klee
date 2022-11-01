@@ -118,7 +118,7 @@ void TargetForest::remove(ref<Target> target) {
 void TargetForest::dump() const {
   llvm::errs() << "THE FIRST LAYER:\n";
   for (const auto &kv : *forest) {
-    llvm::errs() << kv.first->toString();
+    llvm::errs() << kv.first->toString() << "\n";
   }
   llvm::errs() << "\n";
 }
