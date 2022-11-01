@@ -153,11 +153,7 @@ public:
                                  char **argv,
                                  char **envp) = 0;
 
-  virtual void runThroughLocations(std::vector<Locations *> &paths,
-                                   llvm::Function *mainFn,
-                                   int argc,
-                                   char **argv,
-                                   char **envp) = 0;
+  virtual void runThroughLocations(std::vector<Locations *> &paths) = 0;
 
   virtual void runMainAsGuided(llvm::Function *f,
                                int argc,

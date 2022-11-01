@@ -576,6 +576,7 @@ public:
     usingSeeds = seeds;
   }
 
+  ExecutionState *formState();
   ExecutionState *formState(llvm::Function *f, int argc, char **argv,
                             char **envp);
 
@@ -597,7 +598,7 @@ public:
 
   void runFunctionGuided(llvm::Function *fn, int argc, char **argv, char **envp) override;
 
-  void runThroughLocations(std::vector<Locations *> &paths, llvm::Function *mainFn, int argc, char **argv, char **envp) override;
+  void runThroughLocations(std::vector<Locations *> &paths) override;
 
   void runMainAsGuided(llvm::Function *f, int argc, char **argv,
                        char **envp) override;

@@ -5141,7 +5141,13 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
 
 /***/
 
-ExecutionState* Executor::formState(Function *f,
+ExecutionState *Executor::formState() {
+  ExecutionState *state = new ExecutionState();
+  initializeGlobals(*state);
+  return state;
+}
+
+ExecutionState *Executor::formState(Function *f,
                                     int argc,
                                     char **argv,
                                     char **envp) {
@@ -5333,10 +5339,9 @@ void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
   runGuided(*initialState, kf);
 }
 
-void Executor::runThroughLocations(std::vector<Locations *> &paths, Function *mainFn, int argc, char **argv, char **envp) {
+void Executor::runThroughLocations(std::vector<Locations *> &paths) {
   guidanceKind = GuidanceKind::ErrorGuidance;
-  ExecutionState *state = formState(mainFn, argc, argv, envp);
-  state->popFrame();
+  ExecutionState *state = formState();
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   auto targets = targetedExecutionManager.prepareTargets(kmodule.get(), paths);
   for (auto &startBlockAndWhiteList : targets) {

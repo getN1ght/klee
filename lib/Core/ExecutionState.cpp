@@ -71,8 +71,7 @@ StackFrame::~StackFrame() {
 }
 
 /***/
-
-ExecutionState::ExecutionState(KFunction *kf) :
+ExecutionState::ExecutionState() :
     initPC(nullptr),
     pc(nullptr),
     prevPC(nullptr),
@@ -84,8 +83,11 @@ ExecutionState::ExecutionState(KFunction *kf) :
     instsSinceCovNew(0),
     coveredNew(false),
     forkDisabled(false) {
-  pushFrame(nullptr, kf);
   setID();
+}
+
+ExecutionState::ExecutionState(KFunction *kf) : ExecutionState() {
+  pushFrame(nullptr, kf);
 }
 
 ExecutionState::ExecutionState(KFunction *kf, KBlock *kb) :

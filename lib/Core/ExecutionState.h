@@ -274,11 +274,8 @@ public:
   bool forkDisabled = false;
 
 public:
-#ifdef KLEE_UNITTEST
-  // provide this function only in the context of unittests
-  ExecutionState() {}
-#endif
   // only to create the initial state
+  explicit ExecutionState();
   explicit ExecutionState(KFunction *kf);
   explicit ExecutionState(KFunction *kf, KBlock *kb);
   // no copy assignment, use copy constructor

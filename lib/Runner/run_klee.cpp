@@ -1469,7 +1469,7 @@ static int run_klee_on_function(
     std::vector<bool> &replayPath,
     std::vector<std::unique_ptr<llvm::Module>> &loadedModules) {
   Function *mainFn = finalModule->getFunction(EntryPoint);
-  if (!mainFn) {
+  if (!mainFn && ExecutionMode != Interpreter::GuidanceKind::ErrorGuidance) { // in error guided mode we do not need main function
     klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());
   }
   externalsAndGlobalsCheck(finalModule);
@@ -1573,7 +1573,7 @@ static int run_klee_on_function(
         interpreter->runMainAsGuided(mainFn, out->numArgs, out->args, pEnvp);
         break;
       case Interpreter::GuidanceKind::ErrorGuidance:
-        interpreter->runThroughLocations(paths, mainFn, pArgc, pArgv, pEnvp);
+        interpreter->runThroughLocations(paths);
         break;
       }
       if (interrupted)
@@ -1634,7 +1634,7 @@ static int run_klee_on_function(
       interpreter->runMainAsGuided(mainFn, pArgc, pArgv, pEnvp);
       break;
     case Interpreter::GuidanceKind::ErrorGuidance:
-      interpreter->runThroughLocations(paths, mainFn, pArgc, pArgv, pEnvp);
+      interpreter->runThroughLocations(paths);
       break;
     }
 
@@ -1848,6 +1848,9 @@ int run_klee(int argc, char **argv, char **envp) {
 
     // Push the module as the first entry
     loadedModules.emplace_back(std::move(M));
+
+  if (ExecutionMode == Interpreter::GuidanceKind::ErrorGuidance)
+    EntryPoint = "";
 
   std::string LibraryDir = KleeHandler::getRunTimeLibraryPath(argv[0]);
   Interpreter::ModuleOptions Opts(LibraryDir.c_str(), EntryPoint, opt_suffix,

@@ -187,7 +187,7 @@ injectStaticConstructorsAndDestructors(Module *m,
   GlobalVariable *ctors = m->getNamedGlobal("llvm.global_ctors");
   GlobalVariable *dtors = m->getNamedGlobal("llvm.global_dtors");
 
-  if (!ctors && !dtors)
+  if ((!ctors && !dtors) || entryFunction.empty())
     return;
 
   Function *mainFn = m->getFunction(entryFunction);
