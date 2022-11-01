@@ -27,9 +27,9 @@ namespace klee {
 class TargetForest {
   class Layer {
     using InternalLayer = std::unordered_map<ref<Target>, ref<TargetForest>, TargetHash, TargetCmp>;
-    InternalLayer *forest;
+    InternalLayer forest;
 
-    Layer(InternalLayer *forest) : forest(forest) {}
+    explicit Layer(const InternalLayer &forest) : forest(forest) {}
     void unionWith(const Layer *other);
 
   public:
@@ -38,17 +38,14 @@ class TargetForest {
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;
 
-    Layer() : Layer(new InternalLayer()) {}
-    ~Layer() {
-      delete forest;
-    }
+    explicit Layer() {}
 
-    iterator find(ref<Target> b) { return forest->find(b); }
-    iterator begin() { return forest->begin(); }
-    iterator end() { return forest->end(); }
-    void insert(ref<Target> loc, TargetForest *nextLayer) { forest->insert(std::make_pair(loc, nextLayer)); }
-    bool empty() const { return forest->empty(); }
-    size_t size() const { return forest->size(); }
+    iterator find(ref<Target> b) { return forest.find(b); }
+    iterator begin() { return forest.begin(); }
+    iterator end() { return forest.end(); }
+    void insert(ref<Target> loc, TargetForest *nextLayer) { forest.insert(std::make_pair(loc, nextLayer)); }
+    bool empty() const { return forest.empty(); }
+    size_t size() const { return forest.size(); }
     Layer *replaceChildWith(ref<Target> child, const Layer *other) const;
     Layer *removeChild(ref<Target> child) const;
     Layer *addChild(ref<Target> child) const;

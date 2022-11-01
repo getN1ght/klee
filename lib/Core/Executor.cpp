@@ -5337,11 +5337,10 @@ void Executor::runThroughLocations(std::vector<Locations *> &paths, Function *ma
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   auto targets = targetedExecutionManager.prepareTargets(kmodule.get(), paths);
   for (auto &startBlockAndWhiteList : targets) {
-    auto copy_state = state->copy();
     auto kf = startBlockAndWhiteList.first;
-    ExecutionState *initialState = copy_state->withKFunction(kf);
+    ExecutionState *initialState = state->withKFunction(kf);
     prepareSymbolicArgs(*initialState, kf);
-    copy_state->whitelist = *startBlockAndWhiteList.second;
+    initialState->whitelist = *startBlockAndWhiteList.second;
     targetedExecutionManager.stepTo(*initialState, initialState->pc->parent);
     runGuided(*initialState, kf);
   }

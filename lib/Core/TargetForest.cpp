@@ -57,26 +57,30 @@ void TargetForest::addPath(const ResolvedLocations &rl, const std::unordered_map
 }
 
 void TargetForest::Layer::unionWith(const TargetForest::Layer *other) {
-  for (const auto &kv : *other->forest) {
-    auto it = forest->find(kv.first);
-    if (it == forest->end()) {
-      forest->insert(it, kv);
+  if (other->forest.empty())
+    return;
+  for (const auto &kv : other->forest) {
+    auto it = forest.find(kv.first);
+    if (it == forest.end()) {
+      forest.insert(std::make_pair(kv.first, kv.second));
       continue;
     }
-    it->second->forest->unionWith(kv.second->forest.get());
+    auto layer = new Layer(it->second->forest->forest);
+    layer->unionWith(kv.second->forest.get());
+    it->second->forest = layer;
   }
 }
 
 TargetForest::Layer *TargetForest::Layer::removeChild(ref<Target> child) const {
-  auto layer = new InternalLayer(*forest);
-  layer->erase(child);
-  return new Layer(layer);
+  auto result = new Layer(forest);
+  result->forest.erase(child);
+  return result;
 }
 
 TargetForest::Layer *TargetForest::Layer::addChild(ref<Target> child) const {
-  auto layer = new InternalLayer(*forest);
-  layer->insert({child, new TargetForest()});
-  return new Layer(layer);
+  auto result = new Layer(forest);
+  result->forest.insert({child, new TargetForest()});
+  return result;
 }
 
 TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<Target> const child, const TargetForest::Layer *other) const {
@@ -86,6 +90,8 @@ TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<Target> const chi
 }
 
 void TargetForest::stepTo(ref<Target> loc) {
+  if (forest->empty())
+    return;
   auto res = forest->find(loc);
   if (res == forest->end()) {
     return;
