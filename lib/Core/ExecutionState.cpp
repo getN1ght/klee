@@ -81,6 +81,7 @@ ExecutionState::ExecutionState() :
     steppedInstructions(0),
     steppedMemoryInstructions(0),
     instsSinceCovNew(0),
+    roundingMode(llvm::APFloat::rmNearestTiesToEven),
     coveredNew(false),
     forkDisabled(false) {
   setID();
