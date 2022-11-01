@@ -122,16 +122,16 @@ namespace {
                           cl::desc("Write .sym.path files for each test case (default=false)"),
                           cl::cat(TestCaseCat));
 
-  cl::opt<bool> WriteKTestFiles(
-      "write-ktest-files", cl::init(true),
-      cl::desc(
-          "Write KTest files alongside json-formatted TestCase (default=true)"),
-      cl::cat(TestCaseCat));
+    cl::opt<bool> WriteKTestFiles(
+        "write-ktest-files", cl::init(true),
+        cl::desc(
+            "Write KTest files alongside json-formatted TestCase (default=true)"),
+        cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-      WriteStates("write-states", cl::init(false),
-                  cl::desc("Write state info for debug (default=false)"),
-                  cl::cat(TestCaseCat));
+    cl::opt<bool>
+        WriteStates("write-states", cl::init(false),
+                    cl::desc("Write state info for debug (default=false)"),
+                    cl::cat(TestCaseCat));
 
     /*** Startup options ***/
 
