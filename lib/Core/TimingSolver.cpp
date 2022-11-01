@@ -63,21 +63,20 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
 
   // if (simplifyExprs)
   //   expr = ConstraintManager::simplifyExpr(constraints, expr);
-
   bool success =
       solver->mustBeTrue(Query(constraints, expr, true), result);
-
-  if (result) {
+  
+  if (success && result) {
     ValidityCore core;
     bool hasSolution;
-    assert(solver->getValidityCore(Query(constraints, expr, true), core,
-                                   hasSolution));
-
+    success = solver->getValidityCore(Query(constraints, expr, true), core,
+                                      hasSolution);
+    assert(success && hasSolution);
     Assignment newAssignment(true);
-    assert(getValidAssignment(state.constraints, expr, core, state.symcretes,
-                              state.symsizesToMO, state.symcreteToConstraints,
-                              hasSolution, newAssignment, metaData));
-    if (hasSolution) {
+    success = getValidAssignment(
+        state.constraints, expr, core, state.symcretes, state.symsizesToMO,
+        state.symcreteToConstraints, hasSolution, newAssignment, metaData);
+    if (success && hasSolution) {
       state.updateSymcretes(newAssignment);
       result = false;
     }
@@ -353,7 +352,7 @@ bool TimingSolver::getValidAssignment(
   // cs.addConstraint(symcretes.evaluate(expr));
 
   /// TODO: this formula is too complex. Maybe we should use another way?
-  while (minSumModel < maxSumModel - 1) {
+  while (maxSumModel && minSumModel < maxSumModel - 1) {
     uint64_t middleSumModel = (minSumModel + maxSumModel) / 2;
     ref<Expr> ask = UleExpr::create(optimizationRead, Expr::createPointer(middleSumModel));
     ref<SolverRespone> newSolverRespone;

@@ -91,9 +91,9 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   // try cheap search, will succeed for any inbounds pointer
 
   ref<ConstantExpr> cex;
-  
+
   if (!solver->getValue(state.evaluateConstraintsWithSymcretes(),
-                        address, cex,
+                        state.evaluateWithSymcretes(address), cex,
                         state.queryMetaData))
     return false;
 
@@ -142,8 +142,6 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
       success = true;
       return true;
     } else {
-      /// HERE
-      
       bool mustBeTrue;
       if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                               UgeExpr::create(

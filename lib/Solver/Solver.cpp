@@ -79,7 +79,6 @@ bool Solver::mayBeFalse(const Query& query, bool &result) {
 }
 
 bool Solver::check(const Query &query, ref<SolverRespone> &queryResult) {
-  query.dump();
   return impl->check(query, queryResult);
 }
 

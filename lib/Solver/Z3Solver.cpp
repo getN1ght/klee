@@ -263,8 +263,9 @@ char *Z3SolverImpl::getConstraintLog(const Query &query) {
 
 bool Z3SolverImpl::computeTruth(const Query &query, bool &isValid) {
   bool hasSolution = false; // to remove compiler warning
+  ValidityCore core;
   bool status =
-      internalRunSolver(query, /*objects=*/NULL, /*values=*/NULL, /*validityCore=*/NULL, hasSolution);
+      internalRunSolver(query, /*objects=*/NULL, /*values=*/NULL, /*validityCore=*/&core, hasSolution);
   isValid = !hasSolution;
   return status;
 }
