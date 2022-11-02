@@ -36,8 +36,9 @@ public:
   bool stepTo(ExecutionState &state, KBlock *dst);
 
   /* Report for targeted static analysis mode */
-  void reportFalsePositives();
-  void reportFalseNegative();
+  void reportFalsePositives(bool noMoreStates);
+
+  void reportFalseNegative(ExecutionState &state);
 
   // Return true if report is successful
   bool reportTruePositive(ExecutionState &state, ReachWithError error);

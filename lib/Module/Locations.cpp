@@ -11,6 +11,8 @@
 #include "klee/Module/KModule.h"
 #include "klee/Module/KInstruction.h"
 
+#include <sstream>
+
 using namespace klee;
 using namespace llvm;
 
@@ -20,6 +22,12 @@ bool Location::isTheSameAsIn(KInstruction *instr) const {
 
 bool Location::isInside(const FunctionInfo &info) const {
   return info.file == filename;
+}
+
+std::string Location::toString() const {
+  std::stringstream out;
+  out << filename << ":" << line;
+  return out.str();
 }
 
 bool Location::isInside(KBlock *block) const {

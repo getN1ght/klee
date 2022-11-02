@@ -30,11 +30,15 @@ class Location {
   unsigned line;
 
 public:
-  Location(const std::string &f, unsigned l) : filename(f), line(l) {}
+  bool isReported;
+
+  Location(const std::string &f, unsigned l) : filename(f), line(l), isReported(false) {}
 
   bool isTheSameAsIn(KInstruction *instr) const;
   bool isInside(const FunctionInfo &info) const;
   bool isInside(KBlock *block) const;
+
+  std::string toString() const;
 };
 
 class Locations {

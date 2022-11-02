@@ -3807,7 +3807,7 @@ bool Executor::checkMemoryUsage() {
 }
 
 void Executor::doDumpStates() {
-  targetedExecutionManager.reportFalsePositives();
+  targetedExecutionManager.reportFalsePositives(states.empty());
   if (!DumpStatesOnHalt || states.empty()) {
     interpreterHandler->incPathsExplored(states.size());
     return;
@@ -4253,7 +4253,7 @@ void Executor::terminateStateOnTargetError(ExecutionState &state,
                                            ReachWithError error) {
   bool reportedTruePositive = targetedExecutionManager.reportTruePositive(state, error);
   if (!reportedTruePositive)
-    targetedExecutionManager.reportFalseNegative();
+    targetedExecutionManager.reportFalseNegative(state);
 
   // Proceed with normal `terminateStateOnError` call
   std::string messaget;
@@ -5345,6 +5345,10 @@ void Executor::runThroughLocations(std::vector<Locations *> &paths) {
   ExecutionState *state = formState();
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   auto targets = targetedExecutionManager.prepareTargets(kmodule.get(), paths);
+  if (targets.empty()) {
+    klee_warning("No targets found in --error-guided mode");
+    return;
+  }
   for (auto &startBlockAndWhiteList : targets) {
     auto kf = startBlockAndWhiteList.first;
     ExecutionState *initialState = state->withKFunction(kf);

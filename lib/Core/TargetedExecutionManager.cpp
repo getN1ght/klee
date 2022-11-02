@@ -67,12 +67,26 @@ bool TargetedExecutionManager::stepTo(ExecutionState &state, KBlock *dst) {
   return false;
 }
 
-void TargetedExecutionManager::reportFalsePositives() {
-  return; //TODO: [Yurii Kostyukov], implement it
+void TargetedExecutionManager::reportFalsePositives(bool noMoreStates) {
+  std::ostringstream out;
+  out << (noMoreStates ? "" : "Early termination; possible ") << "False Positive at: %s";
+  auto reportLine = out.str();
+  std::unordered_set<Location *> visited;
+  for (const auto &blockAndLoc : block2location) {
+    auto expectedLocation = blockAndLoc.second;
+    if (visited.find(expectedLocation) != visited.end())
+      continue;
+    visited.insert(expectedLocation);
+    if (!expectedLocation->isReported)
+      klee_warning(reportLine.c_str(), expectedLocation->toString().c_str());
+  }
 }
 
-void TargetedExecutionManager::reportFalseNegative() {
-  return; //TODO: [Yurii Kostyukov], implement it
+void TargetedExecutionManager::reportFalseNegative(ExecutionState &state) {
+  auto info = state.prevPC->info;
+  std::ostringstream out;
+  out << "False Negative at: " << info->file << ':' << info->line << ':' << info->column;
+  klee_warning("%s", out.str().c_str());
 }
 
 bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWithError error) {
@@ -84,7 +98,8 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
   if (!expectedLocation->isTheSameAsIn(state.prevPC))
     return false;
 
-  llvm::errs() << "True Positive!\n"; //TODO: [Yurii Kostyukov], write result to output file
+  klee_warning("True Positive at: %s", expectedLocation->toString().c_str());
+  expectedLocation->isReported = true;
   return true;
 }
 
