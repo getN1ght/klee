@@ -36,7 +36,7 @@ namespace klee {
     weight_type maxWeight();
 
   private:
-    std::map<weight_type, std::deque<T>> weightToQueue;
+    std::map<weight_type, std::vector<T>> weightToQueue;
     std::unordered_map<T, weight_type> valueToWeight;
   };
 

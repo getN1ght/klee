@@ -19,7 +19,7 @@ template <class T, class Comparator>
 void WeightedQueue<T, Comparator>::insert(T item, weight_type weight) {
   assert(valueToWeight.count(item) == 0);
   valueToWeight[item] = weight;
-  std::deque<T> &weightQueue = weightToQueue[weight];
+  std::vector<T> &weightQueue = weightToQueue[weight];
   weightQueue.push_back(item);
 }
 
@@ -28,7 +28,7 @@ void WeightedQueue<T, Comparator>::remove(T item) {
   assert(valueToWeight.count(item) != 0);
   weight_type weight = valueToWeight[item];
   valueToWeight.erase(item);
-  std::deque<T> &weightQueue = weightToQueue.at(weight);
+  std::vector<T> &weightQueue = weightToQueue.at(weight);
   auto itr = std::find(weightQueue.begin(), weightQueue.end(), item);
   assert(itr != weightQueue.end());
   weightQueue.erase(itr);
@@ -43,7 +43,7 @@ void WeightedQueue<T, Comparator>::update(T item, weight_type weight) {
   weight_type oldWeight = valueToWeight[item];
   if (oldWeight != weight) {
     valueToWeight[item] = weight;
-    std::deque<T> *weightQueue = &weightToQueue.at(oldWeight);
+    std::vector<T> *weightQueue = &weightToQueue.at(oldWeight);
     auto itr = std::find(weightQueue->begin(), weightQueue->end(), item);
     assert(itr != weightQueue->end());
     weightQueue->erase(itr);
