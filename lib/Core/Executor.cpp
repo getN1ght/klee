@@ -3962,8 +3962,6 @@ void Executor::runGuided(ExecutionState &state, KFunction *kf) {
   delete memory;
   memory = new MemoryManager(NULL);
 
-  clearGlobal();
-
   if (statsTracker)
     statsTracker->done();
 }
@@ -3999,7 +3997,7 @@ void Executor::executeStep(ExecutionState &state) {
   }
 }
 
-void Executor::targetedRun(ExecutionState &initialState, KBlock *target) {
+void Executor::targetedRun(ExecutionState &initialState, KBlock *target, ExecutionState **resultState) {
   // Delay init till now so that ticks don't accrue during optimization and
   // such.
   timers.reset();
@@ -4013,7 +4011,7 @@ void Executor::targetedRun(ExecutionState &initialState, KBlock *target) {
   searcher->update(0, newStates, std::vector<ExecutionState *>());
   // main interpreter loop
   KInstruction *terminator =
-      target != nullptr ? target->instructions[target->numInstructions - 1]
+      target != nullptr ? target->getFirstInstruction()
                         : nullptr;
   while (!states.empty() && !haltExecution) {
     while (!searcher->empty() && !haltExecution) {
@@ -4022,9 +4020,10 @@ void Executor::targetedRun(ExecutionState &initialState, KBlock *target) {
       KInstruction *ki = state.pc;
 
       if (ki == terminator) {
+        *resultState = state.copy();
         terminateStateOnTerminator(state);
         updateStates(&state);
-        continue;
+        break;;
       }
 
       executeStep(state);
@@ -4104,7 +4103,6 @@ std::string Executor::getAddressInfo(ExecutionState &state, ref<Expr> address,
 
   return info.str();
 }
-
 
 void Executor::terminateState(ExecutionState &state) {
   if (replayKTest && replayPosition!=replayKTest->numObjects) {
@@ -5142,8 +5140,9 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
 
 /***/
 
-ExecutionState *Executor::formState() {
-  ExecutionState *state = new ExecutionState();
+ExecutionState *Executor::formState(Function *f) {
+  ExecutionState *state = new ExecutionState(
+      kmodule->functionMap[f], kmodule->functionMap[f]->blockMap[&*f->begin()]);
   initializeGlobals(*state);
   return state;
 }
@@ -5338,12 +5337,46 @@ void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
   ExecutionState *initialState = state->withKFunction(kf);
   prepareSymbolicArgs(*initialState, kf);
   runGuided(*initialState, kf);
+  clearGlobal();
 }
 
-void Executor::runThroughLocations(std::vector<Locations *> &paths) {
+void Executor::runThroughLocations(llvm::Function *f, int argc, char **argv,
+                               char **envp, std::vector<Locations *> &paths) {
   guidanceKind = GuidanceKind::ErrorGuidance;
-  ExecutionState *state = formState();
+  ExecutionState *state = formState(f, argc, argv, envp);
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
+
+  KInstIterator caller;
+  if (kmodule->WithPOSIXRuntime()) {
+    Function *mainFn = kmodule->module->getFunction("__klee_posix_wrapped_main");
+
+    assert(mainFn && "klee_posix_wrapped_main not found");
+    KBlock *target = kmodule->functionMap[mainFn]->entryKBlock;
+
+    if (pathWriter)
+      state->pathOS = pathWriter->open();
+    if (symPathWriter)
+      state->symPathOS = symPathWriter->open();
+
+    if (statsTracker)
+      statsTracker->framePushed(*state, 0);
+
+    processTree = std::make_unique<PTree>(state);
+    ExecutionState *initialState = nullptr;
+    targetedRun(*state, target, &initialState);
+    state = initialState;
+
+    auto frame = state->stack.back();
+    caller = frame.caller;
+    state->popFrame();
+    processTree = nullptr;
+
+    if (statsTracker)
+      statsTracker->done();
+  } else {
+    state->popFrame();
+  }
+
   auto targets = targetedExecutionManager.prepareTargets(kmodule.get(), paths);
   if (targets.empty()) {
     klee_warning("No targets found in --error-guided mode");
@@ -5351,12 +5384,13 @@ void Executor::runThroughLocations(std::vector<Locations *> &paths) {
   }
   for (auto &startBlockAndWhiteList : targets) {
     auto kf = startBlockAndWhiteList.first;
-    ExecutionState *initialState = state->withKFunction(kf);
+    ExecutionState *initialState = state->withStackFrame(caller, kf);
     prepareSymbolicArgs(*initialState, kf);
     initialState->whitelist = *startBlockAndWhiteList.second;
     targetedExecutionManager.stepTo(*initialState, initialState->pc->parent);
     runGuided(*initialState, kf);
   }
+  clearGlobal();
 }
 
 void Executor::runMainAsGuided(Function *mainFn, int argc, char **argv,
@@ -5366,6 +5400,7 @@ void Executor::runMainAsGuided(Function *mainFn, int argc, char **argv,
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   KFunction *kf = kmodule->functionMap[mainFn];
   runGuided(*state, kf);
+  clearGlobal();
 }
 
 void Executor::runMainWithTarget(Function *mainFn, BasicBlock *target, int argc,

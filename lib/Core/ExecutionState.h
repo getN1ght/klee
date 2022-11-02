@@ -289,7 +289,7 @@ public:
 
   ExecutionState *branch();
   ExecutionState *withKFunction(KFunction *kf);
-  ExecutionState *withStackFrame(KFunction *kf);
+  ExecutionState *withStackFrame(KInstIterator caller, KFunction *kf);
   ExecutionState *withKBlock(KBlock *kb);
   ExecutionState *empty();
   ExecutionState *copy();

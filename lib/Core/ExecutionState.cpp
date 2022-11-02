@@ -170,10 +170,13 @@ ExecutionState *ExecutionState::withKFunction(KFunction *kf) {
   return newState;
 }
 
-ExecutionState *ExecutionState::withStackFrame(KFunction *kf) {
+ExecutionState *ExecutionState::withStackFrame(KInstIterator caller, KFunction *kf) {
   ExecutionState *newState = new ExecutionState(*this);
   newState->setID();
-  newState->pushFrame(nullptr, kf);
+  newState->pushFrame(caller, kf);
+  newState->initPC = kf->blockMap[&*kf->function->begin()]->instructions;
+  newState->pc = newState->initPC;
+  newState->prevPC = newState->pc;
   return newState;
 }
 

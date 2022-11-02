@@ -1602,7 +1602,7 @@ static int run_klee_on_function(
         interpreter->runMainAsGuided(mainFn, out->numArgs, out->args, pEnvp);
         break;
       case Interpreter::GuidanceKind::ErrorGuidance:
-        interpreter->runThroughLocations(paths);
+        interpreter->runThroughLocations(mainFn, out->numArgs, out->args, pEnvp, paths);
         break;
       }
       if (interrupted)
@@ -1663,7 +1663,7 @@ static int run_klee_on_function(
       interpreter->runMainAsGuided(mainFn, pArgc, pArgv, pEnvp);
       break;
     case Interpreter::GuidanceKind::ErrorGuidance:
-      interpreter->runThroughLocations(paths);
+      interpreter->runThroughLocations(mainFn, pArgc, pArgv, pEnvp, paths);
       break;
     }
 
@@ -1852,6 +1852,21 @@ int run_klee(int argc, char **argv, char **envp) {
 
     llvm::Module *mainModule = M.get();
 
+    std::vector<llvm::Type *> args;
+    args.push_back(llvm::Type::getInt32Ty(ctx)); // argc
+    args.push_back(llvm::PointerType::get(Type::getInt8PtrTy(ctx),
+                   mainModule->getDataLayout().getAllocaAddrSpace())); // argv
+    args.push_back(llvm::PointerType::get(Type::getInt8PtrTy(ctx),
+                   mainModule->getDataLayout().getAllocaAddrSpace())); // envp
+    std::string stubEntryPoint = "__klee_entry_point_main";
+    Function *stub = Function::Create(
+        llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), args, false),
+        GlobalVariable::ExternalLinkage, stubEntryPoint, mainModule);
+    BasicBlock *bb = BasicBlock::Create(ctx, "entry", stub);
+
+    llvm::IRBuilder<> Builder(bb);
+    Builder.CreateRet(ConstantInt::get(Type::getInt32Ty(ctx), 0));
+
     std::vector<llvm::Function *> mainFunctions;
     for (auto &Function : *mainModule) {
       if (!Function.isDeclaration()) {
@@ -1882,14 +1897,15 @@ int run_klee(int argc, char **argv, char **envp) {
     loadedModules.emplace_back(std::move(M));
 
   if (ExecutionMode == Interpreter::GuidanceKind::ErrorGuidance)
-    EntryPoint = "";
+    EntryPoint = stubEntryPoint;
 
   std::string LibraryDir = KleeHandler::getRunTimeLibraryPath(argv[0]);
   Interpreter::ModuleOptions Opts(LibraryDir.c_str(), EntryPoint, opt_suffix,
                                   /*Optimize=*/OptimizeModule,
                                   /*CheckDivZero=*/CheckDivZero,
                                   /*CheckOvershift=*/CheckOvershift,
-                                  /*WithFPRuntime=*/WithFPRuntime);
+                                  /*WithFPRuntime=*/WithFPRuntime,
+                                  /*WithPOSIXRuntime=*/WithPOSIXRuntime);
 
     if (WithPOSIXRuntime) {
         SmallString<128> Path(Opts.LibraryDir);

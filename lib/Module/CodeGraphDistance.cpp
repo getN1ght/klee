@@ -59,7 +59,7 @@ void CodeGraphDistance::calculateBackwardDistance(KBlock *bb) {
 }
 
 void CodeGraphDistance::calculateDistance(KFunction *kf) {
-  auto functionMap = kf->parent->functionMap;
+  auto &functionMap = kf->parent->functionMap;
   std::unordered_map<KFunction *, unsigned int> &dist = functionDistance[kf];
   std::vector<std::pair<KFunction *, unsigned>> &sort =
       functionSortedDistance[kf];
@@ -86,8 +86,8 @@ void CodeGraphDistance::calculateDistance(KFunction *kf) {
 }
 
 void CodeGraphDistance::calculateBackwardDistance(KFunction *kf) {
-  auto functionMap = kf->parent->functionMap;
-  auto callMap = kf->parent->callMap;
+  auto &functionMap = kf->parent->functionMap;
+  auto &callMap = kf->parent->callMap;
   std::unordered_map<KFunction *, unsigned int> &bdist = functionBackwardDistance[kf];
   std::vector<std::pair<KFunction *, unsigned>> &bsort =
       functionSortedBackwardDistance[kf];

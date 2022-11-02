@@ -243,7 +243,7 @@ private:
   void addHistoryResult(ExecutionState &state);
 
   void executeInstruction(ExecutionState &state, KInstruction *ki);
-  void targetedRun(ExecutionState &initialState, KBlock *target);
+  void targetedRun(ExecutionState &initialState, KBlock *target, ExecutionState **resultState = nullptr);
 
   void seed(ExecutionState &initialState);
   void run(ExecutionState &initialState);
@@ -576,7 +576,7 @@ public:
     usingSeeds = seeds;
   }
 
-  ExecutionState *formState();
+  ExecutionState *formState(llvm::Function *f);
   ExecutionState *formState(llvm::Function *f, int argc, char **argv,
                             char **envp);
 
@@ -598,7 +598,9 @@ public:
 
   void runFunctionGuided(llvm::Function *fn, int argc, char **argv, char **envp) override;
 
-  void runThroughLocations(std::vector<Locations *> &paths) override;
+  void runThroughLocations(llvm::Function *f, int argc, char **argv,
+                           char **envp,
+                           std::vector<Locations *> &paths) override;
 
   void runMainAsGuided(llvm::Function *f, int argc, char **argv,
                        char **envp) override;

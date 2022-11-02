@@ -204,6 +204,7 @@ namespace klee {
     std::set<const llvm::Function*> internalFunctions;
 
   private:
+    bool withPosixRuntime;
     // Mark function with functionName as part of the KLEE runtime
     void addInternalFunction(const char* functionName);
     // Replace std functions with KLEE intrinsics
@@ -251,6 +252,8 @@ namespace klee {
     void checkModule();
 
     KBlock *getKBlock(llvm::BasicBlock *bb);
+
+    bool WithPOSIXRuntime() { return withPosixRuntime; }
   };
 } // End klee namespace
 

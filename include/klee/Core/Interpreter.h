@@ -63,13 +63,16 @@ public:
     bool CheckDivZero;
     bool CheckOvershift;
     bool WithFPRuntime;
+    bool WithPOSIXRuntime;
 
     ModuleOptions(const std::string &_LibraryDir,
                   const std::string &_EntryPoint, const std::string &_OptSuffix,
-                  bool _Optimize, bool _CheckDivZero, bool _CheckOvershift, bool _WithFPRuntime)
+                  bool _Optimize, bool _CheckDivZero, bool _CheckOvershift,
+                  bool _WithFPRuntime, bool _WithPOSIXRuntime)
         : LibraryDir(_LibraryDir), EntryPoint(_EntryPoint),
           OptSuffix(_OptSuffix), Optimize(_Optimize),
-          CheckDivZero(_CheckDivZero), CheckOvershift(_CheckOvershift), WithFPRuntime(_WithFPRuntime) {}
+          CheckDivZero(_CheckDivZero), CheckOvershift(_CheckOvershift),
+          WithFPRuntime(_WithFPRuntime), WithPOSIXRuntime(_WithPOSIXRuntime) {}
   };
 
   enum LogType
@@ -153,7 +156,9 @@ public:
                                  char **argv,
                                  char **envp) = 0;
 
-  virtual void runThroughLocations(std::vector<Locations *> &paths) = 0;
+  virtual void runThroughLocations(llvm::Function *f, int argc, char **argv,
+                                   char **envp,
+                                   std::vector<Locations *> &paths) = 0;
 
   virtual void runMainAsGuided(llvm::Function *f,
                                int argc,

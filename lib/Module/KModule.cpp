@@ -277,6 +277,7 @@ void KModule::instrument(const Interpreter::ModuleOptions &opts) {
 
   pm.add(new IntrinsicCleanerPass(*targetData, opts.WithFPRuntime));
   pm.run(*module);
+  withPosixRuntime = opts.WithPOSIXRuntime;
 }
 
 void KModule::optimiseAndPrepare(
