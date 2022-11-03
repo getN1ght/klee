@@ -5403,7 +5403,7 @@ void Executor::runThroughLocations(llvm::Function *f, int argc, char **argv,
     auto kf = startBlockAndWhiteList.first;
     ExecutionState *initialState = state->withStackFrame(caller, kf);
     prepareSymbolicArgs(*initialState, kf);
-    initialState->whitelist = *startBlockAndWhiteList.second;
+    initialState->targetForest = *startBlockAndWhiteList.second;
     targetedExecutionManager.stepTo(*initialState, initialState->pc->parent);
     runGuided(*initialState, kf);
   }

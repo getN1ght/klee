@@ -127,7 +127,7 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     level(state.level),
     addressSpace(state.addressSpace),
     constraints(state.constraints),
-    whitelist(state.whitelist),
+    targetForest(state.targetForest),
     targetsOfCurrentKBlock(state.targetsOfCurrentKBlock),
     pathOS(state.pathOS),
     symPathOS(state.symPathOS),

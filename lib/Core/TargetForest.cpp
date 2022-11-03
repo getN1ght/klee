@@ -118,6 +118,28 @@ void TargetForest::Layer::dump() const {
   llvm::errs() << "-----------------------\n";
 }
 
+
+int TargetForest::History::compare(const History &h) const {
+  if (this == &h)
+    return 0;
+
+  if (target && h.target) {
+    if (target != h.target)
+      return (target < h.target) ? -1 : 1;
+  } else {
+    return h.target ? -1 : (target ? 1 : 0);
+  }
+
+  if (visitedTargets && h.visitedTargets) {
+    if (h.visitedTargets != h.visitedTargets)
+      return (visitedTargets < h.visitedTargets) ? -1 : 1;
+  } else {
+    return h.visitedTargets ? -1 : (visitedTargets ? 1 : 0);
+  }
+
+  return 0;
+}
+
 void TargetForest::stepTo(ref<Target> loc) {
   if (forest->empty())
     return;
@@ -125,6 +147,7 @@ void TargetForest::stepTo(ref<Target> loc) {
   if (res == forest->end()) {
     return;
   }
+  history = history->add(loc);
   forest = forest->replaceChildWith(loc, res->second.get());
 }
 

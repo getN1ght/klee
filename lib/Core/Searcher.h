@@ -36,6 +36,7 @@ namespace klee {
   template<class T, class Comparator> class WeightedQueue;
   class ExecutionState;
   class Executor;
+  class TargetForest;
 
   /// A Searcher implements an exploration strategy for the Executor by selecting
   /// states for further exploration using different strategies or heuristics.
@@ -165,9 +166,27 @@ namespace klee {
 
   class GuidedSearcher final : public Searcher {
   private:
-    using TargetToSearcherMap = std::unordered_map<ref<Target>, std::unique_ptr<TargetedSearcher>, TargetHash, TargetCmp>;
-    using TargetToStateSetMap = std::unordered_map<ref<Target>, std::unordered_set<ExecutionState *>, TargetHash, TargetCmp>;
-    using TargetToStateVectorMap = std::unordered_map<ref<Target>, std::vector<ExecutionState *>, TargetHash, TargetCmp>;
+    template <class T>
+    class TargetHashMap
+        : public std::unordered_map<ref<Target>, T, TargetHash, TargetCmp> {};
+    using TargetToSearcherMap = TargetHashMap<std::unique_ptr<TargetedSearcher>>;
+    using TargetToStateSetMap = TargetHashMap<std::set<ExecutionState *>>;
+    using TargetToStateVectorMap = TargetHashMap<std::vector<ExecutionState *>>;
+
+    template <class T>
+    class TargetForestHistoryHashMap
+        : public std::unordered_map<ref<TargetForest::History>, T, TargetsHash, TargetsCmp> {};
+    template <class T>
+    class TargetForestHistoryTargetsHashMap
+        : public TargetForestHistoryHashMap<TargetHashMap<T>> {};
+
+    using TargetForestHistoryToSearcherMap = TargetForestHistoryTargetsHashMap<std::unique_ptr<TargetedSearcher>>;
+    using TargetForestHistoryToStateSetMap = TargetForestHistoryTargetsHashMap<std::set<ExecutionState *>>;
+    using TargetForestHisoryToStateVectorMap = TargetForestHistoryTargetsHashMap<std::vector<ExecutionState *>>;
+    using TargetForestHisoryToTargetSet = TargetForestHistoryHashMap<std::set<ref<Target>>>;
+    using TargetForestHisoryToTargetVector = TargetForestHistoryHashMap<std::vector<ref<Target>>>;
+    using TargetForestHisoryTargetVector = std::vector<std::pair<ref<TargetForest::History>, ref<Target>>>;
+
     enum Guidance {
       CoverageGuidance,
       ErrorGuidance
@@ -175,13 +194,13 @@ namespace klee {
 
     Guidance guidance;
     std::unique_ptr<Searcher> baseSearcher;
-    TargetToSearcherMap targetedSearchers;
+    TargetForestHistoryToSearcherMap targetedSearchers;
     CodeGraphDistance &codeGraphDistance;
     TargetCalculator *stateHistory;
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates;
     std::size_t bound;
     unsigned index{1};
-    void addTarget(ref<Target> target);
+    void addTarget(ref<TargetForest::History> history, ref<Target> target);
     bool isStuck(ExecutionState &state);
     void innerUpdate(ExecutionState *current,
                      const std::vector<ExecutionState *> &addedStates,

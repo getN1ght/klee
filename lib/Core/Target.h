@@ -85,33 +85,6 @@ struct TargetCmp {
   }
 };
 
-  struct TargetsHash {
-    unsigned operator()(const std::vector<ref<Target>> &t) const {
-      unsigned res = t.size() * Expr::MAGIC_HASH_CONSTANT;
-      for (const ref<Target> &target : t) {
-        res <<= 1;
-        res ^= target->hash() * Expr::MAGIC_HASH_CONSTANT;
-      }
-      return res;
-    }
-  };
-
-  struct TargetsCmp {
-    bool operator()(const std::vector<ref<Target>> &a,
-                    const std::vector<ref<Target>> &b) const {
-      if (a.size() != b.size()) {
-        return false;
-      }
-      unsigned n = a.size();
-      for (unsigned i = 0; i < n; ++i) {
-        if (a[i] != b[i]) {
-          return false;
-        }
-      }
-      return true;
-    }
-  };
-
   typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;
 
   struct TransitionHash {
