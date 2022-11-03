@@ -206,8 +206,8 @@ public:
   /// @brief Key points which should be visited through execution
   TargetForest whitelist;
 
-  /// @brief If not null, current block execution should terminate with error from target
-  ref<Target> targetOfCurrentKBlock = nullptr;
+  /// @brief If not null, represents current targets to be reached
+  std::unordered_map<ReachWithError, ref<Target> > *targetsOfCurrentKBlock = nullptr;
 
   /// Statistics and information
 

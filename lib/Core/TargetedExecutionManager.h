@@ -24,7 +24,7 @@ namespace klee {
 
 class TargetedExecutionManager {
   /// Map of blocks to corresponding execution targets
-  std::unordered_map<KBlock *, ref<Target>> block2target;
+  std::unordered_map<KBlock *, std::unordered_map<ReachWithError, ref<Target> > *> block2targets;
 
   /// Map of blocks to corresponding original code locations
   std::unordered_map<KBlock *, Location *> block2location;

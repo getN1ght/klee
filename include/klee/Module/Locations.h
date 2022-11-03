@@ -44,38 +44,39 @@ public:
 class Locations {
   using LocationsData = std::vector<Location *>;
   using iterator = LocationsData::const_iterator;
-  LocationsData locations;
   ReachWithError error;
 
 public:
-  Locations(ReachWithError error) : error(error) {}
+  LocationsData path;
+  Location *start;
+
+  Locations(ReachWithError error) : error(error), start(nullptr) {}
   ~Locations() {
-    for (auto loc : locations)
-      delete loc;
+    if (!(isSingleton())) {
+      for (auto loc : path)
+        delete loc;
+    }
+    delete start;
   }
 
-  iterator begin() const { return locations.cbegin(); }
-  iterator end() const { return locations.cend(); }
+  bool isSingleton() const {
+    return path.size() == 1 && path.back() == start;
+  }
+
+  iterator begin() const { return path.cbegin(); }
+  iterator end() const { return path.cend(); }
 
   ReachWithError targetError() const { return error; }
 
   void add(const std::string &filename, unsigned lineno) {
-    locations.push_back(new Location(filename, lineno));
+    auto loc = new Location(filename, lineno);
+    if (start == nullptr) {
+      start = loc;
+    } else if (isSingleton()) {
+      path.pop_back();
+    }
+    path.push_back(loc);
   }
-};
-
-struct ResolvedLocation {
-  Location *originalLocation;
-  std::unordered_set<KBlock *> blocks;
-
-  ResolvedLocation(Location *loc, std::unordered_set<KBlock *> &blocks) : originalLocation(loc), blocks(blocks) {}
-};
-
-struct ResolvedLocations {
-  using LocationsData = std::vector<ResolvedLocation>;
-  LocationsData locations;
-  ResolvedLocations() {}
-  ResolvedLocations(const KModule *kmodule, const Locations *locs);
 };
 
 } // End klee namespace

@@ -37,20 +37,3 @@ bool Location::isInside(KBlock *block) const {
   auto last = block->getLastInstruction()->info->line;
   return line <= last; // and `first <= line` from above
 }
-
-ResolvedLocations::ResolvedLocations(const KModule *kmodule, const Locations *locs) : ResolvedLocations() {
-  auto infos = kmodule->infos.get();
-  for (auto loc : *locs) {
-    std::unordered_set<KBlock *> resolvedLocations;
-    for (const auto &kfunc : kmodule->functions) {
-      const auto &fi = infos->getFunctionInfo(*kfunc->function);
-      if (!loc->isInside(fi))
-        continue;
-      for (const auto &kblock : kfunc->blocks) {
-        if (loc->isInside(kblock.get()))
-          resolvedLocations.insert(kblock.get());
-      }
-    }
-    locations.emplace_back(loc, resolvedLocations);
-  }
-}

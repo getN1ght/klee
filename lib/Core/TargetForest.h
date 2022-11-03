@@ -53,7 +53,7 @@ class TargetForest {
   ref<Layer> forest;
 
   /// @brief Add all path combinations from resolved locations
-  void addPath(const ResolvedLocations &path, const std::unordered_map<KBlock *, ref<Target> > &block2target);
+  void addPath(Locations *path, std::unordered_map<klee::Location *, std::unordered_set<klee::KBlock *> *> &loc2blocks, std::unordered_map<klee::KBlock *, std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>> *> &block2targets);
 
   bool allNodesRefCountOne() const;
 public:
@@ -63,7 +63,7 @@ public:
   void debugStepToRandomLoc();
 
   TargetForest() : forest(new Layer()) {}
-  TargetForest(const std::vector<ResolvedLocations> &paths, const std::unordered_map<KBlock *, ref<Target> > &block2target);
+  TargetForest(const std::vector<Locations *> &paths, std::unordered_map<klee::Location *, std::unordered_set<klee::KBlock *> *> &loc2blocks, std::unordered_map<klee::KBlock *, std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>> *> &block2targets);
 
   bool empty() const { return forest->empty(); }
   Layer::iterator begin() const { return forest->begin(); }

@@ -15,13 +15,18 @@ using namespace klee;
 using namespace llvm;
 
 
-TargetForest::TargetForest(const std::vector<ResolvedLocations> &paths, const std::unordered_map<KBlock *, ref<Target>> &block2target) : TargetForest() {
+TargetForest::TargetForest(const std::vector<Locations *> &paths,
+                           std::unordered_map<klee::Location *, std::unordered_set<klee::KBlock *> *> &loc2blocks,
+                           std::unordered_map<klee::KBlock *, std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>> *> &block2targets) : TargetForest() {
   for (const auto &path : paths)
-    addPath(path, block2target);
+    addPath(path, loc2blocks, block2targets);
 }
 
-void TargetForest::addPath(const ResolvedLocations &rl, const std::unordered_map<KBlock *, ref<Target> > &block2target) {
-  const auto &path = rl.locations;
+void TargetForest::addPath(Locations *rl,
+                           std::unordered_map<klee::Location *, std::unordered_set<klee::KBlock *> *> &loc2blocks,
+                           std::unordered_map<klee::KBlock *, std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>> *> &block2targets) {
+  const auto &path = rl->path;
+  auto errorType = rl->targetError();
   auto n = path.size();
   if (n == 0)
     return;
@@ -34,9 +39,11 @@ void TargetForest::addPath(const ResolvedLocations &rl, const std::unordered_map
     q.pop_back();
     TargetForest::Layer *current = next->forest.get();
     TargetForest *nextForQueue = nullptr;
-    auto &loc_basket = path[i].blocks;
-    for (auto loc : loc_basket) {
-      auto target = block2target.at(loc);
+    auto loc = path[i];
+    auto loc_basket = loc2blocks[loc];
+    auto error = i == n - 1 ? errorType : ReachWithError::None;
+    for (auto block : *loc_basket) {
+      auto target = (*block2targets[block])[error];
       bool readingForQueue = reading;
       if (readingForQueue) {
         auto res = current->find(target);
