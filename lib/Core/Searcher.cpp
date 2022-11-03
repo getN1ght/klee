@@ -636,20 +636,24 @@ void GuidedSearcher::clearReached() {
     std::set<ExecutionState *> localReached;
     for (auto &target : history.second) {
       auto reached = targetedSearchers[history.first][target]->reached();
+
+      for (auto &state : reached) {
+        for (auto &targetF : state->targetForest) {
+          auto anotherTarget = targetF.first;
+          assert(target && "Target shoud be not null!");
+          if (target != anotherTarget) {
+            removedTStates[target].push_back(state);
+          }
+        }
+      }
+
       if (!reached.empty()) {
         targetedSearchers[history.first][target]->removeReached();
         if (targetedSearchers[history.first][target]->empty())
           targetedSearchers[history.first].erase(target);
       }
-      localReached.insert(reached.begin(), reached.end());
     }
-    for (auto &state : localReached) {
-      for (auto &targetF : state->targetForest) {
-        auto target = targetF.first;
-        assert(target && "Target shoud be not null!");
-        removedTStates[target].push_back(state);
-      }
-    }
+
     for (auto &targetRS : removedTStates) {
       targetedSearchers[history.first][targetRS.first]->update(
           nullptr, addedStates, targetRS.second);
@@ -657,6 +661,7 @@ void GuidedSearcher::clearReached() {
         targetedSearchers[history.first].erase(targetRS.first);
       }
     }
+
     if (targetedSearchers[history.first].empty())
       targetedSearchers.erase(history.first);
   }
