@@ -27,12 +27,13 @@ enum ReachWithError {
 
 class Location {
   unsigned line;
+  const std::string function;
 
 public:
   const std::string filename;
-  bool isReported;
 
-  Location(const std::string &f, unsigned l) : line(l), filename(f), isReported(false) {}
+  Location(const std::string &f, const std::string &function, unsigned l)
+    : line(l), function(function), filename(f) {}
 
   bool isTheSameAsIn(KInstruction *instr) const;
   bool isInside(const FunctionInfo &info) const;
@@ -41,42 +42,27 @@ public:
   std::string toString() const;
 };
 
-class Locations {
-  using LocationsData = std::vector<Location *>;
-  using iterator = LocationsData::const_iterator;
+struct LocatedEvent {
+  Location location;
   ReachWithError error;
+  bool isReported;
 
-public:
-  LocationsData path;
-  Location *start;
+  LocatedEvent(Location location, ReachWithError error) : location(location), error(error), isReported(false) {}
 
-  Locations(ReachWithError error) : error(error), start(nullptr) {}
-  ~Locations() {
-    if (!(isSingleton())) {
-      for (auto loc : path)
-        delete loc;
-    }
-    delete start;
-  }
+  std::string toString() const;
+};
 
-  bool isSingleton() const {
-    return path.size() == 1 && path.back() == start;
-  }
+struct PathForest {
+  std::unordered_map<LocatedEvent *, PathForest *> layer;
+  ~PathForest();
 
-  iterator begin() const { return path.cbegin(); }
-  iterator end() const { return path.cend(); }
+  void addSubTree(LocatedEvent *loc, PathForest *subTree);
+  void addLeaf(LocatedEvent *loc);
 
-  ReachWithError targetError() const { return error; }
+  bool empty() const;
 
-  void add(const std::string &filename, unsigned lineno) {
-    auto loc = new Location(filename, lineno);
-    if (start == nullptr) {
-      start = loc;
-    } else if (isSingleton()) {
-      path.pop_back();
-    }
-    path.push_back(loc);
-  }
+  /// @brief Sets singleton paths to size two
+  void normalize();
 };
 
 } // End klee namespace

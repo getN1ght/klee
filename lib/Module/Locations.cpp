@@ -36,6 +36,8 @@ bool Location::isInside(const FunctionInfo &info) const {
 
 std::string Location::toString() const {
   std::stringstream out;
+  if (!function.empty())
+    out << function << " at ";
   out << filename << ":" << line;
   return out.str();
 }
@@ -46,4 +48,38 @@ bool Location::isInside(KBlock *block) const {
     return false;
   auto last = block->getLastInstruction()->info->line;
   return line <= last; // and `first <= line` from above
+}
+
+std::string LocatedEvent::toString() const {
+  return location.toString();
+}
+
+void PathForest::addSubTree(LocatedEvent * loc, PathForest *subTree) {
+  layer.insert(std::make_pair(loc, subTree));
+}
+
+void PathForest::addLeaf(LocatedEvent * loc) {
+  addSubTree(loc, nullptr);
+}
+
+bool PathForest::empty() const {
+  return layer.empty();
+}
+
+void PathForest::normalize() {
+  for (auto &p : layer) {
+    auto child = p.second;
+    if (child == nullptr)
+      child = new PathForest();
+    if (!child->empty())
+      continue;
+    child->addLeaf(p.first);
+  }
+}
+
+PathForest::~PathForest() {
+  for (auto p : layer) {
+    if (p.second != nullptr)
+      delete p.second;
+  }
 }

@@ -15,53 +15,30 @@ using namespace klee;
 using namespace llvm;
 
 
-TargetForest::TargetForest(const std::vector<Locations *> &paths,
-                           std::unordered_map<klee::Location *, std::unordered_set<klee::KBlock *> *> &loc2blocks,
-                           std::unordered_map<klee::KBlock *, std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>> *> &block2targets) : TargetForest() {
-  for (const auto &path : paths)
-    addPath(path, loc2blocks, block2targets);
-}
-
-void TargetForest::addPath(Locations *rl,
-                           std::unordered_map<klee::Location *, std::unordered_set<klee::KBlock *> *> &loc2blocks,
-                           std::unordered_map<klee::KBlock *, std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>> *> &block2targets) {
-  const auto &path = rl->path;
-  auto errorType = rl->targetError();
-  auto n = path.size();
-  if (n == 0)
-    return;
-  std::vector<std::tuple<size_t, bool, Layer *> > q;
-  q.emplace_back(0, true, forest.get());
-  while (!q.empty()) {
-    size_t i = std::get<0>(q.back());
-    bool reading = std::get<1>(q.back());
-    TargetForest::Layer *next = std::get<2>(q.back());
-    q.pop_back(); 
-    TargetForest::Layer *current = next;
-    TargetForest::Layer *nextForQueue = nullptr;
-    auto loc = path[i];
-    auto loc_basket = loc2blocks[loc];
-    auto error = i == n - 1 ? errorType : ReachWithError::None;
-    for (auto block : *loc_basket) {
-      auto target = (*block2targets[block])[error];
-      bool readingForQueue = reading;
-      if (readingForQueue) {
-        auto res = current->find(target);
-        if (res != current->end()) {
-          nextForQueue = res->second.get();
-        } else
-          readingForQueue = false;
-      }
-      if (!readingForQueue) {
-        nextForQueue = new Layer();
-        current->insert(target, nextForQueue);
-      }
-      if (i + 1 < n)
-        q.emplace_back(i + 1, readingForQueue, nextForQueue);
+TargetForest::Layer *TargetForest::Layer::pathForestToTargetForest(TargetForest::Layer *self, PathForest *pathForest, std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> &loc2Targets) {
+  if (pathForest == nullptr)
+    return self;
+  for (auto &p : pathForest->layer) {
+    auto it = loc2Targets.find(p.first);
+    if (it == loc2Targets.end()) {
+      klee_warning("Cannot resolve location %s. It will be fixed when input will be based on llvm basic blocks instead of code line numbers.", p.first->toString().c_str());
+      continue;
+    }
+    auto targets = it->second;
+    for (auto &target : *targets) {
+      auto next = new TargetForest::Layer();
+      self->insert(target, pathForestToTargetForest(next, p.second, loc2Targets));
     }
   }
-  assert(allNodesRefCountOne());
+  return self;
 }
+
+TargetForest::Layer::Layer(PathForest *pathForest, std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> &loc2Targets) : Layer() {
+  pathForestToTargetForest(this, pathForest, loc2Targets);
+}
+
+TargetForest::TargetForest(PathForest *pathForest, std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> &loc2Targets)
+  : TargetForest(new TargetForest::Layer(pathForest, loc2Targets)) {}
 
 void TargetForest::Layer::unionWith(const TargetForest::Layer *other) {
   if (other->forest.empty())

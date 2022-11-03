@@ -600,7 +600,7 @@ public:
 
   void runThroughLocations(llvm::Function *f, int argc, char **argv,
                            char **envp,
-                           std::vector<Locations *> &paths) override;
+                           PathForest *paths) override;
 
   void runMainAsGuided(llvm::Function *f, int argc, char **argv,
                        char **envp) override;

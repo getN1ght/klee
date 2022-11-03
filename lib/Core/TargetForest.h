@@ -32,6 +32,8 @@ private:
     explicit Layer(const InternalLayer &forest) : forest(forest) {}
     void unionWith(const Layer *other);
 
+    static Layer *pathForestToTargetForest(Layer *self, PathForest *pathForest, std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> &loc2Targets);
+
   public:
     using iterator = InternalLayer::iterator;
 
@@ -39,6 +41,7 @@ private:
     class ReferenceCounter _refCount;
 
     explicit Layer() {}
+    Layer(PathForest *pathForest, std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> &loc2Targets);
 
     iterator find(ref<Target> b) { return forest.find(b); }
     iterator begin() { return forest.begin(); }
@@ -54,9 +57,6 @@ private:
   };
 
   ref<Layer> forest;
-
-  /// @brief Add all path combinations from resolved locations
-  void addPath(Locations *path, std::unordered_map<klee::Location *, std::unordered_set<klee::KBlock *> *> &loc2blocks, std::unordered_map<klee::KBlock *, std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>> *> &block2targets);
 
   bool allNodesRefCountOne() const;
 
@@ -108,7 +108,7 @@ public:
 
   TargetForest(ref<Layer> layer) : forest(layer), history(new History()) {}
   TargetForest() : TargetForest(new Layer()) {}
-  TargetForest(const std::vector<Locations *> &paths, std::unordered_map<klee::Location *, std::unordered_set<klee::KBlock *> *> &loc2blocks, std::unordered_map<klee::KBlock *, std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>> *> &block2targets);
+  TargetForest(PathForest *pathForest, std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> &loc2Targets);
 
   bool empty() const { return forest->empty(); }
   Layer::iterator begin() const { return forest->begin(); }

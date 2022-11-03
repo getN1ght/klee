@@ -29,7 +29,7 @@ class raw_fd_ostream;
 
 namespace klee {
 class ExecutionState;
-class Locations;
+struct PathForest;
 class Interpreter;
 class TreeStreamWriter;
 
@@ -158,7 +158,7 @@ public:
 
   virtual void runThroughLocations(llvm::Function *f, int argc, char **argv,
                                    char **envp,
-                                   std::vector<Locations *> &paths) = 0;
+                                   PathForest *paths) = 0;
 
   virtual void runMainAsGuided(llvm::Function *f,
                                int argc,

@@ -5358,7 +5358,7 @@ void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
 }
 
 void Executor::runThroughLocations(llvm::Function *f, int argc, char **argv,
-                               char **envp, std::vector<Locations *> &paths) {
+                               char **envp, PathForest *paths) {
   guidanceKind = GuidanceKind::ErrorGuidance;
   ExecutionState *state = formState(f, argc, argv, envp);
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);

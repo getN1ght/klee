@@ -145,6 +145,12 @@ namespace {
                        cl::cat(StartCat));
 
     cl::opt<std::string>
+            AnalysisReproduce("analysis-reproduce",
+                       cl::desc("Path of JSON file containing static analysis paths to be reproduced"),
+                       cl::init(""),
+                       cl::cat(StartCat));
+
+    cl::opt<std::string>
             AnalysisFile("analysis-file",
                        cl::desc("Filename of C code in which source and sink to be checked are located"),
                        cl::init(""),
@@ -1480,6 +1486,21 @@ linkWithUclibc(StringRef libDir, std::string opt_suffix,
 }
 #endif
 
+static PathForest *parseStaticAnalysisInput() {
+    if (AnalysisReproduce != "")
+      return parseInputPathTree(AnalysisReproduce);
+    if (AnalysisFile == "" || AnalysisSink == 0)
+      klee_error("--analysis-reproduce JSON file with error paths to be checked is not provided in error-guidance mode");
+    auto sinkLoc = new LocatedEvent(Location(AnalysisFile, "", AnalysisSink), ReachWithError::NullPointerException);
+    auto sink = new PathForest();
+    sink->addLeaf(sinkLoc);
+    unsigned sourceLine = AnalysisSource == 0 ? AnalysisSink : AnalysisSource;
+    auto sourceLoc = new LocatedEvent(Location(AnalysisFile, "", sourceLine), ReachWithError::None);
+    auto source = new PathForest();
+    source->addSubTree(sourceLoc, sink);
+    return source;
+}
+
 static int run_klee_on_function(
     int pArgc, char **pArgv, char **pEnvp,
     std::unique_ptr<KleeHandler> &handler,
@@ -1487,20 +1508,11 @@ static int run_klee_on_function(
     std::vector<bool> &replayPath,
     std::vector<std::unique_ptr<llvm::Module>> &loadedModules) {
   Function *mainFn = finalModule->getFunction(EntryPoint);
-  std::vector<Locations *> paths;
-  if (ExecutionMode == Interpreter::GuidanceKind::ErrorGuidance) {
-    auto path1 = new Locations(ReachWithError::NullPointerException);
-    if (AnalysisFile == "")
-      klee_error("--analysis-file with potential errors is not provided in error-guidance mode");
-    if (AnalysisSink == 0)
-      klee_error("--analysis-sink line number of potential error is not provided in error-guidance mode");
-    unsigned source = AnalysisSource == 0 ? AnalysisSink : AnalysisSource;
-    path1->add(AnalysisFile, source);
-    path1->add(AnalysisFile, AnalysisSink);
-    paths.push_back(path1);
-  } else if (!mainFn) { // in error guided mode we do not need main function
+  PathForest *pathTree = nullptr;
+  if (ExecutionMode == Interpreter::GuidanceKind::ErrorGuidance)
+    pathTree = parseStaticAnalysisInput();
+  else if (!mainFn) // in error guided mode we do not need main function
     klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());
-  }
   externalsAndGlobalsCheck(finalModule);
 
   if (ReplayPathFile != "") {
@@ -1602,7 +1614,7 @@ static int run_klee_on_function(
         interpreter->runMainAsGuided(mainFn, out->numArgs, out->args, pEnvp);
         break;
       case Interpreter::GuidanceKind::ErrorGuidance:
-        interpreter->runThroughLocations(mainFn, out->numArgs, out->args, pEnvp, paths);
+        interpreter->runThroughLocations(mainFn, out->numArgs, out->args, pEnvp, pathTree);
         break;
       }
       if (interrupted)
@@ -1663,7 +1675,7 @@ static int run_klee_on_function(
       interpreter->runMainAsGuided(mainFn, pArgc, pArgv, pEnvp);
       break;
     case Interpreter::GuidanceKind::ErrorGuidance:
-      interpreter->runThroughLocations(mainFn, pArgc, pArgv, pEnvp, paths);
+      interpreter->runThroughLocations(mainFn, pArgc, pArgv, pEnvp, pathTree);
       break;
     }
 
@@ -1673,8 +1685,7 @@ static int run_klee_on_function(
     }
   }
 
-  for (auto path : paths)
-    delete path;
+  delete pathTree;
 
   auto endTime = std::time(nullptr);
   { // output end and elapsed time

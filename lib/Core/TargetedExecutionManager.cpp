@@ -18,17 +18,19 @@ using namespace llvm;
 using namespace klee;
 
 
-std::vector<Location *> *collectLocations(std::vector<Locations *> &paths) {
-  std::unordered_set<Location *> result;
-  for (auto path : paths) {
-    result.insert(path->start);
-    if (path->isSingleton())
-      continue;
-    for (auto loc : *path) {
-      result.insert(loc);
+std::vector<LocatedEvent *> *collectLocations(PathForest *pathForest) {
+  std::unordered_set<LocatedEvent *> result;
+  std::vector<PathForest *> q{pathForest};
+  while (!q.empty()) {
+    auto forest = q.back();
+    q.pop_back();
+    for (const auto &p : forest->layer) {
+      result.insert(p.first);
+      if (p.second != nullptr)
+        q.push_back(p.second);
     }
   }
-  auto out = new std::vector<Location *>();
+  auto out = new std::vector<LocatedEvent *>();
   for (auto loc : result)
     out->push_back(loc);
   return out;
@@ -36,29 +38,32 @@ std::vector<Location *> *collectLocations(std::vector<Locations *> &paths) {
 
 
 std::vector<std::pair<KFunction *, ref<TargetForest> > >
-TargetedExecutionManager::prepareTargets(const KModule *kmodule, std::vector<Locations *> &paths) {
-  auto all_locs = collectLocations(paths);
+TargetedExecutionManager::prepareTargets(const KModule *kmodule, PathForest *pathForest) {
+  pathForest->normalize();
+  auto all_locs = collectLocations(pathForest);
 
   auto infos = kmodule->infos.get();
-  std::unordered_map<Location *, std::unordered_set<KBlock *> *> loc2blocks;
+  std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> loc2targets;
   std::unordered_map<std::string, std::unordered_map<std::string, bool> > filenameCache;
   for (const auto &kfunc : kmodule->functions) {
     const auto &fi = infos->getFunctionInfo(*kfunc->function);
     const auto &cache = filenameCache.find(fi.file);
-    auto blocks = new std::unordered_set<KBlock *>();
+    auto targets = new std::set<ref<Target> >();
     for (int i = all_locs->size() - 1; i >= 0; i--) {
-      auto loc = (*all_locs)[i];
+      auto le = (*all_locs)[i];
+      auto &loc = le->location;
+      auto error = le->error;
       bool isInside = false;
       if (cache == filenameCache.end()) {
-        isInside = loc->isInside(fi);
+        isInside = loc.isInside(fi);
         std::unordered_map<std::string, bool> c;
-        c.insert(std::make_pair(loc->filename, isInside));
+        c.insert(std::make_pair(loc.filename, isInside));
         filenameCache.insert(std::make_pair(fi.file, c));
       } else {
-        auto it = cache->second.find(loc->filename);
+        auto it = cache->second.find(loc.filename);
         if (it == cache->second.end()) {
-          isInside = loc->isInside(fi);
-          cache->second.insert(std::make_pair(loc->filename, isInside));
+          isInside = loc.isInside(fi);
+          cache->second.insert(std::make_pair(loc.filename, isInside));
         } else {
           isInside = it->second;
         }
@@ -66,65 +71,49 @@ TargetedExecutionManager::prepareTargets(const KModule *kmodule, std::vector<Loc
       if (!isInside)
         continue;
       for (const auto &kblock : kfunc->blocks) {
-        if (loc->isInside(kblock.get()))
-          blocks->insert(kblock.get());
+        auto b = kblock.get();
+        if (!loc.isInside(b))
+          continue;
+        block2location.insert(std::make_pair(b, le));
+
+        auto it = block2targets.find(b);
+        std::unordered_map<ReachWithError, ref<Target> > *targetMap;
+        ref<Target> target = nullptr;
+        if (it == block2targets.end()) {
+          targetMap = new std::unordered_map<ReachWithError, ref<Target> >();
+        } else {
+          targetMap = it->second;
+          auto itt = targetMap->find(error);
+          if (itt != targetMap->end())
+            target = itt->second;
+        }
+        if (target.isNull()) {
+          target = new Target(b, error);
+          targetMap->insert(std::make_pair(error, target));
+          block2targets.insert(it, std::make_pair(b, targetMap));
+        }
+        targets->insert(target);
       }
-      if (blocks->empty())
+      if (targets->empty())
         continue;
       (*all_locs)[i] = (*all_locs)[all_locs->size() - 1];
       all_locs->pop_back();
-      loc2blocks.insert(std::make_pair(loc, blocks));
-      blocks = new std::unordered_set<KBlock *>();
+      loc2targets.insert(std::make_pair(le, targets));
+      targets = new std::set<ref<Target> >();
     }
-    delete blocks;
+    delete targets;
   }
   delete all_locs;
 
-  std::unordered_map<KFunction *, std::vector<Locations *> > pathForest;
-  for (auto locs : paths) {
-    auto kf = (*loc2blocks[locs->start]->begin())->parent;
-    auto it = pathForest.find(kf);
-    if (it == pathForest.end()) {
-      std::vector<Locations *> path{locs};
-      pathForest.insert(it, std::make_pair(kf, path));
-    } else {
-      it->second.push_back(locs);
-    }
-
-    auto targetError = locs->targetError();
-    auto itl = locs->begin();
-    auto itle = locs->end();
-    auto itllast = std::prev(itle);
-    for (; itl != itle; itl++) {
-      auto originalLoc = *itl;
-      auto blocks = loc2blocks[originalLoc];
-      for (auto b : *blocks) {
-        auto error = itl == itllast ? targetError : ReachWithError::None;
-        auto targets = block2targets.find(b);
-        std::unordered_map<ReachWithError, ref<Target> > *targetMap;
-        if (targets == block2targets.end()) {
-          targetMap = new std::unordered_map<ReachWithError, ref<Target> >();
-        } else {
-          targetMap = targets->second;
-          if (targetMap->find(error) != targetMap->end())
-            continue;
-        }
-        targetMap->insert(std::make_pair(error, new Target(b, error)));
-        block2targets.insert(targets, std::make_pair(b, targetMap));
-        block2location.insert(std::make_pair(b, originalLoc));
-      }
-    }
-  }
-
   std::vector<std::pair<KFunction *, ref<TargetForest> > > whitelists;
-  for (const auto &funcAndPaths : pathForest) {
-    ref<TargetForest> whitelist = new TargetForest(funcAndPaths.second, loc2blocks, block2targets);
-    whitelists.emplace_back(funcAndPaths.first, whitelist);
+  for (const auto &funcAndPaths : pathForest->layer) {
+    ref<TargetForest> whitelist = new TargetForest(funcAndPaths.second, loc2targets);
+    auto kf = (*loc2targets[funcAndPaths.first]->begin())->getBlock()->parent;
+    whitelists.emplace_back(kf, whitelist);
   }
 
-  for (auto p : loc2blocks) {
+  for (auto p : loc2targets)
     delete p.second;
-  }
 
   return whitelists;
 }
@@ -137,7 +126,7 @@ void TargetedExecutionManager::stepTo(ExecutionState &state, KBlock *dst) {
 }
 
 void TargetedExecutionManager::reportFalsePositives(bool noMoreStates) {
-  std::unordered_set<Location *> visited;
+  std::unordered_set<LocatedEvent *> visited;
   for (const auto &blockAndLoc : block2location) {
     auto expectedLocation = blockAndLoc.second;
     if (visited.find(expectedLocation) != visited.end() || expectedLocation->isReported)
@@ -185,7 +174,7 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
   auto target = it->second;
   assert(target->getBlock() == state.prevPC->parent);
   auto expectedLocation = block2location[target->getBlock()];
-  if (!expectedLocation->isTheSameAsIn(state.prevPC))
+  if (!expectedLocation->location.isTheSameAsIn(state.prevPC))
     return false;
 
   klee_warning("True Positive at: %s", expectedLocation->toString().c_str());
@@ -195,7 +184,6 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
 }
 
 TargetedExecutionManager::~TargetedExecutionManager() {
-  for (auto p : block2targets) {
+  for (auto p : block2targets)
     delete p.second;
-  }
 }
