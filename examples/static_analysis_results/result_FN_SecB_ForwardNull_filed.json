@@ -1,0 +1,27 @@
+{
+  "events": [
+		{
+			"location": {
+				"file": "/mnt/d/wsl-ubuntu/test2/forward_null/./FN_SecB_ForwardNull_filed.c",
+				"reportLine": 45,
+				"function": "WB_BadCase_field2"
+			},
+			"children": [
+				{
+					"location": {
+						"file": "/mnt/d/wsl-ubuntu/test2/forward_null/./FN_SecB_ForwardNull_filed.c",
+						"reportLine": 46,
+						"function": "WB_BadCase_field2"
+					},
+					"event": {
+						"kind": "Error",
+						"error": {
+							"sort": "NullDereference",
+							"target": "ptr"
+						}
+					}
+				}
+			]
+		}
+	]
+}

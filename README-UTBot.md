@@ -56,6 +56,8 @@ Current version supports only `null dereference` type of errors. So, it does not
 
 ## Examples
 
+All example JSON inputs for `--analysis-reproduce` flag can be found [here](examples/static_analysis_results/).
+
 ### Example run with a false positive found
 
 Assume
