@@ -33,7 +33,7 @@ public:
   ~TargetedExecutionManager();
 
   std::vector<std::pair<KFunction *, ref<TargetForest> > > prepareTargets(const KModule *kmodule, std::vector<Locations *> &paths);
-  bool stepTo(ExecutionState &state, KBlock *dst);
+  void stepTo(ExecutionState &state, KBlock *dst);
 
   /* Report for targeted static analysis mode */
   void reportFalsePositives(bool noMoreStates);

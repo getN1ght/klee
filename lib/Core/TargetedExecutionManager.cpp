@@ -104,17 +104,19 @@ TargetedExecutionManager::prepareTargets(const KModule *kmodule, std::vector<Loc
     ref<TargetForest> whitelist = new TargetForest(funcAndPaths.second, loc2blocks, block2targets);
     whitelists.emplace_back(funcAndPaths.first, whitelist);
   }
+
+  for (auto p : loc2blocks) {
+    delete p.second;
+  }
+
   return whitelists;
 }
 
-bool TargetedExecutionManager::stepTo(ExecutionState &state, KBlock *dst) {
-  if (isa<KReturnBlock>(dst))
-    return false;
+void TargetedExecutionManager::stepTo(ExecutionState &state, KBlock *dst) {
   auto it = block2targets.find(dst);
   if (it == block2targets.end())
-    return false;
+    return;
   state.targetsOfCurrentKBlock = it->second;
-  return false;
 }
 
 void TargetedExecutionManager::reportFalsePositives(bool noMoreStates) {
@@ -142,7 +144,7 @@ void TargetedExecutionManager::reportFalsePositives(bool noMoreStates) {
       confidenceRate = 0; //TODO: [Aleksandr Misonizhnik], calculate it via KLEE coverage or something
     }
     assert(0 <= confidenceRate && confidenceRate <= 100);
-    // klee_warning("%u\% False Positive at: %s", confidenceRate, expectedLocation->toString().c_str());
+    // klee_warning("%u%% False Positive at: %s", confidenceRate, expectedLocation->toString().c_str());
     klee_warning("False Positive at: %s", expectedLocation->toString().c_str());
   }
 }
@@ -173,4 +175,8 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
   return true;
 }
 
-TargetedExecutionManager::~TargetedExecutionManager() {}
+TargetedExecutionManager::~TargetedExecutionManager() {
+  for (auto p : block2targets) {
+    delete p.second;
+  }
+}
