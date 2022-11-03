@@ -1,16 +1,16 @@
-# Get source code
+## Get source code
 
 Our version of KLEE can be found at [link](https://github.com/UnitTestBot/klee/commits/luban-utbot-main).
 
-# Build
+## Build
 
 There is a step-by-step [guide](https://klee.github.io/build-llvm11/) how to build KLEE by original authors.
 
-# Run
+## Run
 
 The following flags should be used when calling klee binary.
 
-## Essential flags
+### Essential flags
 
 | KLEE flag | Description |
 |-----------|-------------|
@@ -23,13 +23,13 @@ The following flags should be used when calling klee binary.
 | --analysis-source=N | Line number N of a source of a potential bug to be checked. Set to 0 to disable (default=0) |
 | --analysis-sink=M | Line number M of a sink of a potential bug to be checked |
 
-## Nonessential flags
+### Nonessential flags
 
 | KLEE flag | Description |
 |-----------|-------------|
 | --output-dir=/path/to/some/folder.klee-out | Directory in which to write results. Note that it’s parent folder must exist (e.g., a folder /path/to/some must exist) and this folder must not exist (e.g., a folder /path/to/some/folder.klee-out must not exist). |
 
-### Nonessential flags to control quality/time
+#### Nonessential flags to control quality/time
 
 | KLEE flag | Description |
 |-----------|-------------|
@@ -40,7 +40,7 @@ The following flags should be used when calling klee binary.
 | --max-forks=N | Only fork N times. Set to -1 to disable. |
 | --max-stack-frames=N | Terminate a symbolic state after N stack frames in symbolic state. Set to 0 to disable. |
 
-## Our KLEE reports results to **stderr** as lines of the form:
+### Our KLEE reports results to **stderr** as lines of the form:
 
 `KLEE: WARNING: *verdict* at: *filename*:*error line*:*error column*`
 
@@ -52,7 +52,13 @@ where
   * in case of “False Negative” it is an error found with program trace which does not match input source-sink request, which is proven to be reachable
   * in case of “False Positive” it is a sink address, which is proven to be unreachable
 
-## Example run with a false positive found
+### Known limitations
+
+Current version supports only `null dereference` type of errors. So, it does not support: `reverse null`, `null returns`, etc.
+
+## Examples
+
+### Example run with a false positive found
 
 Assume
 
@@ -66,7 +72,6 @@ Assume
 * we want to save output to `/home/user/results/forward_null.klee-out`
 * we want to stop run after `120` seconds
 
-
 We can safely run klee as follows:
 
 ```bash
@@ -77,7 +82,7 @@ clang -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone /home/user/null_dereferen
 /home/klee/build/bin/klee --execution-mode=error-guided --mock-external-calls --posix-runtime --libc=klee --skip-not-lazy-and-symbolic-pointers --output-dir=/home/user/results/forward_null.klee-out --max-time=120s --analysis-file=FN_SecB_ForwardNull_filed.c --analysis-source=45 --analysis-sink=46 /home/user/null_dereference/forward_null/FN_SecB_ForwardNull_filed.bc
 ```
 
-### Possible output is:
+#### Possible output is:
 
 <pre><code>
 KLEE: NOTE: Using POSIX model: /home/klee/build/runtime/lib/libkleeRuntimePOSIX64_Debug.bca
@@ -101,7 +106,7 @@ KLEE: done: partially completed paths = 3
 KLEE: done: generated tests = 3
 </pre></code>
 
-## Example run with a true positive found
+### Example run with a true positive found
 
 Assume
 
@@ -125,7 +130,7 @@ clang -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone /home/user/null_dereferen
 /home/klee/build/bin/klee --execution-mode=error-guided --mock-external-calls --posix-runtime --libc=klee --skip-not-lazy-and-symbolic-pointers --output-dir=/home/user/results/forward_null.klee-out --max-time=120s --analysis-file=/mnt/d/wsl-ubuntu/test2/forward_null/SecB_ForwardNull.c --analysis-source=129 --analysis-sink=130 /home/user/null_dereference/forward_null/SecB_ForwardNull.bc
 ```
 
-### Possible output is:
+#### Possible output is:
 
 <pre><code>KLEE: NOTE: Using POSIX model: /home/klee/build/runtime/lib/libkleeRuntimePOSIX64_Debug.bca
 KLEE: NOTE: using klee versions of input/output functions: /home/klee/build/runtime/lib/libkleeRuntimeIO_C64_Debug.bca

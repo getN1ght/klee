@@ -20,12 +20,18 @@ bool Location::isTheSameAsIn(KInstruction *instr) const {
   return instr->info->line == line;
 }
 
+bool isOSSeparator(char c) {
+  return c == '/' || c == '\\';
+}
+
 bool Location::isInside(const FunctionInfo &info) const {
-  int m = info.file.size();
-  int n = filename.size();
-  if (n < m)
-    return false;
-  return filename.substr(n - m, m) == info.file;
+  size_t suffixSize = 0;
+  int m = info.file.size() - 1, n = filename.size() - 1;
+  for (;
+       m >= 0 && n >= 0 && info.file[m] == filename[n];
+       m--, n--)
+    suffixSize++;
+  return suffixSize >= 3 && (n == -1 ? m == -1 || isOSSeparator(info.file[m]) : m == -1 && isOSSeparator(filename[n]));
 }
 
 std::string Location::toString() const {
