@@ -993,6 +993,7 @@ bool Executor::branchingPermitted(const ExecutionState &state) const {
 void Executor::branch(ExecutionState &state,
                       const std::vector<ref<Expr>> &conditions,
                       std::vector<ExecutionState *> &result,
+                      std::vector<Assignment> &symcreteExamples,
                       BranchType reason) {
   TimerStatIncrementer timer(stats::forkTime);
   unsigned N = conditions.size();
@@ -1015,6 +1016,7 @@ void Executor::branch(ExecutionState &state,
     for (unsigned i=1; i<N; ++i) {
       ExecutionState *es = result[theRNG.getInt32() % i];
       ExecutionState *ns = es->branch();
+      ns->updateSymcretes(symcreteExamples[i]);
       addedStates.push_back(ns);
       result.push_back(ns);
       processTree->attach(es->ptreeNode, ns, es, reason);
@@ -1132,7 +1134,7 @@ ref<Expr> Executor::maxStaticPctChecks(ExecutionState &current,
 }
 
 Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
-                                   bool isInternal, BranchType reason) {
+                                   bool isInternal, BranchType reason, SymcreteContainerPairType &symcreteExamples) {
   Solver::Validity res;
   std::map< ExecutionState*, std::vector<SeedInfo> >::iterator it =
     seedMap.find(&current);
@@ -1296,8 +1298,9 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     falseState = trueState->branch();
     addedStates.push_back(falseState);
 
-    trueState->updateSymcretes(falseSymcretes);
-    falseState->updateSymcretes(trueSymcretes);
+    symcreteExamples.first = trueState->updateSymcretes(falseSymcretes);
+    symcreteExamples.second = falseState->updateSymcretes(trueSymcretes);
+    
 
     if (it != seedMap.end()) {
       std::vector<SeedInfo> seeds = it->second;
@@ -1379,12 +1382,13 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
     seedMap.find(&state);
   if (it != seedMap.end()) {
     bool warn = false;
+    Assignment assignmentHack;
     for (std::vector<SeedInfo>::iterator siit = it->second.begin(), 
            siie = it->second.end(); siit != siie; ++siit) {
       bool res;
       bool success = solver->mustBeFalse(state, state.evaluateConstraintsWithSymcretes(),
                                          siit->assignment.evaluate(condition),
-                                         res, state.queryMetaData);
+                                         res, state.queryMetaData, assignmentHack);
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
       if (res) {
@@ -1449,8 +1453,9 @@ ref<Expr> Executor::toUnique(ExecutionState &state,
                          state.queryMetaData)) {
       ref<Expr> cond = EqExpr::create(e, value);
       cond = optimizer.optimizeExpr(cond, false, state.symcretes);
+      Assignment assignmentHack;
       if (solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                             cond, isTrue, state.queryMetaData) &&
+                             cond, isTrue, state.queryMetaData, assignmentHack) &&
           isTrue)
         result = value;
     }
@@ -1524,12 +1529,13 @@ void Executor::executeGetValue(ExecutionState &state,
     }
     
     std::vector< ref<Expr> > conditions;
+    std::vector<Assignment> symcreteExamples(values.size());
     for (std::set< ref<Expr> >::iterator vit = values.begin(), 
            vie = values.end(); vit != vie; ++vit)
       conditions.push_back(EqExpr::create(e, *vit));
 
     std::vector<ExecutionState*> branches;
-    branch(state, conditions, branches, BranchType::GetVal);
+    branch(state, conditions, branches, symcreteExamples, BranchType::GetVal);
     
     std::vector<ExecutionState*>::iterator bit = branches.begin();
     for (std::set< ref<Expr> >::iterator vit = values.begin(), 
@@ -2407,7 +2413,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
       cond = optimizer.optimizeExpr(cond, false, state.symcretes);
 
-      Executor::StatePair branches = fork(state, cond, false, BranchType::ConditionalBranch);
+      SymcreteContainerPairType pairHack;
+      Executor::StatePair branches = fork(state, cond, false, BranchType::ConditionalBranch, pairHack);
 
       // NOTE: There is a hidden dependency here, markBranchVisited
       // requires that we still be in the context of the branch
@@ -2442,6 +2449,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     targets.reserve(numDestinations);
     std::vector<ref<Expr>> expressions;
     expressions.reserve(numDestinations);
+    std::vector<Assignment> symcreteExamples;
+    symcreteExamples.reserve(numDestinations);
 
     ref<Expr> errorCase = ConstantExpr::alloc(1, Expr::Bool);
     SmallPtrSet<BasicBlock *, 5> destinations;
@@ -2460,27 +2469,34 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       errorCase = AndExpr::create(errorCase, Expr::createIsZero(e));
 
       // check feasibility
+      Assignment symcreteExample;
+
       bool result;
       bool success __attribute__((unused)) =
-          solver->mayBeTrue(state, state.constraints, e, result, state.queryMetaData);
+          solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(), e,
+                            result, state.queryMetaData, symcreteExample);
       assert(success && "FIXME: Unhandled solver failure");
       if (result) {
         targets.push_back(d);
         expressions.push_back(e);
+        symcreteExamples.push_back(symcreteExample);
       }
     }
     // check errorCase feasibility
     bool result;
-    bool success __attribute__((unused)) = solver->mayBeTrue(state, 
-        state.constraints, errorCase, result, state.queryMetaData);
+    Assignment symcreteExample;
+    bool success __attribute__((unused)) =
+        solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                          errorCase, result, state.queryMetaData, symcreteExample);
     assert(success && "FIXME: Unhandled solver failure");
     if (result) {
       expressions.push_back(errorCase);
+      symcreteExamples.push_back(symcreteExample);
     }
 
     // fork states
     std::vector<ExecutionState *> branches;
-    branch(state, expressions, branches, BranchType::IndirectBranch);
+    branch(state, expressions, branches, symcreteExamples, BranchType::IndirectBranch);
 
     // terminate error state
     if (result) {
@@ -2521,6 +2537,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       std::vector<BasicBlock *> bbOrder;
       std::map<BasicBlock *, ref<Expr> > branchTargets;
 
+      std::vector<Assignment> symcreteExamples;
+
       std::map<ref<Expr>, BasicBlock *> expressionOrder;
 
       // Iterate through all non-default cases and order them by expressions
@@ -2551,8 +2569,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         // Check if control flow could take this case
         bool result;
         match = optimizer.optimizeExpr(match, false, state.symcretes);
-        bool success = solver->mayBeTrue(state, state.constraints, match, result,
-                                         state.queryMetaData);
+        Assignment symcreteExample;
+        bool success =
+            solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                              match, result, state.queryMetaData, symcreteExample);
         assert(success && "FIXME: Unhandled solver failure");
         (void) success;
         if (result) {
@@ -2572,6 +2592,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
           // Only add basic blocks which have not been target of a branch yet
           if (res.second) {
+            symcreteExamples.push_back(symcreteExample);
             bbOrder.push_back(caseSuccessor);
           }
         }
@@ -2580,8 +2601,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       // Check if control could take the default case
       defaultValue = optimizer.optimizeExpr(defaultValue, false, state.symcretes);
       bool res;
-      bool success = solver->mayBeTrue(state, state.constraints, defaultValue, res,
-                                       state.queryMetaData);
+      Assignment symcreteExample;
+      bool success =
+          solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                            defaultValue, res, state.queryMetaData, symcreteExample);
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
       if (res) {
@@ -2589,6 +2612,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
             branchTargets.insert(
                 std::make_pair(si->getDefaultDest(), defaultValue));
         if (ret.second) {
+          symcreteExamples.push_back(symcreteExample);
           bbOrder.push_back(si->getDefaultDest());
         }
       }
@@ -2602,7 +2626,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         conditions.push_back(branchTargets[*it]);
       }
       std::vector<ExecutionState*> branches;
-      branch(state, conditions, branches, BranchType::Switch);
+      branch(state, conditions, branches, symcreteExamples, BranchType::Switch);
 
       std::vector<ExecutionState*>::iterator bit = branches.begin();
       for (std::vector<BasicBlock *>::iterator it = bbOrder.begin(),
@@ -2712,7 +2736,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
             solver->getValue(free->constraints, v, value, free->queryMetaData);
         assert(success && "FIXME: Unhandled solver failure");
         (void) success;
-        StatePair res = fork(*free, EqExpr::create(v, value), true, BranchType::Call);
+
+        SymcreteContainerPairType pairHack;
+        StatePair res = fork(*free, EqExpr::create(v, value), true, BranchType::Call, pairHack);
         if (res.first) {
           uint64_t addr = value->getZExtValue();
           auto it = legalFunctions.find(addr);
@@ -4725,10 +4751,11 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
       ref<Expr> middleModelExpr = Expr::createPointer(middleModel);
       bool mayBeLess;
 
+      Assignment assignmentHack;
       solver->setTimeout(coreSolverTimeout);
       success = solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                                        UleExpr::create(optimizedSize, middleModelExpr),
-                                       mayBeLess, state.queryMetaData); 
+                                       mayBeLess, state.queryMetaData, assignmentHack); 
       solver->setTimeout(time::Span());
       if (!success) {
         terminateStateOnSolverError(state, "Query timed out (min example search).");
@@ -4813,32 +4840,40 @@ void Executor::executeFree(ExecutionState &state,
                            ref<Expr> address,
                            KInstruction *target) {
   address = optimizer.optimizeExpr(address, true, state.symcretes);
+  SymcreteContainerPairType symcreteHack;
   StatePair zeroPointer =
-      fork(state, Expr::createIsZero(address), true, BranchType::Free);
+      fork(state, Expr::createIsZero(address), true, BranchType::Free, symcreteHack);
   if (zeroPointer.first) {
     if (target)
       bindLocal(target, *zeroPointer.first, Expr::createPointer(0));
   }
   if (zeroPointer.second) { // address != 0
     ExactResolutionList rl;
+    std::vector<SymcreteContainerType> symcreteExamples;
     resolveExact(*zeroPointer.second, address,
-                 typeSystemManager->getUnknownType(), rl, "free");
+                 typeSystemManager->getUnknownType(), rl, symcreteExamples, "free");
+    for (unsigned idx = 0; idx < rl.size(); ++idx) {
+      auto it = rl[idx];
+      auto &mapping = symcreteExamples[idx];
+      if (mapping.count(it.first.first)) {      
+        it = { mapping[it.first.first], it.second };
+      }
 
-    for (Executor::ExactResolutionList::iterator it = rl.begin(), 
-           ie = rl.end(); it != ie; ++it) {
-      const MemoryObject *mo = it->first.first;
+      const MemoryObject *mo = it.first.first;
+      
       if (mo->isLocal) {
-        terminateStateOnError(*it->second, "free of alloca",
+        terminateStateOnError(*it.second, "free of alloca",
                               StateTerminationType::Free,
-                              getAddressInfo(*it->second, address));
+                              getAddressInfo(*it.second, address));
       } else if (mo->isGlobal) {
-        terminateStateOnError(*it->second, "free of global",
+        terminateStateOnError(*it.second, "free of global",
                               StateTerminationType::Free,
-                              getAddressInfo(*it->second, address));
+                              getAddressInfo(*it.second, address));
       } else {
-        it->second->addressSpace.unbindObject(mo);
+        
+        it.second->addressSpace.unbindObject(mo);
         if (target)
-          bindLocal(target, *it->second, Expr::createPointer(0));
+          bindLocal(target, *it.second, Expr::createPointer(0));
       }
     }
   }
@@ -4846,6 +4881,7 @@ void Executor::executeFree(ExecutionState &state,
 
 void Executor::resolveExact(ExecutionState &state, ref<Expr> p, KType *type,
                             ExactResolutionList &results,
+                            std::vector<SymcreteContainerType> &symcreteExamples,
                             const std::string &name) {
   p = optimizer.optimizeExpr(p, true, state.symcretes);
   // XXX we may want to be capping this?
@@ -4853,20 +4889,22 @@ void Executor::resolveExact(ExecutionState &state, ref<Expr> p, KType *type,
 
   /* We do not need this variable here, just a placeholder for resolve */
   ResolutionList rlSkipped;
-  
+
   state.addressSpace.resolve(state, solver, p, p, type, rl, rlSkipped);
 
   ExecutionState *unbound = &state;
   for (ResolutionList::iterator it = rl.begin(), ie = rl.end(); 
        it != ie; ++it) {
     ref<Expr> inBounds = EqExpr::create(p, it->first->getBaseExpr());
-
+    
+    SymcreteContainerPairType pairHack;
     StatePair branches =
-        fork(*unbound, inBounds, true, BranchType::ResolvePointer);
+        fork(*unbound, inBounds, true, BranchType::ResolvePointer, pairHack);
 
-    if (branches.first)
+    if (branches.first) {
       results.push_back(std::make_pair(*it, branches.first));
-
+      symcreteExamples.push_back(pairHack.first);
+    }
     unbound = branches.second;
     if (!unbound) // Fork failure
       break;
@@ -4948,9 +4986,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     bool inBounds;
     solver->setTimeout(coreSolverTimeout);
 
+    Assignment assignmentHack;
     bool success =
         solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                           check, inBounds, state.queryMetaData);
+                           check, inBounds, state.queryMetaData, assignmentHack);
     solver->setTimeout(time::Span());
     if (!success) {
       state.pc = state.prevPC;
@@ -5029,9 +5068,11 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     bool mayBeDereferenced;
 
     solver->setTimeout(coreSolverTimeout);
+
+    Assignment symcreteExample;
     bool success =
         solver->mayBeTrue(*unbound, unbound->evaluateConstraintsWithSymcretes(),
-                          inBounds, mayBeDereferenced, unbound->queryMetaData);
+                          inBounds, mayBeDereferenced, unbound->queryMetaData, symcreteExample);
     solver->setTimeout(time::Span());
     if (!success) {
       terminateStateOnSolverError(state, "Query timed out (resolve)");
@@ -5045,9 +5086,15 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       bound = unbound->branch();
       addedStates.push_back(bound);
       processTree->attach(unbound->ptreeNode, bound, unbound, BranchType::MemOp);
-      addConstraint(*bound, inBounds);
+      auto mapping = bound->updateSymcretes(symcreteExample);
+    
       outOfBound = AndExpr::create(outOfBound, NotExpr::create(inBounds));
-
+      addConstraint(*bound, inBounds);
+      if (mapping.count(mo)) {
+        os = mapping[mo].second;
+        mo = mapping[mo].first;
+      }
+      
       /* FIXME: Notice, that here we are creating a new instance of object
       for every memory operation in order to handle type changes. This might
       waste too much memory as we do now always modify something. To fix this
@@ -5084,8 +5131,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   }
 
   if (unbound) {
+    SymcreteContainerPairType pairHack;
     StatePair branches =
-        fork(*unbound, Expr::createIsZero(base), true, BranchType::MemOp);
+        fork(*unbound, Expr::createIsZero(base), true, BranchType::MemOp, pairHack);
     ExecutionState *bound = branches.first;
     if (bound) {
       terminateStateOnError(*bound, "memory error: null pointer exception",
@@ -5128,7 +5176,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
 
       /// Here we check SAT for constarint and need to evaluate with symbolics
-      StatePair sp = fork(*unbound, inBounds, true, BranchType::MemOp);
+      SymcreteContainerPairType symcreteExamples;
+      StatePair sp = fork(*unbound, inBounds, true, BranchType::MemOp, symcreteExamples);
       ExecutionState *inbound = sp.first;
       unbound = sp.second;
 
@@ -5141,6 +5190,11 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
       if (inbound) {
         /* FIXME: same as above. Wasting memory. */
+        auto &mapping = symcreteExamples.second;
+        if (mapping.count(p.first)) {
+          p = mapping[p.first];
+        }
+
         ObjectState *wos =
             inbound->addressSpace.getWriteable(p.first, p.second);
         switch (operation) {
@@ -5169,9 +5223,11 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       bool mayBeOutOfBound = false;
       
       solver->setTimeout(coreSolverTimeout);
+
+      Assignment symcreteExample;
       bool success = solver->mayBeTrue(
           *unbound, unbound->evaluateConstraintsWithSymcretes(), outOfBound,
-          mayBeOutOfBound, unbound->queryMetaData);
+          mayBeOutOfBound, unbound->queryMetaData, symcreteExample);
       solver->setTimeout(time::Span());
       if (!success) {
         terminateStateOnSolverError(*unbound, "Query timed out (executeMemoryOperation)");
@@ -5179,6 +5235,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       }
 
       if (mayBeOutOfBound) {
+        unbound->updateSymcretes(symcreteExample);
         terminateStateOnError(*unbound, "memory error: out of bound pointer",
                               StateTerminationType::Ptr,
                               getAddressInfo(*unbound, address));
@@ -5223,12 +5280,13 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
   ref<Expr> checkPointerExpr = EqExpr::create(address, mo->getBaseConstantExpr());
   bool mustBeFalse;
 
+  Assignment assignmentHack;
   /// FIXME:
   /// Check that the constructed model does not contradict itself 
   solver->setTimeout(coreSolverTimeout);
   bool success =
       solver->mustBeFalse(state, state.evaluateConstraintsWithSymcretes(),
-                          checkPointerExpr, mustBeFalse, state.queryMetaData);
+                          checkPointerExpr, mustBeFalse, state.queryMetaData, assignmentHack);
   solver->setTimeout(time::Span());
 
   if (!success) {
@@ -5722,13 +5780,14 @@ bool Executor::getSymbolicSolution(ExecutionState &state,
   // the preferred constraints.  See test/Features/PreferCex.c for
   // an example) While this process can be very expensive, it can
   // also make understanding individual test cases much easier.
+  Assignment assignmentHack;
   for (auto& pi: state.cexPreferences) {
     bool mustBeTrue;
     // Attempt to bound byte to constraints held in cexPreferences
     bool success =
         solver->mustBeTrue(state, extendedConstraints,
                            state.evaluateWithSymcretes(Expr::createIsZero(pi)),
-                           mustBeTrue, state.queryMetaData);
+                           mustBeTrue, state.queryMetaData, assignmentHack);
     // If it isn't possible to add the condition without making the entire list
     // UNSAT, then just continue to the next condition
     if (!success) break;

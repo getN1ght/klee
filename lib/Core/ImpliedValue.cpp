@@ -11,6 +11,7 @@
 
 #include "Context.h"
 
+#include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprUtil.h"
@@ -221,6 +222,7 @@ void ImpliedValue::checkForImpliedValues(Solver *S, ref<Expr> e,
     assumption.push_back(UltExpr::create(re->index, re->updates.root->getSize()));
   }
 
+  Assignment assignmentHack;
   for (const auto &var : reads) {
     ref<ConstantExpr> possible;
     bool success = S->getValue(Query(assumption, var), possible);
