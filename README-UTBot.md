@@ -111,7 +111,7 @@ KLEE: done: generated tests = 3
 
 Assume
 
-* we have an example C file with `WB_BadCase_field2 function` at `/home/user/null_dereference/forward_null/SecB_ForwardNull.c`,
+* we have an example C file with `badbad` function at `/home/user/null_dereference/forward_null/SecB_ForwardNull.c`,
 * the off-the-shelf static analyzer gave us source and sink
   * source is at line `129`
   * sink is at line `130`
