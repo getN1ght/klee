@@ -1852,20 +1852,23 @@ int run_klee(int argc, char **argv, char **envp) {
 
     llvm::Module *mainModule = M.get();
 
-    std::vector<llvm::Type *> args;
-    args.push_back(llvm::Type::getInt32Ty(ctx)); // argc
-    args.push_back(llvm::PointerType::get(Type::getInt8PtrTy(ctx),
-                   mainModule->getDataLayout().getAllocaAddrSpace())); // argv
-    args.push_back(llvm::PointerType::get(Type::getInt8PtrTy(ctx),
-                   mainModule->getDataLayout().getAllocaAddrSpace())); // envp
-    std::string stubEntryPoint = "__klee_entry_point_main";
-    Function *stub = Function::Create(
-        llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), args, false),
-        GlobalVariable::ExternalLinkage, stubEntryPoint, mainModule);
-    BasicBlock *bb = BasicBlock::Create(ctx, "entry", stub);
+    if (ExecutionMode == Interpreter::GuidanceKind::ErrorGuidance) {
+      std::vector<llvm::Type *> args;
+      args.push_back(llvm::Type::getInt32Ty(ctx)); // argc
+      args.push_back(llvm::PointerType::get(Type::getInt8PtrTy(ctx),
+                    mainModule->getDataLayout().getAllocaAddrSpace())); // argv
+      args.push_back(llvm::PointerType::get(Type::getInt8PtrTy(ctx),
+                    mainModule->getDataLayout().getAllocaAddrSpace())); // envp
+      std::string stubEntryPoint = "__klee_entry_point_main";
+      Function *stub = Function::Create(
+          llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), args, false),
+          GlobalVariable::ExternalLinkage, stubEntryPoint, mainModule);
+      BasicBlock *bb = BasicBlock::Create(ctx, "entry", stub);
 
-    llvm::IRBuilder<> Builder(bb);
-    Builder.CreateRet(ConstantInt::get(Type::getInt32Ty(ctx), 0));
+      llvm::IRBuilder<> Builder(bb);
+      Builder.CreateRet(ConstantInt::get(Type::getInt32Ty(ctx), 0));
+      EntryPoint = stubEntryPoint;
+    }
 
     std::vector<llvm::Function *> mainFunctions;
     for (auto &Function : *mainModule) {
@@ -1895,9 +1898,6 @@ int run_klee(int argc, char **argv, char **envp) {
 
     // Push the module as the first entry
     loadedModules.emplace_back(std::move(M));
-
-  if (ExecutionMode == Interpreter::GuidanceKind::ErrorGuidance)
-    EntryPoint = stubEntryPoint;
 
   std::string LibraryDir = KleeHandler::getRunTimeLibraryPath(argv[0]);
   Interpreter::ModuleOptions Opts(LibraryDir.c_str(), EntryPoint, opt_suffix,
