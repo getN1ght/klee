@@ -30,15 +30,15 @@ void TargetForest::addPath(Locations *rl,
   auto n = path.size();
   if (n == 0)
     return;
-  std::vector<std::tuple<size_t, bool, TargetForest*> > q;
-  q.emplace_back(0, true, this);
+  std::vector<std::tuple<size_t, bool, Layer *> > q;
+  q.emplace_back(0, true, forest.get());
   while (!q.empty()) {
-    auto i = std::get<0>(q.back());
+    size_t i = std::get<0>(q.back());
     bool reading = std::get<1>(q.back());
-    auto next = std::get<2>(q.back());
-    q.pop_back();
-    TargetForest::Layer *current = next->forest.get();
-    TargetForest *nextForQueue = nullptr;
+    TargetForest::Layer *next = std::get<2>(q.back());
+    q.pop_back(); 
+    TargetForest::Layer *current = next;
+    TargetForest::Layer *nextForQueue = nullptr;
     auto loc = path[i];
     auto loc_basket = loc2blocks[loc];
     auto error = i == n - 1 ? errorType : ReachWithError::None;
@@ -53,7 +53,7 @@ void TargetForest::addPath(Locations *rl,
           readingForQueue = false;
       }
       if (!readingForQueue) {
-        nextForQueue = new TargetForest();
+        nextForQueue = new Layer();
         current->insert(target, nextForQueue);
       }
       if (i + 1 < n)
@@ -72,9 +72,9 @@ void TargetForest::Layer::unionWith(const TargetForest::Layer *other) {
       forest.insert(std::make_pair(kv.first, kv.second));
       continue;
     }
-    auto layer = new Layer(it->second->forest->forest);
-    layer->unionWith(kv.second->forest.get());
-    it->second->forest = layer;
+    auto layer = new Layer(it->second->forest);
+    layer->unionWith(kv.second.get());
+    it->second = layer;
   }
 }
 
@@ -86,7 +86,7 @@ TargetForest::Layer *TargetForest::Layer::removeChild(ref<Target> child) const {
 
 TargetForest::Layer *TargetForest::Layer::addChild(ref<Target> child) const {
   auto result = new Layer(forest);
-  result->forest.insert({child, new TargetForest()});
+  result->forest.insert({child, new Layer()});
   return result;
 }
 
@@ -96,6 +96,28 @@ TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<Target> const chi
   return result;
 }
 
+bool TargetForest::Layer::allNodesRefCountOne() const {
+  bool all = true;
+  for (const auto &it : forest) {
+    all &= it.second->_refCount.getCount() == 1;
+    assert(all);
+    all &= it.second->allNodesRefCountOne();
+  }
+  return all;
+}
+
+void TargetForest::Layer::dump() const {
+  llvm::errs() << "THE LAYER:\n";
+  for (const auto &kv : forest) {
+    llvm::errs() << kv.first->toString() << "\n";
+  }
+  llvm::errs() << "-----------------------\n";
+  for (const auto &kv : forest) {
+    kv.second->dump();
+  }
+  llvm::errs() << "-----------------------\n";
+}
+
 void TargetForest::stepTo(ref<Target> loc) {
   if (forest->empty())
     return;
@@ -103,7 +125,7 @@ void TargetForest::stepTo(ref<Target> loc) {
   if (res == forest->end()) {
     return;
   }
-  forest = forest->replaceChildWith(loc, res->second->forest.get());
+  forest = forest->replaceChildWith(loc, res->second.get());
 }
 
 void TargetForest::add(ref<Target> target) {
@@ -123,27 +145,13 @@ void TargetForest::remove(ref<Target> target) {
 }
 
 void TargetForest::dump() const {
-  llvm::errs() << "THE LAYER:\n";
-  for (const auto &kv : *forest) {
-    llvm::errs() << kv.first->toString() << "\n";
-  }
-  llvm::errs() << "-----------------------\n";
-  for (const auto &kv : *forest) {
-    kv.second->dump();
-  }
-  llvm::errs() << "-----------------------\n";
+  forest->dump();
 }
 
 void TargetForest::debugStepToRandomLoc() {
-  forest = forest->begin()->second->forest;
+  forest = forest->begin()->second;
 }
 
 bool TargetForest::allNodesRefCountOne() const {
-  bool all = true;
-  for (const auto &it : *forest) {
-    all &= it.second->_refCount.getCount() == 1;
-    assert(all);
-    all &= it.second->allNodesRefCountOne();
-  }
-  return all;
+  return forest->allNodesRefCountOne();
 }

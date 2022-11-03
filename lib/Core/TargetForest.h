@@ -25,8 +25,9 @@
 namespace klee {
 
 class TargetForest {
+  private:
   class Layer {
-    using InternalLayer = std::unordered_map<ref<Target>, ref<TargetForest>, TargetHash, TargetCmp>;
+    using InternalLayer = std::unordered_map<ref<Target>, ref<Layer>, TargetHash, TargetCmp>;
     InternalLayer forest;
 
     explicit Layer(const InternalLayer &forest) : forest(forest) {}
@@ -43,12 +44,14 @@ class TargetForest {
     iterator find(ref<Target> b) { return forest.find(b); }
     iterator begin() { return forest.begin(); }
     iterator end() { return forest.end(); }
-    void insert(ref<Target> loc, TargetForest *nextLayer) { forest.insert(std::make_pair(loc, nextLayer)); }
+    void insert(ref<Target> loc, Layer *nextLayer) { forest.insert(std::make_pair(loc, nextLayer)); }
     bool empty() const { return forest.empty(); }
     size_t size() const { return forest.size(); }
     Layer *replaceChildWith(ref<Target> child, const Layer *other) const;
     Layer *removeChild(ref<Target> child) const;
     Layer *addChild(ref<Target> child) const;
+    bool allNodesRefCountOne() const;
+    void dump() const;
   };
   ref<Layer> forest;
 
@@ -62,7 +65,8 @@ public:
   unsigned getDebugReferenceCount() {return forest->_refCount.getCount();}
   void debugStepToRandomLoc();
 
-  TargetForest() : forest(new Layer()) {}
+  TargetForest(ref<Layer> layer) : forest(layer) {}
+  TargetForest() : TargetForest(new Layer()) {}
   TargetForest(const std::vector<Locations *> &paths, std::unordered_map<klee::Location *, std::unordered_set<klee::KBlock *> *> &loc2blocks, std::unordered_map<klee::KBlock *, std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>> *> &block2targets);
 
   bool empty() const { return forest->empty(); }

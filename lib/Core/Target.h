@@ -85,54 +85,81 @@ struct TargetCmp {
   }
 };
 
-typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;
-
-struct TransitionHash {
-  std::size_t operator()(const Transition &p) const {
-    return reinterpret_cast<size_t>(p.first) * 31 +
-           reinterpret_cast<size_t>(p.second);
-  }
-};
-
-class TargetCalculator {
-  typedef std::unordered_set<llvm::BasicBlock *> VisitedBlocks;
-  typedef std::unordered_set<Transition, TransitionHash> VisitedTransitions;
-  
-  enum HistoryKind {
-    Blocks,
-    Transitions
+  struct TargetsHash {
+    unsigned operator()(const std::vector<ref<Target>> &t) const {
+      unsigned res = t.size() * Expr::MAGIC_HASH_CONSTANT;
+      for (const ref<Target> &target : t) {
+        res <<= 1;
+        res ^= target->hash() * Expr::MAGIC_HASH_CONSTANT;
+      }
+      return res;
+    }
   };
 
-  typedef std::map<llvm::BasicBlock *,
-                   std::map<llvm::BasicBlock *, VisitedBlocks>>
-      BlocksHistory;
-  typedef std::map<llvm::BasicBlock *,
-                   std::map<llvm::BasicBlock *, VisitedTransitions>>
-      TransitionsHistory;
+  struct TargetsCmp {
+    bool operator()(const std::vector<ref<Target>> &a,
+                    const std::vector<ref<Target>> &b) const {
+      if (a.size() != b.size()) {
+        return false;
+      }
+      unsigned n = a.size();
+      for (unsigned i = 0; i < n; ++i) {
+        if (a[i] != b[i]) {
+          return false;
+        }
+      }
+      return true;
+    }
+  };
 
-public:
-  ref<Target> calculateByTransitionHistory(ExecutionState &state);
-  ref<Target> calculateByBlockHistory(ExecutionState &state);
+  typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;
 
-  TargetCalculator(const KModule &module, CodeGraphDistance &codeGraphDistance)
-      : module(module), codeGraphDistance(codeGraphDistance) {}
+  struct TransitionHash {
+    std::size_t operator()(const Transition &p) const {
+      return reinterpret_cast<size_t>(p.first) * 31 +
+             reinterpret_cast<size_t>(p.second);
+    }
+  };
 
-  void update(const ExecutionState &state);
+  class TargetCalculator {
+    typedef std::unordered_set<llvm::BasicBlock *> VisitedBlocks;
+    typedef std::unordered_set<Transition, TransitionHash> VisitedTransitions;
 
-private:
-  const KModule &module;
-  CodeGraphDistance &codeGraphDistance;
-  BlocksHistory blocksHistory;
-  TransitionsHistory transitionsHistory;
+    enum HistoryKind { Blocks, Transitions };
 
-  bool differenceIsEmpty(
-    const ExecutionState &state, const std::map<llvm::BasicBlock *, VisitedBlocks> &history,
-    KBlock *target);
-  bool differenceIsEmpty(
-    const ExecutionState &state, const std::map<llvm::BasicBlock *, VisitedTransitions> &history,
-    KBlock *target);
-  ref<Target> calculateBy(HistoryKind kind, ExecutionState &state);
-};
+    typedef std::map<llvm::BasicBlock *,
+                     std::map<llvm::BasicBlock *, VisitedBlocks>>
+        BlocksHistory;
+    typedef std::map<llvm::BasicBlock *,
+                     std::map<llvm::BasicBlock *, VisitedTransitions>>
+        TransitionsHistory;
+
+  public:
+    ref<Target> calculateByTransitionHistory(ExecutionState &state);
+    ref<Target> calculateByBlockHistory(ExecutionState &state);
+
+    TargetCalculator(const KModule &module,
+                     CodeGraphDistance &codeGraphDistance)
+        : module(module), codeGraphDistance(codeGraphDistance) {}
+
+    void update(const ExecutionState &state);
+
+  private:
+    const KModule &module;
+    CodeGraphDistance &codeGraphDistance;
+    BlocksHistory blocksHistory;
+    TransitionsHistory transitionsHistory;
+
+    bool differenceIsEmpty(
+        const ExecutionState &state,
+        const std::map<llvm::BasicBlock *, VisitedBlocks> &history,
+        KBlock *target);
+    bool differenceIsEmpty(
+        const ExecutionState &state,
+        const std::map<llvm::BasicBlock *, VisitedTransitions> &history,
+        KBlock *target);
+    ref<Target> calculateBy(HistoryKind kind, ExecutionState &state);
+  };
 } // namespace klee
 
 #endif /* KLEE_TARGET_H */
