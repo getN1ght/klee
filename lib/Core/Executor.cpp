@@ -4775,7 +4775,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     allocationAlignment = getAllocationAlignment(allocSite);
   }
   
-  MemoryObject *mo;
+  MemoryObject *mo = nullptr;
   if (isa<ConstantExpr>(size)) {
     mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
                           allocationAlignment);
@@ -4804,7 +4804,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     state.addSymSize(mo, sizeArray);
     
     addConstraint(state, EqExpr::create(sizeExpr, size));
-  }
+  }  
   return mo;
 }
 

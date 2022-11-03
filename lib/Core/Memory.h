@@ -92,8 +92,8 @@ public:
   MemoryObject(uint64_t _address) 
     : id(counter++),
       address(_address),
-      addressExpr(Expr::createPointer(_address)),
-      sizeExpr(Expr::createPointer(0)),
+      addressExpr(nullptr),
+      sizeExpr(nullptr),
       size(0),
       isFixed(true),
       parent(NULL),
@@ -162,7 +162,11 @@ public:
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
-    return UltExpr::create(offset, getSizeExpr());
+    ref<Expr> isZeroSizeExpr = EqExpr::create(Expr::createPointer(0), getSizeExpr());
+    ref<Expr> isZeroOffsetExpr = EqExpr::create(Expr::createPointer(0), offset);
+    /* Check for zero size with zero offset. Useful for free of malloc(0) */
+    ref<Expr> andZeroExpr = AndExpr::create(isZeroSizeExpr, isZeroOffsetExpr);
+    return OrExpr::create(UltExpr::create(offset, getSizeExpr()), andZeroExpr);
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
