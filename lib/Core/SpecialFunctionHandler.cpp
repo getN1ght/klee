@@ -796,15 +796,6 @@ void SpecialFunctionHandler::handleGetValue(ExecutionState &state,
   executor.executeGetValue(state, arguments[0], target);
 }
 
-
-// TODO: REMOVE THIS
-static std::vector<unsigned char> addressToBytes(uint64_t value) {
-  unsigned char *addressBytesIterator =
-      reinterpret_cast<unsigned char *>(&value);
-  return std::vector<unsigned char>(addressBytesIterator,
-                                    addressBytesIterator + sizeof(value));
-}
-
 void SpecialFunctionHandler::handleDefineFixedObject(ExecutionState &state,
                                                      KInstruction *target,
                                                      std::vector<ref<Expr> > &arguments) {

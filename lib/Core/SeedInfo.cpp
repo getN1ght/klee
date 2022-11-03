@@ -62,7 +62,7 @@ KTestObject *SeedInfo::getNextInput(const MemoryObject *mo,
 void SeedInfo::patchSeed(const ExecutionState &state, 
                          ref<Expr> condition,
                          TimingSolver *solver) {
-  ConstraintSet required(state.constraints);
+  ConstraintSet required(state.evaluateConstraintsWithSymcretes());
   ConstraintManager cm(required);
   cm.addConstraint(condition);
 
@@ -117,9 +117,10 @@ void SeedInfo::patchSeed(const ExecutionState &state,
   }
 
   bool res;
-  bool success =
-      solver->mayBeTrue(state.constraints, assignment.evaluate(condition), res,
-                        state.queryMetaData);
+  bool success = solver->mayBeTrue(
+      state.evaluateConstraintsWithSymcretes(),
+      state.evaluateWithSymcretes(assignment.evaluate(condition)), res,
+      state.queryMetaData);
   assert(success && "FIXME: Unhandled solver failure");
   (void) success;
   if (res)
