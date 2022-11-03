@@ -19,9 +19,7 @@ The following flags should be used when calling klee binary.
 | --posix-runtime | POSIX environment is emulated |
 | --libc=klee | **To UtBotTeam: why not uclibc?** |
 | --skip-not-lazy-and-symbolic-pointers | Lazy initialization optimization; crucial for performance |
-| --analysis-file=/path/to/source/from/analyzer.c | Full path to C code in which source and sink to be checked are located |
-| --analysis-source=N | Line number N of a source of a potential bug to be checked. Set to 0 to disable (default=0) |
-| --analysis-sink=M | Line number M of a sink of a potential bug to be checked |
+| --analysis-reproduce=/analyzer/result.json | Path of JSON file containing static analysis paths to be reproduced |
 
 ### Nonessential flags
 
@@ -54,7 +52,7 @@ where
 
 ### Known limitations
 
-Current version supports only `null dereference` type of errors. So, it does not support: `reverse null`, `null returns`, etc.
+Current version supports only `null dereference` type of errors. So, it does not support, e.g., `reverse null` type of errors.
 
 ## Examples
 
@@ -68,6 +66,7 @@ Assume
   * sink is at line `46`
   * original filepath is `/mnt/d/wsl-ubuntu/test2/forward_null/./FN_SecB_ForwardNull_filed.c`
   * (as in `result_FN_SecB_ForwardNull_filed.xml`)
+  * and we encoded all the information in `/home/user/null_dereference/forward_null/result_FN_SecB_ForwardNull_filed.json`
 * klee binary at `/home/klee/build/bin/klee` and
 * we want to save output to `/home/user/results/forward_null.klee-out`
 * we want to stop run after `120` seconds
@@ -79,7 +78,7 @@ mkdir -p /home/user/results # ensure out folder exists
 rm -rf /home/user/results/forward_null.klee-out # clean possible previous runs
 cd /home/user/null_dereference/forward_null/
 clang -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone /home/user/null_dereference/forward_null/FN_SecB_ForwardNull_filed.c # obtain bytecode
-/home/klee/build/bin/klee --execution-mode=error-guided --mock-external-calls --posix-runtime --libc=klee --skip-not-lazy-and-symbolic-pointers --output-dir=/home/user/results/forward_null.klee-out --max-time=120s --analysis-file=FN_SecB_ForwardNull_filed.c --analysis-source=45 --analysis-sink=46 /home/user/null_dereference/forward_null/FN_SecB_ForwardNull_filed.bc
+/home/klee/build/bin/klee --execution-mode=error-guided --mock-external-calls --posix-runtime --libc=klee --skip-not-lazy-and-symbolic-pointers --output-dir=/home/user/results/forward_null.klee-out --max-time=120s --analysis-reproduce=/home/user/null_dereference/forward_null/result_FN_SecB_ForwardNull_filed.json /home/user/null_dereference/forward_null/FN_SecB_ForwardNull_filed.bc
 ```
 
 #### Possible output is:
@@ -116,6 +115,7 @@ Assume
   * sink is at line `130`
   * original filepath is `/mnt/d/wsl-ubuntu/test2/forward_null/SecB_ForwardNull.c`
   * (as in `result_SecB_ForwardNull.xml`)
+  * and we encoded all the information in `/home/user/null_dereference/forward_null/result_SecB_ForwardNull.json`
 * klee binary at `/home/klee/build/bin/klee` and
 * we want to save output to `/home/user/results/forward_null.klee-out`
 * we want to stop run after `120` seconds
@@ -127,7 +127,7 @@ mkdir -p /home/user/results # ensure out folder exists
 rm -rf /home/user/results/forward_null.klee-out # clean possible previous runs
 cd /home/user/null_dereference/forward_null/
 clang -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone /home/user/null_dereference/forward_null/SecB_ForwardNull.c # obtain bytecode
-/home/klee/build/bin/klee --execution-mode=error-guided --mock-external-calls --posix-runtime --libc=klee --skip-not-lazy-and-symbolic-pointers --output-dir=/home/user/results/forward_null.klee-out --max-time=120s --analysis-file=/mnt/d/wsl-ubuntu/test2/forward_null/SecB_ForwardNull.c --analysis-source=129 --analysis-sink=130 /home/user/null_dereference/forward_null/SecB_ForwardNull.bc
+/home/klee/build/bin/klee --execution-mode=error-guided --mock-external-calls --posix-runtime --libc=klee --skip-not-lazy-and-symbolic-pointers --output-dir=/home/user/results/forward_null.klee-out --max-time=120s --analysis-reproduce=/home/user/null_dereference/forward_null/result_SecB_ForwardNull.json /home/user/null_dereference/forward_null/SecB_ForwardNull.bc
 ```
 
 #### Possible output is:

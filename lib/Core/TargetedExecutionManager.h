@@ -27,7 +27,7 @@ class TargetedExecutionManager {
   std::unordered_map<KBlock *, std::unordered_map<ReachWithError, ref<Target> > *> block2targets;
 
   /// Map of blocks to corresponding original code locations
-  std::unordered_map<KBlock *, LocatedEvent *> block2location;
+  std::unordered_map<ref<Target>, LocatedEvent *, TargetHash, TargetCmp> target2location;
 
 public:
   ~TargetedExecutionManager();

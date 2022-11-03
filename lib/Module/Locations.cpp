@@ -36,8 +36,6 @@ bool Location::isInside(const FunctionInfo &info) const {
 
 std::string Location::toString() const {
   std::stringstream out;
-  if (!function.empty())
-    out << function << " at ";
   out << filename << ":" << line;
   return out.str();
 }

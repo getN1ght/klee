@@ -74,7 +74,6 @@ TargetedExecutionManager::prepareTargets(const KModule *kmodule, PathForest *pat
         auto b = kblock.get();
         if (!loc.isInside(b))
           continue;
-        block2location.insert(std::make_pair(b, le));
 
         auto it = block2targets.find(b);
         std::unordered_map<ReachWithError, ref<Target> > *targetMap;
@@ -91,6 +90,7 @@ TargetedExecutionManager::prepareTargets(const KModule *kmodule, PathForest *pat
           target = new Target(b, error);
           targetMap->insert(std::make_pair(error, target));
           block2targets.insert(it, std::make_pair(b, targetMap));
+          target2location.insert(std::make_pair(target, le));
         }
         targets->insert(target);
       }
@@ -127,20 +127,13 @@ void TargetedExecutionManager::stepTo(ExecutionState &state, KBlock *dst) {
 
 void TargetedExecutionManager::reportFalsePositives(bool noMoreStates) {
   std::unordered_set<LocatedEvent *> visited;
-  for (const auto &blockAndLoc : block2location) {
+  for (const auto &blockAndLoc : target2location) {
     auto expectedLocation = blockAndLoc.second;
     if (visited.find(expectedLocation) != visited.end() || expectedLocation->isReported)
       continue;
     visited.insert(expectedLocation);
 
-    bool hasErrorTarget = false;
-    for (const auto &errAndTarget : *block2targets[blockAndLoc.first]) {
-      if (errAndTarget.second->shouldFailOnThisTarget()) {
-        hasErrorTarget = true;
-        break;
-      }
-    }
-    if (!hasErrorTarget)
+    if (!blockAndLoc.first->shouldFailOnThisTarget())
       continue;
 
     unsigned char confidenceRate = 0;
@@ -173,7 +166,7 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
 
   auto target = it->second;
   assert(target->getBlock() == state.prevPC->parent);
-  auto expectedLocation = block2location[target->getBlock()];
+  auto expectedLocation = target2location[target.get()];
   if (!expectedLocation->location.isTheSameAsIn(state.prevPC))
     return false;
 
