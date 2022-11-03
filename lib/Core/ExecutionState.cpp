@@ -454,3 +454,8 @@ void ExecutionState::increaseLevel() {
   }
   transitionLevel.insert(std::make_pair(srcbb, dstbb));
 }
+
+
+bool ExecutionState::isTransfered() {
+  return getPrevPCBlock() != getPCBlock();
+}

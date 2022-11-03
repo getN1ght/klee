@@ -311,6 +311,7 @@ public:
   llvm::BasicBlock *getPrevPCBlock() const;
   llvm::BasicBlock *getPCBlock() const;
   void increaseLevel();
+  bool isTransfered();
 };
 
 struct ExecutionStateIDCompare {

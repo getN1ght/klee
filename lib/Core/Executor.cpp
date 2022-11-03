@@ -1524,8 +1524,10 @@ void Executor::stepInstruction(ExecutionState &state) {
   if (isa<LoadInst>(state.pc->inst) || isa<StoreInst>(state.pc->inst))
     ++state.steppedMemoryInstructions;
 
-  KBlock *kb = state.pc->parent;
-  targetedExecutionManager.stepTo(state, kb);
+  if (state.isTransfered()) {
+    KBlock *kb = state.pc->parent;
+    targetedExecutionManager.stepTo(state, kb);
+  }
 
   state.prevPC = state.pc;
   ++state.pc;
