@@ -56,6 +56,11 @@ cl::opt<bool>
                               "condition given to klee_assume() rather than "
                               "emitting an error (default=false)"),
                      cl::cat(TerminationCat));
+
+cl::opt<bool> CheckOutOfMemory("check-out-of-memory", cl::init(false),
+                               cl::desc("Enable out-of-memory checking during "
+                                        "memory allocation (default=false)"),
+                               cl::cat(ExecCat));
 } // namespace
 
 /// \todo Almost all of the demands in this file should be replaced
@@ -467,7 +472,8 @@ void SpecialFunctionHandler::handleNew(ExecutionState &state,
   // XXX should type check args
   assert(arguments.size()==1 && "invalid number of arguments to new");
   executor.executeAlloc(state, arguments[0], false, target,
-                        executor.typeSystemManager->handleAlloc(arguments[0]));
+                        executor.typeSystemManager->handleAlloc(arguments[0]),
+                        false, nullptr, 0, CheckOutOfMemory);
 }
 
 void SpecialFunctionHandler::handleDelete(ExecutionState &state,
@@ -487,7 +493,8 @@ void SpecialFunctionHandler::handleNewArray(ExecutionState &state,
   // XXX should type check args
   assert(arguments.size()==1 && "invalid number of arguments to new[]");
   executor.executeAlloc(state, arguments[0], false, target,
-                        executor.typeSystemManager->handleAlloc(arguments[0]));
+                        executor.typeSystemManager->handleAlloc(arguments[0]),
+                        false, nullptr, 0, CheckOutOfMemory);
 }
 
 void SpecialFunctionHandler::handleDeleteArray(ExecutionState &state,
@@ -504,7 +511,8 @@ void SpecialFunctionHandler::handleMalloc(ExecutionState &state,
   // XXX should type check args
   assert(arguments.size()==1 && "invalid number of arguments to malloc");
   executor.executeAlloc(state, arguments[0], false, target,
-                        executor.typeSystemManager->handleAlloc(arguments[0]));
+                        executor.typeSystemManager->handleAlloc(arguments[0]),
+                        false, nullptr, 0, CheckOutOfMemory);
 }
 
 void SpecialFunctionHandler::handleMemalign(ExecutionState &state,
@@ -792,7 +800,8 @@ void SpecialFunctionHandler::handleCalloc(ExecutionState &state,
   ref<Expr> size = MulExpr::create(arguments[0],
                                    arguments[1]);
   executor.executeAlloc(state, size, false, target,
-                        executor.typeSystemManager->handleAlloc(size), true);
+                        executor.typeSystemManager->handleAlloc(size), true,
+                        nullptr, 0, CheckOutOfMemory);
 }
 
 void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
@@ -817,7 +826,8 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
 
     if (zeroPointer.first) { // address == 0
       executor.executeAlloc(*zeroPointer.first, size, false, target,
-                            executor.typeSystemManager->handleAlloc(size));
+                            executor.typeSystemManager->handleAlloc(size),
+                            false, nullptr, 0, CheckOutOfMemory);
     } 
     if (zeroPointer.second) { // address != 0
       Executor::ExactResolutionList rl;
@@ -830,7 +840,7 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
         executor.executeAlloc(*it->second, size, false, target,
                               executor.typeSystemManager->handleRealloc(
                                   it->first.second->getDynamicType(), size),
-                              false, it->first.second);
+                              false, it->first.second, 0, CheckOutOfMemory);
       }
     }
   }

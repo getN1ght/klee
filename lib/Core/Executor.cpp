@@ -4567,7 +4567,8 @@ ObjectState *Executor::bindObjectInState(ExecutionState &state,
 void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
                             KInstruction *target, KType *type, bool zeroMemory,
                             const ObjectState *reallocFrom,
-                            size_t allocationAlignment) {
+                            size_t allocationAlignment,
+                            bool checkOutOfMemory) {
   size = toUnique(state, size);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) {
     const llvm::Value *allocSite = state.prevPC->inst;
@@ -4577,6 +4578,18 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
     MemoryObject *mo =
         memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false,
                          allocSite, allocationAlignment);
+
+    if (checkOutOfMemory) {
+      ExecutionState *outOfMemoryState = nullptr;
+      outOfMemoryState = state.branch();
+      addedStates.push_back(outOfMemoryState);
+      processTree->attach(state.ptreeNode, outOfMemoryState, &state,
+                          BranchType::Alloc);
+      terminateStateOnError(*outOfMemoryState,
+                            "Out of memory, malloc returns null.",
+                            StateTerminationType::InternalOutOfMemory);
+    }
+
     if (!mo) {
       bindLocal(target, state, 
                 ConstantExpr::alloc(0, Context::get().getPointerWidth()));
