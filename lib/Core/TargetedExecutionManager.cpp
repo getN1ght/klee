@@ -41,12 +41,29 @@ TargetedExecutionManager::prepareTargets(const KModule *kmodule, std::vector<Loc
 
   auto infos = kmodule->infos.get();
   std::unordered_map<Location *, std::unordered_set<KBlock *> *> loc2blocks;
+  std::unordered_map<std::string, std::unordered_map<std::string, bool> > filenameCache;
   for (const auto &kfunc : kmodule->functions) {
     const auto &fi = infos->getFunctionInfo(*kfunc->function);
+    const auto &cache = filenameCache.find(fi.file);
     auto blocks = new std::unordered_set<KBlock *>();
     for (int i = all_locs->size() - 1; i >= 0; i--) {
       auto loc = (*all_locs)[i];
-      if (!loc->isInside(fi))
+      bool isInside = false;
+      if (cache == filenameCache.end()) {
+        isInside = loc->isInside(fi);
+        std::unordered_map<std::string, bool> c;
+        c.insert(std::make_pair(loc->filename, isInside));
+        filenameCache.insert(std::make_pair(fi.file, c));
+      } else {
+        auto it = cache->second.find(loc->filename);
+        if (it == cache->second.end()) {
+          isInside = loc->isInside(fi);
+          cache->second.insert(std::make_pair(loc->filename, isInside));
+        } else {
+          isInside = it->second;
+        }
+      }
+      if (!isInside)
         continue;
       for (const auto &kblock : kfunc->blocks) {
         if (loc->isInside(kblock.get()))
@@ -152,7 +169,8 @@ void TargetedExecutionManager::reportFalsePositives(bool noMoreStates) {
 void TargetedExecutionManager::reportFalseNegative(ExecutionState &state) {
   auto info = state.prevPC->info;
   std::ostringstream out;
-  out << "100%% False Negative at: " << info->file << ':' << info->line << ':' << info->column;
+  out << "False Negative at: " << info->file << ':' << info->line << ':' << info->column;
+  // out << "100% False Negative at: " << info->file << ':' << info->line << ':' << info->column;
   klee_warning("%s", out.str().c_str());
 }
 
@@ -170,7 +188,8 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
   if (!expectedLocation->isTheSameAsIn(state.prevPC))
     return false;
 
-  klee_warning("100%% True Positive at: %s", expectedLocation->toString().c_str());
+  klee_warning("True Positive at: %s", expectedLocation->toString().c_str());
+  // klee_warning("100%% True Positive at: %s", expectedLocation->toString().c_str());
   expectedLocation->isReported = true;
   return true;
 }

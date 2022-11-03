@@ -21,7 +21,11 @@ bool Location::isTheSameAsIn(KInstruction *instr) const {
 }
 
 bool Location::isInside(const FunctionInfo &info) const {
-  return info.file == filename;
+  int m = info.file.size();
+  int n = filename.size();
+  if (n < m)
+    return false;
+  return filename.substr(n - m, m) == info.file;
 }
 
 std::string Location::toString() const {

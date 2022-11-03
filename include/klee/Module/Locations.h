@@ -26,13 +26,13 @@ enum ReachWithError {
 };
 
 class Location {
-  const std::string filename;
   unsigned line;
 
 public:
+  const std::string filename;
   bool isReported;
 
-  Location(const std::string &f, unsigned l) : filename(f), line(l), isReported(false) {}
+  Location(const std::string &f, unsigned l) : line(l), filename(f), isReported(false) {}
 
   bool isTheSameAsIn(KInstruction *instr) const;
   bool isInside(const FunctionInfo &info) const;
