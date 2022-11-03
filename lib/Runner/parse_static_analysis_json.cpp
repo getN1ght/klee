@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/Support/ErrorHandling.h"
 
 #include <klee/Misc/json.hpp>
 #include <fstream>
@@ -58,6 +59,8 @@ PathForest *parseEvents(json &events) {
 
 PathForest *parseInputPathTree(const std::string &inputPathTreePath) {
   std::ifstream file(inputPathTreePath);
+  if (file.fail())
+    klee_error("Cannot read file %s", inputPathTreePath.c_str());
   json pathForestJSON = json::parse(file);
   return parseEvents(pathForestJSON.at("events"));
 }
