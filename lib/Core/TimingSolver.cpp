@@ -52,6 +52,7 @@ bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
 
 bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constraints, ref<Expr> expr,
                               bool &result, SolverQueryMetaData &metaData,
+                              Assignment &symcretesCex,
                               bool produceValidityCore) {
   // Fast path, to avoid timer and OS overhead.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(expr)) {
@@ -77,9 +78,9 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
         state.constraints, expr, core, state.symcretes, state.symsizesToMO,
         state.symcreteToConstraints, hasSolution, newAssignment, metaData);
     if (success && hasSolution) {
-      state.updateSymcretes(newAssignment);
       result = false;
     }
+    symcretesCex = newAssignment;
   }
 
   metaData.queryCost += timer.delta();
@@ -88,27 +89,27 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
 }
 
 bool TimingSolver::mustBeFalse(ExecutionState &state, const ConstraintSet &constraints, ref<Expr> expr,
-                               bool &result, SolverQueryMetaData &metaData,
+                               bool &result, SolverQueryMetaData &metaData, Assignment &symcretesCex,
                                bool produceValidityCore) {
-  return mustBeTrue(state, constraints, Expr::createIsZero(expr), result, metaData,
+  return mustBeTrue(state, constraints, Expr::createIsZero(expr), result, metaData, symcretesCex,
                     produceValidityCore);
 }
 
 bool TimingSolver::mayBeTrue(ExecutionState &state, const ConstraintSet &constraints, ref<Expr> expr,
-                             bool &result, SolverQueryMetaData &metaData,
+                             bool &result, SolverQueryMetaData &metaData, Assignment &symcretesEx,
                              bool produceValidityCore) {
   bool res;
-  if (!mustBeFalse(state, constraints, expr, res, metaData, produceValidityCore))
+  if (!mustBeFalse(state, constraints, expr, res, metaData, symcretesEx, produceValidityCore))
     return false;
   result = !res;
   return true;
 }
 
 bool TimingSolver::mayBeFalse(ExecutionState &state, const ConstraintSet &constraints, ref<Expr> expr,
-                              bool &result, SolverQueryMetaData &metaData,
+                              bool &result, SolverQueryMetaData &metaData, Assignment &symcretesEx,
                               bool produceValidityCore) {
   bool res;
-  if (!mustBeTrue(state, constraints, expr, res, metaData, produceValidityCore))
+  if (!mustBeTrue(state, constraints, expr, res, metaData, symcretesEx, produceValidityCore))
     return false;
   result = !res;
   return true;
@@ -209,7 +210,7 @@ bool TimingSolver::getValidAssignment(
     const ConstraintSet &constraints, ref<Expr> expr,
     /* FIXME: full copy */ ValidityCore validityCore,
     /* FIXME: full copy */ Assignment symcretes,
-    const std::unordered_map<const Array *, ref<MemoryObject>> &symsizes,
+    const std::unordered_map<const Array *, MemoryObject *> &symsizes,
     ExprHashMap<std::set<const Array *>> &exprToSymcretes,
     bool &hasResult, Assignment &result, SolverQueryMetaData &metaData) const {
   

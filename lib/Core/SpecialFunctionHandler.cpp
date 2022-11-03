@@ -589,10 +589,11 @@ void SpecialFunctionHandler::handleAssume(ExecutionState &state,
   if (e->getWidth() != Expr::Bool)
     e = NeExpr::create(e, ConstantExpr::create(0, e->getWidth()));
   
+  Assignment assignmentHack;
   bool res;
   bool success __attribute__((unused)) = executor.solver->mustBeFalse(state, 
       state.evaluateConstraintsWithSymcretes(), state.evaluateWithSymcretes(e),
-      res, state.queryMetaData);
+      res, state.queryMetaData, assignmentHack);
   assert(success && "FIXME: Unhandled solver failure");
   if (res) {
     if (SilentKleeAssume) {
@@ -695,6 +696,8 @@ void SpecialFunctionHandler::handlePrintRange(ExecutionState &state,
 
   std::string msg_str = readStringAtAddress(state, arguments[0]);
   llvm::errs() << msg_str << ":" << arguments[1];
+  
+  Assignment assignmentHack;
   if (!isa<ConstantExpr>(arguments[1])) {
     // FIXME: Pull into a unique value method?
     ref<ConstantExpr> value;
@@ -706,7 +709,7 @@ void SpecialFunctionHandler::handlePrintRange(ExecutionState &state,
     success = executor.solver->mustBeTrue(state, 
         state.evaluateConstraintsWithSymcretes(),
         EqExpr::create(arguments[1], value), res,
-        state.queryMetaData);
+        state.queryMetaData, assignmentHack);
     assert(success && "FIXME: Unhandled solver failure");
     if (res) {
       llvm::errs() << " == " << value;
@@ -728,14 +731,21 @@ void SpecialFunctionHandler::handleGetObjSize(ExecutionState &state,
   assert(arguments.size()==1 &&
          "invalid number of arguments to klee_get_obj_size");
   Executor::ExactResolutionList rl;
+  std::vector<Executor::SymcreteContainerType> symcreteExamples;
+
   executor.resolveExact(state, arguments[0],
                         executor.typeSystemManager->getUnknownType(), rl,
-                        "klee_get_obj_size");
-  for (Executor::ExactResolutionList::iterator it = rl.begin(), 
-         ie = rl.end(); it != ie; ++it) {
+                        symcreteExamples, "klee_get_obj_size");
+  for (unsigned idx = 0; idx < rl.size(); ++idx) {
+    auto it = rl[idx];
+    auto &mapping = symcreteExamples[idx];
+    if (mapping.count(it.first.first)) {
+      it = {mapping[it.first.first], it.second};
+    }
+
     executor.bindLocal(
-        target, *it->second,
-        ConstantExpr::create(it->first.second->size,
+        target, *it.second,
+        ConstantExpr::create(it.first.second->size,
                              executor.kmodule->targetData->getTypeSizeInBits(
                                  target->inst->getType())));
   }
@@ -809,8 +819,9 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
   ref<Expr> address = arguments[0];
   ref<Expr> size = arguments[1];
 
+  Executor::SymcreteContainerPairType symcreteHack; 
   Executor::StatePair zeroSize =
-      executor.fork(state, Expr::createIsZero(size), true, BranchType::Realloc);
+      executor.fork(state, Expr::createIsZero(size), true, BranchType::Realloc, symcreteHack);
 
   if (zeroSize.first) { // size == 0
     executor.executeFree(*zeroSize.first, address, target);   
@@ -818,7 +829,7 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
   if (zeroSize.second) { // size != 0
     Executor::StatePair zeroPointer =
         executor.fork(*zeroSize.second, Expr::createIsZero(address), true,
-                      BranchType::Realloc);
+                      BranchType::Realloc, symcreteHack);
 
     if (zeroPointer.first) { // address == 0
       executor.executeAlloc(*zeroPointer.first, size, false, target,
@@ -826,15 +837,22 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
     } 
     if (zeroPointer.second) { // address != 0
       Executor::ExactResolutionList rl;
+      std::vector<Executor::SymcreteContainerType> symcreteExamples;
+
       executor.resolveExact(*zeroPointer.second, address,
                             executor.typeSystemManager->getUnknownType(), rl,
-                            "realloc");
-      for (Executor::ExactResolutionList::iterator it = rl.begin(), 
-             ie = rl.end(); it != ie; ++it) {
-        executor.executeAlloc(*it->second, size, false, target,
+                            symcreteExamples, "realloc");
+      for (unsigned idx = 0; idx < rl.size(); ++idx) {
+        auto it = rl[idx];  
+        auto &mapping = symcreteExamples[idx];
+        if (mapping.count(it.first.first)) {
+          it = { mapping[it.first.first], it.second };
+        }
+
+        executor.executeAlloc(*it.second, size, false, target,
                               executor.typeSystemManager->handleRealloc(
-                                  it->first.second->getDynamicType(), size),
-                              false, it->first.second);
+                                  it.first.second->getDynamicType(), size),
+                              false, it.first.second);
       }
     }
   }
@@ -931,23 +949,30 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
   }
 
   Executor::ExactResolutionList rl;
+  std::vector<Executor::SymcreteContainerType> symcreteExamples;
+
   executor.resolveExact(state, arguments[0],
-                        executor.typeSystemManager->getUnknownType(), rl,
+                        executor.typeSystemManager->getUnknownType(), rl, symcreteExamples,
                         "make_symbolic");
 
-  for (Executor::ExactResolutionList::iterator it = rl.begin(), 
-         ie = rl.end(); it != ie; ++it) {
-    const MemoryObject *mo = it->first.first;
+  for (unsigned idx = 0; idx < rl.size(); ++idx) {
+    auto it = rl[idx];  
+    auto &mapping = symcreteExamples[idx];
+    if (mapping.count(it.first.first)) {
+      it = { mapping[it.first.first], it.second };
+    }
+    const MemoryObject *mo = it.first.first;
     mo->setName(name);
     
-    const ObjectState *old = it->first.second;
-    ExecutionState *s = it->second;
+    const ObjectState *old = it.first.second;
+    ExecutionState *s = it.second;
     
     if (old->readOnly) {
       executor.terminateStateOnUserError(*s, "cannot make readonly object symbolic");
       return;
     } 
 
+    Assignment assignmentHack;
     // FIXME: Type coercion should be done consistently somewhere.
     bool res;
     bool success __attribute__((unused)) = executor.solver->mustBeTrue(
@@ -955,11 +980,11 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
         EqExpr::create(
             ZExtExpr::create(arguments[1], Context::get().getPointerWidth()),
             mo->getSizeExpr()),
-        res, s->queryMetaData);
+        res, s->queryMetaData, assignmentHack);
     assert(success && "FIXME: Unhandled solver failure");
     
     if (res) {
-      executor.executeMakeSymbolic(*s, mo, it->first.second->getDynamicType(),
+      executor.executeMakeSymbolic(*s, mo, it.first.second->getDynamicType(),
                                    name, false);
     } else {  
       executor.terminateStateOnUserError(*s, "Wrong size given to klee_make_symbolic");
@@ -975,13 +1000,19 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
          "invalid number of arguments to klee_mark_global");  
 
   Executor::ExactResolutionList rl;
+  std::vector<Executor::SymcreteContainerType> symcreteExamples;
+
   executor.resolveExact(state, arguments[0],
-                        executor.typeSystemManager->getUnknownType(), rl,
+                        executor.typeSystemManager->getUnknownType(), rl, symcreteExamples,
                         "mark_global");
 
-  for (Executor::ExactResolutionList::iterator it = rl.begin(), 
-         ie = rl.end(); it != ie; ++it) {
-    const MemoryObject *mo = it->first.first;
+for (unsigned idx = 0; idx < rl.size(); ++idx) {
+    auto it = rl[idx];  
+    auto &mapping = symcreteExamples[idx];
+    if (mapping.count(it.first.first)) {
+      it = { mapping[it.first.first], it.second };
+    }
+    const MemoryObject *mo = it.first.first;
     assert(!mo->isLocal);
     mo->isGlobal = true;
   }

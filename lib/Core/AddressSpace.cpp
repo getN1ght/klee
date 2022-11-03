@@ -122,6 +122,9 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   MemoryMap::iterator end = objects.end();
     
   MemoryMap::iterator start = oi;
+
+  Assignment assignmentHack;
+
   while (oi!=begin) {
     --oi;
     const auto &mo = oi->first;
@@ -129,12 +132,12 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     if (!oi->second->isAccessableFrom(objectType)) {
       continue;
     }
-
+    
     bool mayBeTrue;
     if (!solver->mayBeTrue(state, 
             state.evaluateConstraintsWithSymcretes(),
             mo->getBoundsCheckPointer(address),
-            mayBeTrue, state.queryMetaData, true))
+            mayBeTrue, state.queryMetaData, assignmentHack))
       return false;
     if (mayBeTrue) {
       result.first = oi->first;
@@ -146,7 +149,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
       if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                               UgeExpr::create(
                                   address, mo->getBaseExpr()),
-                              mustBeTrue, state.queryMetaData))
+                              mustBeTrue, state.queryMetaData, assignmentHack))
         return false;
       
       if (mustBeTrue)
@@ -165,7 +168,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     bool mustBeTrue;
     if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                                 UltExpr::create(address, mo->getBaseExpr()),
-                            mustBeTrue, state.queryMetaData))
+                            mustBeTrue, state.queryMetaData, assignmentHack))
       return false;
     if (mustBeTrue) {
       break;
@@ -175,7 +178,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
       if (!solver->mayBeTrue(state, 
               state.evaluateConstraintsWithSymcretes(),
               mo->getBoundsCheckPointer(address),
-              mayBeTrue, state.queryMetaData))
+              mayBeTrue, state.queryMetaData, assignmentHack))
         return false;
       if (mayBeTrue) {
         result.first = oi->first;
@@ -200,9 +203,11 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
   const MemoryObject *mo = op.first;
   ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
   bool mayBeTrue;
+  Assignment assignmentHack;
+
   if (!solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                          inBounds, mayBeTrue,
-                         state.queryMetaData)) {
+                         state.queryMetaData, assignmentHack)) {
     return 1;
   }
 
@@ -215,7 +220,7 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
       bool mustBeTrue;
       if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                               inBounds, mustBeTrue,
-                              state.queryMetaData))
+                              state.queryMetaData, assignmentHack))
         return 1;
       if (mustBeTrue)
         return 0;
@@ -273,6 +278,8 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
   MemoryMap::iterator begin = objects.begin();
   MemoryMap::iterator end = objects.end();
 
+  Assignment assignmentHack; 
+
   MemoryMap::iterator start = oi;
   // search backwards, start with one minus because this
   // is the object that p *should* be within, which means we
@@ -299,7 +306,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     bool mustBeTrue;
     if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                             UgeExpr::create(p, mo->getBaseExpr()), mustBeTrue,
-                            state.queryMetaData))
+                            state.queryMetaData, assignmentHack))
       return true;
     if (mustBeTrue)
       break;
@@ -320,7 +327,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     bool mustBeTrue;
     if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                             UltExpr::create(p, mo->getBaseExpr()), mustBeTrue,
-                            state.queryMetaData))
+                            state.queryMetaData, assignmentHack))
       return true;
     if (mustBeTrue)
       break;
@@ -380,6 +387,8 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
     // is the object that p *should* be within, which means we
     // get write off the end with 4 queries
 
+    Assignment assignmentHack;
+
     while (oi != begin) {
       --oi;
       const MemoryObject *mo = oi->first;
@@ -403,7 +412,7 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
       bool mustBeTrue;
       if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                                   UgeExpr::create(p, mo->getBaseExpr()),
-                              mustBeTrue, state.queryMetaData))
+                              mustBeTrue, state.queryMetaData, assignmentHack))
         return true;
       if (mustBeTrue)
         break;
@@ -425,7 +434,7 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
       bool mustBeTrue;
       if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                                   UltExpr::create(p, mo->getBaseExpr()),
-                              mustBeTrue, state.queryMetaData))
+                              mustBeTrue, state.queryMetaData, assignmentHack))
         return true;
       if (mustBeTrue)
         break;

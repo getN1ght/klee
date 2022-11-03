@@ -117,6 +117,10 @@ public:
   };
   typedef std::map<llvm::BasicBlock *, ExecutionBlockResult> ExecutionResult;
 
+  typedef std::unordered_map<const MemoryObject *, std::pair<MemoryObject *, ObjectState *>> SymcreteContainerType;
+  typedef std::pair<SymcreteContainerType, SymcreteContainerType> SymcreteContainerPairType; 
+
+
   enum MemoryOperation { Read, Write };
 
   /// The random number generator.
@@ -293,7 +297,7 @@ private:
   typedef std::vector< std::pair<std::pair<const MemoryObject*, const ObjectState*>, 
                                  ExecutionState*> > ExactResolutionList;
   void resolveExact(ExecutionState &state, ref<Expr> p, KType *type,
-                    ExactResolutionList &results, const std::string &name);
+                    ExactResolutionList &results, std::vector<SymcreteContainerType> &symcreteExamples, const std::string &name);
 
   MemoryObject *allocate(ExecutionState &state, ref<Expr> size, bool isLocal,
                          const llvm::Value *allocSite,
@@ -373,13 +377,14 @@ private:
   /// as one of the results. Note that the output vector may include
   /// NULL pointers for states which were unable to be created.
   void branch(ExecutionState &state, const std::vector<ref<Expr>> &conditions,
-              std::vector<ExecutionState *> &result, BranchType reason);
+              std::vector<ExecutionState *> &result,
+              std::vector<Assignment> &symcreteExamples, BranchType reason);
 
   /// Fork current and return states in which condition holds / does
   /// not hold, respectively. One of the states is necessarily the
   /// current state, and one of the states may be null.
   StatePair fork(ExecutionState &current, ref<Expr> condition, bool isInternal,
-                 BranchType reason);
+                 BranchType reason, SymcreteContainerPairType &);
 
   // If the MaxStatic*Pct limits have been reached, concretize the condition and
   // return it. Otherwise, return the unmodified condition.

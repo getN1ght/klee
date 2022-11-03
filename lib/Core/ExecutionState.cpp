@@ -232,7 +232,7 @@ void ExecutionState::addSymbolic(const MemoryObject *mo, const Array *array) {
 }
 
 void ExecutionState::addSymSize(MemoryObject *mo, const Array *array) {
-  symsizesToMO[array] = ref<MemoryObject>(mo);
+  symsizesToMO[array] = mo;
   symSizes.emplace(mo, array);
 }
 
@@ -241,23 +241,22 @@ void ExecutionState::addSymAddress(MemoryObject *mo, const Array *array) {
 }
 
 
-ref<const MemoryObject>
-ExecutionState::findMemoryObject(const Array *array) const {
+const MemoryObject *ExecutionState::findMemoryObject(const Array *array) const {
   for (unsigned i = 0; i != symbolics.size(); ++i) {
     const auto &symbolic = symbolics[i];
     if (array == symbolic.second) {
-      return symbolic.first;
+      return symbolic.first.get();
     }
   }
   return nullptr;
 }
 
 
-const Array *ExecutionState::replaceSymbolicArray(ref<const MemoryObject> oldMo,
-                                          ref<const MemoryObject> newMo) {
+const Array *ExecutionState::replaceSymbolicArray(const MemoryObject *oldMo,
+                                          const MemoryObject *newMo) {
   for (unsigned i = 0; i != symbolics.size(); ++i) {
     auto &symbolic = symbolics[i];
-    if (oldMo == symbolic.first) {
+    if (oldMo == symbolic.first.get()) {
       symbolic.first = newMo;
       return symbolic.second;
     }
@@ -298,8 +297,9 @@ void ExecutionState::addSymcrete(
   }
 }
 
+std::unordered_map<const MemoryObject *, std::pair<MemoryObject *, ObjectState *>>
+ExecutionState::updateSymcretes(const Assignment &assignment) {
 
-void ExecutionState::updateSymcretes(const Assignment &assignment) {
   constraintsWithSymcretes = ConstraintSet();
   ConstraintManager cs(constraintsWithSymcretes);
 
@@ -307,8 +307,8 @@ void ExecutionState::updateSymcretes(const Assignment &assignment) {
   for (const auto &assign : assignment.bindings) {
     copy.bindings[assign.first] = assign.second;
     assert(symsizesToMO.count(assign.first));
-    assert(symAddresses.count(symsizesToMO.at(assign.first).get()));
-    copy.bindings.erase(symAddresses.at(symsizesToMO.at(assign.first).get()));
+    assert(symAddresses.count(symsizesToMO.at(assign.first)));
+    copy.bindings.erase(symAddresses.at(symsizesToMO.at(assign.first)));
   }
 
   symcretes.bindings.clear();
@@ -329,8 +329,10 @@ void ExecutionState::updateSymcretes(const Assignment &assignment) {
     }
   }
 
+  std::unordered_map<const MemoryObject *, std::pair<MemoryObject *, ObjectState *>> result;
+
   for (auto &symsizeToConcrete : assignment.bindings) {
-    MemoryObject *mo = symsizesToMO.at(symsizeToConcrete.first).get();
+    MemoryObject *mo = symsizesToMO.at(symsizeToConcrete.first);
     ObjectState *os = const_cast<ObjectState *>(addressSpace.findObject(mo));
     if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(
             evaluateWithSymcretes(mo->getSizeExpr()))) {
@@ -363,12 +365,13 @@ void ExecutionState::updateSymcretes(const Assignment &assignment) {
       addSymSize(newMO, symSizes.at(mo));
 
       addressSpace.unbindObject(mo);
+      result[mo] = std::pair<MemoryObject *, ObjectState *>(newMO, newOS);
     } else {
       assert(0 && "Size does not have concretization (updateSymcretes)!");
     }
   }
+  return result;
 }
-
 
 ref<Expr> ExecutionState::evaluateWithSymcretes(const ref<Expr> e) const {
   return symcretes.evaluate(e);

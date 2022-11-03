@@ -56,21 +56,21 @@ public:
                 ref<SolverResponse> &negateQueryResult,
                 SolverQueryMetaData &metaData);
 
-  bool mustBeTrue(ExecutionState &state, const ConstraintSet &, ref<Expr>, bool &result,
-                  SolverQueryMetaData &metaData,
-                  bool produceValidityCore = false);
+  bool mustBeTrue(ExecutionState &state, const ConstraintSet &, ref<Expr>,
+                  bool &result, SolverQueryMetaData &metaData,
+                  Assignment &symcretesCex, bool produceValidityCore = false);
 
-  bool mustBeFalse(ExecutionState &state, const ConstraintSet &, ref<Expr>, bool &result,
-                   SolverQueryMetaData &metaData,
-                   bool produceValidityCore = false);
+  bool mustBeFalse(ExecutionState &state, const ConstraintSet &, ref<Expr>,
+                   bool &result, SolverQueryMetaData &metaData,
+                   Assignment &symcretesCex, bool produceValidityCore = false);
 
-  bool mayBeTrue(ExecutionState &state, const ConstraintSet &, ref<Expr>, bool &result,
-                 SolverQueryMetaData &metaData,
-                 bool produceValidityCore = false);
+  bool mayBeTrue(ExecutionState &state, const ConstraintSet &, ref<Expr>,
+                 bool &result, SolverQueryMetaData &metaData,
+                 Assignment &symcretesEx, bool produceValidityCore = false);
 
-  bool mayBeFalse(ExecutionState &state, const ConstraintSet &, ref<Expr>, bool &result,
-                  SolverQueryMetaData &metaData,
-                  bool produceValidityCore = false);
+  bool mayBeFalse(ExecutionState &state, const ConstraintSet &, ref<Expr>,
+                  bool &result, SolverQueryMetaData &metaData,
+                  Assignment &symcretesEx, bool produceValidityCore = false);
 
   bool getValue(const ConstraintSet &, ref<Expr> expr,
                 ref<ConstantExpr> &result, SolverQueryMetaData &metaData);
@@ -88,7 +88,7 @@ public:
   bool getValidAssignment(const ConstraintSet &, ref<Expr>,
                           ValidityCore validityCore,
                           Assignment symcretes,
-                          const std::unordered_map<const Array *, ref<MemoryObject>> &symsizes,
+                          const std::unordered_map<const Array *, MemoryObject *> &symsizes,
                           ExprHashMap<std::set<const Array *>> &exprToSymcretes,
                           bool &hasResult,
                           Assignment &result,

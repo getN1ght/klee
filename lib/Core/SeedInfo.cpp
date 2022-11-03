@@ -62,7 +62,7 @@ KTestObject *SeedInfo::getNextInput(const MemoryObject *mo,
 void SeedInfo::patchSeed(ExecutionState &state, 
                          ref<Expr> condition,
                          TimingSolver *solver) {
-  ConstraintSet required(state.constraints);
+  ConstraintSet required(state.evaluateConstraintsWithSymcretes());
   ConstraintManager cm(required);
   cm.addConstraint(condition);
 
@@ -90,6 +90,8 @@ void SeedInfo::patchSeed(ExecutionState &state,
     ref<Expr> read = ReadExpr::create(UpdateList(array, 0),
                                       ConstantExpr::alloc(i, Expr::Int32));
     
+    Assignment assignmentHack;
+
     // If not in bindings then this can't be a violation?
     Assignment::bindings_ty::iterator it2 = assignment.bindings.find(array);
     if (it2 != assignment.bindings.end()) {
@@ -98,7 +100,7 @@ void SeedInfo::patchSeed(ExecutionState &state,
                                                             Expr::Int8));
       bool res;
       bool success =
-          solver->mustBeFalse(state, required, isSeed, res, state.queryMetaData);
+          solver->mustBeFalse(state, required, isSeed, res, state.queryMetaData, assignmentHack);
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
       if (res) {
@@ -117,13 +119,17 @@ void SeedInfo::patchSeed(ExecutionState &state,
   }
 
   bool res;
-  bool success =
-      solver->mayBeTrue(state, state.constraints, assignment.evaluate(condition), res,
-                        state.queryMetaData);
+
+  Assignment symcreteExample;
+  bool success = solver->mayBeTrue(
+      state, state.evaluateConstraintsWithSymcretes(),
+      assignment.evaluate(condition), res, state.queryMetaData, symcreteExample);
   assert(success && "FIXME: Unhandled solver failure");
   (void) success;
-  if (res)
+  if (res) {
+    state.updateSymcretes(symcreteExample);
     return;
+  }
   
   // We could still do a lot better than this, for example by looking at
   // independence. But really, this shouldn't be happening often.
@@ -133,6 +139,7 @@ void SeedInfo::patchSeed(ExecutionState &state,
     ref<ConstantExpr> size =
         dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(array->getSize()));
     assert(size && "Array has non-constant size");
+    Assignment assignmentHack;
     for (unsigned i=0; i<size->getZExtValue(); ++i) {
       ref<Expr> read = ReadExpr::create(UpdateList(array, 0),
                                         ConstantExpr::alloc(i, Expr::Int32));
@@ -141,7 +148,7 @@ void SeedInfo::patchSeed(ExecutionState &state,
                                                             Expr::Int8));
       bool res;
       bool success =
-          solver->mustBeFalse(state, required, isSeed, res, state.queryMetaData);
+          solver->mustBeFalse(state, required, isSeed, res, state.queryMetaData, assignmentHack);
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
       if (res) {
@@ -162,12 +169,15 @@ void SeedInfo::patchSeed(ExecutionState &state,
 #ifndef NDEBUG
   {
     bool res;
+    Assignment symcreteExample;
     bool success =
-        solver->mayBeTrue(state, state.constraints, assignment.evaluate(condition),
-                          res, state.queryMetaData);
+        solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                          assignment.evaluate(condition), res,
+                          state.queryMetaData, symcreteExample);
     assert(success && "FIXME: Unhandled solver failure");            
     (void) success;
     assert(res && "seed patching failed");
+    state.updateSymcretes(symcreteExample);
   }
 #endif
 }
