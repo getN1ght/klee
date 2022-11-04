@@ -273,6 +273,8 @@ public:
   /// @brief Disables forking for this state. Set by user code
   bool forkDisabled = false;
 
+  ReachWithError error = ReachWithError::None;
+
 public:
   // only to create the initial state
   explicit ExecutionState();

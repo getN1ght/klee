@@ -197,17 +197,19 @@ namespace klee {
     TargetForestHistoryToSearcherMap targetedSearchers;
     CodeGraphDistance &codeGraphDistance;
     TargetCalculator *stateHistory;
+    TargetForestHisoryToTargetSet reachedTargets;
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates;
     std::size_t bound;
     unsigned index{1};
-    void addTarget(ref<TargetForest::History> history, ref<Target> target);
+    bool tryAddTarget(ref<TargetForest::History> history, ref<Target> target);
     bool isStuck(ExecutionState &state);
     void innerUpdate(ExecutionState *current,
                      const std::vector<ExecutionState *> &addedStates,
                      const std::vector<ExecutionState *> &removedStates);
 
-    void clearReached();
+    void clearReached(const std::vector<ExecutionState *> &removedStates);
     void collectReached(TargetToStateSetMap &reachedStates);
+    bool isReached(ref<TargetForest::History> history, ref<Target> target);
 
   public:
     GuidedSearcher(

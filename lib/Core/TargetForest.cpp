@@ -125,7 +125,11 @@ void TargetForest::stepTo(ref<Target> loc) {
     return;
   }
   history = history->add(loc);
-  forest = forest->replaceChildWith(loc, res->second.get());
+  if (loc->shouldFailOnThisTarget()) {
+    forest = new Layer();
+  } else {
+    forest = forest->replaceChildWith(loc, res->second.get());
+  }
 }
 
 void TargetForest::add(ref<Target> target) {
@@ -133,7 +137,7 @@ void TargetForest::add(ref<Target> target) {
   if (res != forest->end()) {
     return;
   }
-  forest = forest->addChild(target);
+  forest = forest->addChild(target);;
 }
 
 void TargetForest::remove(ref<Target> target) {

@@ -170,6 +170,7 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
   if (!expectedLocation->location.isTheSameAsIn(state.prevPC))
     return false;
 
+  state.error = error;
   klee_warning("True Positive at: %s", expectedLocation->toString().c_str());
   // klee_warning("100%% True Positive at: %s", expectedLocation->toString().c_str());
   expectedLocation->isReported = true;
