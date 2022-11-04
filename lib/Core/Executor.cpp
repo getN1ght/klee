@@ -5146,12 +5146,19 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
                                              KType *targetType, uint64_t size) {
   assert(!isa<ConstantExpr>(address));
   const llvm::Value *allocSite = target ? target->inst : nullptr;
+  
+  const Array *symAddressArray = makeArray(
+      state, Context::get().getPointerWidth() / CHAR_BIT, "symAddress");
+
+  ref<Expr> addressExpr =
+    Expr::createTempRead(symAddressArray, Context::get().getPointerWidth());
+
   MemoryObject *mo =
       memory->allocate(size, false, /*isGlobal=*/false, allocSite,
-                       /*allocationAlignment=*/8, address);
-  assert(mo);
+                       /*allocationAlignment=*/8, addressExpr);
 
-  ref<Expr> checkPointerExpr = EqExpr::create(address, mo->getBaseExpr());
+  ref<Expr> checkPointerExpr =
+      EqExpr::create(Expr::createPointer(mo->address), address);
   bool isAddressNeq;
 
   /// Check that the constructed model does not contradict itself 
@@ -5173,9 +5180,9 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
         state, "Malloc returned address not consistent with constrains");
     return ObjectPair(nullptr, nullptr);
   }
-  
-  state.addSymcrete(mo->concreteAddress, addressToBytes(mo->address), mo->address);
-  state.addConstraint(EqExpr::create(mo->getBaseExpr(), address));
+
+  state.addConstraint(EqExpr::create(address, addressExpr));
+  state.addSymcrete(symAddressArray, addressToBytes(mo->address), mo->address);
 
   return lazyInstantiate(state, targetType, /*isLocal=*/false, mo);
 }
@@ -5548,7 +5555,7 @@ void Executor::logState(ExecutionState &state, int id,
          << "\n";
       continue;
     }
-    auto lisource = i.first->lazyInstantiatedSource;
+    auto lisource = i.first->getBaseExpr();
     *f << "Lazy Instantiation Source: ";
     lisource->print(*f);
     *f << "\n";
@@ -5568,7 +5575,7 @@ int Executor::resolveLazyInstantiation(ExecutionState &state) {
       continue;
     }
     status = 1;
-    auto lisource = i.first->lazyInstantiatedSource;
+    auto lisource = i.first->getBaseExpr();
     switch (lisource->getKind()) {
     case Expr::Read: {
       ref<ReadExpr> base = dyn_cast<ReadExpr>(lisource);
@@ -5603,7 +5610,7 @@ void Executor::setInstantiationGraph(ExecutionState &state, TestCase &tc) {
     if (!state.symbolics[i].first->isLazyInstantiated())
       continue;
     auto parent =
-        state.pointers[state.symbolics[i].first->lazyInstantiatedSource];
+        state.pointers[state.symbolics[i].first->getBaseExpr()];
     // Resolve offset (parent.second)
     ref<ConstantExpr> offset;
     bool success = solver->getValue(state.evaluateConstraintsWithSymcretes(),
