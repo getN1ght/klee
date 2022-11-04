@@ -83,27 +83,6 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     return true;
   } else {
     TimerStatIncrementer timer(stats::resolveTime);
-
-    MemoryObject *symHack = nullptr;
-    /// TODO: seems useless, as we know concrete addresses
-    for (auto &moa : state.symbolics) {
-      if (moa.first->isLazyInstantiated() &&
-          moa.first->getLazyInstantiatedSource() == base) {
-        symHack = const_cast<MemoryObject *>(moa.first.get());
-        break;
-      }
-    }
-
-    if (symHack) {
-      auto osi = objects.find(symHack);
-      if (osi != objects.end()) {
-        result.first = osi->first;
-        result.second = osi->second.get();
-        success = true;
-        return true;
-      }
-    }
-
     // try cheap search, will succeed for any inbounds pointer
 
     ref<ConstantExpr> cex;
@@ -319,12 +298,6 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
       }
 
       if (timeout && timeout < timer.delta()) {
-        // llvm::errs() << timer.delta() << "\n";
-        // llvm::errs() << "1) TIMED OUT!\n";
-        // llvm::errs() << "RL SIZE IS: " << rl.size() << "\n";
-        // llvm::errs() << "OBJECTS: " << objects.size() << "\n";
-
-        // state.evaluateWithSymcretes(p)->dump();
         return true;
       }
 
@@ -354,11 +327,6 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
       }
 
       if (timeout && timeout < timer.delta()) {
-        // llvm::errs() << timer.delta() << "\n";
-        // llvm::errs() << "2) TIMED OUT!\n";
-        // llvm::errs() << "RL SIZE IS: " << rl.size() << "\n";
-        // llvm::errs() << "OBJECTS: " << objects.size() << "\n";
-        // state.evaluateWithSymcretes(p)->dump();
         return true;
       }
 

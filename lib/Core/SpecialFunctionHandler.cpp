@@ -959,9 +959,9 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
     bool res;
     bool success __attribute__((unused)) = executor.solver->mustBeTrue(
         s->evaluateConstraintsWithSymcretes(),
-        EqExpr::create(
-            s->evaluateWithSymcretes(ZExtExpr::create(arguments[1], Context::get().getPointerWidth())),
-            mo->getSizeExpr()),
+        s->evaluateWithSymcretes(EqExpr::create(
+            ZExtExpr::create(arguments[1], Context::get().getPointerWidth()),
+            mo->getSizeExpr())),
         res, s->queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");
     
