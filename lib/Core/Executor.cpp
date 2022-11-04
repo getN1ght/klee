@@ -5156,6 +5156,7 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
   MemoryObject *mo =
       memory->allocate(size, false, /*isGlobal=*/false, allocSite,
                        /*allocationAlignment=*/8, addressExpr);
+  mo->setLazyInstatiationSource(address);
 
   ref<Expr> checkPointerExpr =
       EqExpr::create(Expr::createPointer(mo->address), address);
@@ -5573,7 +5574,7 @@ int Executor::resolveLazyInstantiation(ExecutionState &state) {
       continue;
     }
     status = 1;
-    auto lisource = i.first->getBaseExpr();
+    auto lisource = i.first->lazyInstantiationSource;
     switch (lisource->getKind()) {
     case Expr::Read: {
       ref<ReadExpr> base = dyn_cast<ReadExpr>(lisource);
@@ -5608,7 +5609,7 @@ void Executor::setInstantiationGraph(ExecutionState &state, TestCase &tc) {
     if (!state.symbolics[i].first->isLazyInstantiated())
       continue;
     auto parent =
-        state.pointers[state.symbolics[i].first->getBaseExpr()];
+        state.pointers[state.symbolics[i].first->lazyInstantiationSource];
     // Resolve offset (parent.second)
     ref<ConstantExpr> offset;
     bool success = solver->getValue(state.evaluateConstraintsWithSymcretes(),

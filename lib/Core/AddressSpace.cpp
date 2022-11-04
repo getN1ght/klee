@@ -143,8 +143,6 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                                 mustBeTrue, state.queryMetaData))
           return false;
         
-        /// FIXME: Make a binary search optimization?
-        /// We will optimize it in general case, as constraints are linear
         if (mustBeTrue)
           break;
       }

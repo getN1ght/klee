@@ -12,7 +12,6 @@
 #include "Memory.h"
 
 #include "klee/Expr/Expr.h"
-#include "klee/Expr/ExprHashMap.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"

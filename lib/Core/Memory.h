@@ -55,6 +55,7 @@ public:
 
   /// "Virtual" memory address 
   ref<Expr> addressExpr;
+  ref<Expr> lazyInstantiationSource;
 
   /// size in bytes
   unsigned size;
@@ -131,7 +132,11 @@ public:
   }
 
   bool isLazyInstantiated() const {
-    return !addressExpr.isNull();
+    return !lazyInstantiationSource.isNull();
+  }
+
+  void setLazyInstatiationSource(ref<Expr> source) {
+    lazyInstantiationSource = source;
   }
 
   ref<ConstantExpr> getSizeExpr() const { 
