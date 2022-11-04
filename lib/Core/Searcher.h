@@ -168,14 +168,14 @@ namespace klee {
   private:
     template <class T>
     class TargetHashMap
-        : public std::unordered_map<ref<Target>, T, TargetHash, TargetCmp> {};
+        : public std::unordered_map<ref<Target>, T, RefTargetHash, RefTargetCmp> {};
     using TargetToSearcherMap = TargetHashMap<std::unique_ptr<TargetedSearcher>>;
     using TargetToStateSetMap = TargetHashMap<std::set<ExecutionState *>>;
     using TargetToStateVectorMap = TargetHashMap<std::vector<ExecutionState *>>;
 
     template <class T>
     class TargetForestHistoryHashMap
-        : public std::unordered_map<ref<TargetForest::History>, T, TargetsHash, TargetsCmp> {};
+        : public std::unordered_map<ref<TargetForest::History>, T, RefTargetsHistoryHash, RefTargetsHistoryCmp> {};
     template <class T>
     class TargetForestHistoryTargetsHashMap
         : public TargetForestHistoryHashMap<TargetHashMap<T>> {};

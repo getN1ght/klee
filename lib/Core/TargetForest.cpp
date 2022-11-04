@@ -97,6 +97,33 @@ void TargetForest::Layer::dump(unsigned n) const {
   }
 }
 
+TargetForest::History::EquivTargetsHistoryHashSet
+    TargetForest::History::cachedHistories;
+TargetForest::History::TargetsHistoryHashSet TargetForest::History::histories;
+
+ref<TargetForest::History> TargetForest::History::create(ref<Target> _target, ref<History> _visitedTargets) {
+  History *history = new History(_target, _visitedTargets);
+
+  std::pair<EquivTargetsHistoryHashSet::const_iterator, bool> success =
+      cachedHistories.insert(history);
+  if (success.second) {
+    // Cache miss
+    histories.insert(history);
+    return history;
+  }
+  // Cache hit
+  delete history;
+  history = *(success.first);
+  return history;
+}
+
+ref<TargetForest::History> TargetForest::History::create(ref<Target> _target) {
+  return create(_target, nullptr);
+}
+
+ref<TargetForest::History> TargetForest::History::create() {
+  return create(nullptr);
+}
 
 int TargetForest::History::compare(const History &h) const {
   if (this == &h)
@@ -131,6 +158,13 @@ void TargetForest::History::dump() const {
   if (visitedTargets)
     visitedTargets->dump();
 
+}
+
+TargetForest::History::~History() {
+  if (histories.find(this) != histories.end()) {
+    histories.erase(this);
+    cachedHistories.erase(this);
+  }
 }
 
 void TargetForest::stepTo(ref<Target> loc) {

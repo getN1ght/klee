@@ -560,8 +560,8 @@ void GuidedSearcher::innerUpdate(
           addedTStates[state->targetForest.getHistory()][target].push_back(state);
         } else {
           pausedStates.insert(state);
-          if (std::find(addedStates.begin(), addedStates.end(), state) !=
-              addedStates.end()) {
+          if (std::find(baseAddedStates.begin(), baseAddedStates.end(), state) !=
+              baseAddedStates.end()) {
             auto is = std::find(baseAddedStates.begin(), baseAddedStates.end(),
                                 state);
             baseAddedStates.erase(is);

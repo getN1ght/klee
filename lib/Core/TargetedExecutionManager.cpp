@@ -113,7 +113,7 @@ void prepareFilenameLineLocations(std::unordered_map<LocatedEvent *, std::set<re
             target = itt->second;
         }
         if (target.isNull()) {
-          target = new Target(b, error);
+          target = Target::create(b, error);
           targetMap->insert(std::make_pair(error, target));
           tem->block2targets.insert(it, std::make_pair(b, targetMap));
           tem->target2location.insert(std::make_pair(target, le));
@@ -155,7 +155,7 @@ void prepareFunctionOffsetLocations(std::unordered_map<LocatedEvent *, std::set<
     } else {
       error2target = error2targetIt->second;
     }
-    ref<Target> target = new Target(block, loc->error);
+    ref<Target> target = Target::create(block, loc->error);
     error2target->insert(std::make_pair(loc->error, target));
     tem->target2location.insert(std::make_pair(target, loc));
   }

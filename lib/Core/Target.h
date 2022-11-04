@@ -30,19 +30,27 @@ namespace klee {
 class CodeGraphDistance;
 class ExecutionState;
 class Executor;
+struct TargetHash;
+struct EquivTargetCmp;
+struct TargetCmp;
 
 struct Target {
 private:
+  typedef std::unordered_set<Target *, TargetHash, EquivTargetCmp> EquivTargetHashSet;
+  typedef std::unordered_set<Target *, TargetHash, TargetCmp> TargetHashSet;
+  static EquivTargetHashSet cachedTargets;
+  static TargetHashSet targets;
   KBlock *block;
   ReachWithError error;
+
+  explicit Target(KBlock *_block, ReachWithError error) : block(_block), error(error) {}
 
 public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
 
-  Target(KBlock *_block, ReachWithError error) : block(_block), error(error) {}
-  explicit Target(KBlock *_block) : Target(_block, ReachWithError::None) {} //TODO: [Aleksandr Misonizhnik], I think, this constructor should be entirely deleted
-
+  static ref<Target> create(KBlock *_block, ReachWithError error);
+  static ref<Target> create(KBlock *_block); //TODO: [Aleksandr Misonizhnik], I think, this constructor should be entirely deleted
 
   int compare(const Target &other) const {
     if (error != other.error)
@@ -73,16 +81,7 @@ public:
   unsigned hash() const { return reinterpret_cast<uintptr_t>(block); }
 
   std::string toString() const;
-};
-
-struct TargetHash  {
-  unsigned operator()(const ref<Target> &t) const { return t->hash(); }
-};
-
-struct TargetCmp {
-  bool operator()(const ref<Target> &a, const ref<Target> &b) const {
-    return a==b;
-  }
+  ~Target();
 };
 
   typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;

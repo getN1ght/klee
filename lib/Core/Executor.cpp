@@ -4013,7 +4013,8 @@ void Executor::targetedRun(ExecutionState &initialState, KBlock *target, Executi
 
   states.insert(&initialState);
 
-  TargetedSearcher *targetedSearcher = new TargetedSearcher(new Target(target), *codeGraphDistance);
+  TargetedSearcher *targetedSearcher =
+      new TargetedSearcher(Target::create(target), *codeGraphDistance);
   searcher = targetedSearcher;
 
   std::vector<ExecutionState *> newStates(states.begin(), states.end());

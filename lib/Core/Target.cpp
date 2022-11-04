@@ -31,6 +31,34 @@ std::string Target::toString() const {
   return repr;
 }
 
+Target::EquivTargetHashSet Target::cachedTargets;
+Target::TargetHashSet Target::targets;
+
+ref<Target> Target::create(KBlock *_block, ReachWithError error) {
+  Target *target = new Target(_block, error);
+
+  std::pair<TargetHashSet::const_iterator, bool> success =
+      cachedTargets.insert(target);
+  if (success.second) {
+    // Cache miss
+    targets.insert(target);
+    return target;
+  }
+  // Cache hit
+  delete target;
+  target = *(success.first);
+  return target;
+}
+
+ref<Target> Target::create(KBlock *_block) { return create(_block, ReachWithError::None); }
+
+Target::~Target() {
+  if (targets.find(this) != targets.end()) {
+    cachedTargets.erase(this);
+    targets.erase(this);
+  }
+}
+
 void TargetCalculator::update(const ExecutionState &state) {
   blocksHistory[state.getInitPCBlock()][state.getPrevPCBlock()].insert(
       state.level.begin(), state.level.end());
@@ -110,7 +138,7 @@ ref<Target> TargetCalculator::calculateBy(HistoryKind kind, ExecutionState &stat
         } else {
           newCov = true;
         }
-        nearestBlock = new Target(target);
+        nearestBlock = Target::create(target);
         minDistance = distance;
       }
     }

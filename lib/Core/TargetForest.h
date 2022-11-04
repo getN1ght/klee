@@ -15,6 +15,7 @@
 #define KLEE_TARGETFOREST_H
 
 #include "Target.h"
+#include "TargetHash.h"
 #include "klee/ADT/Ref.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/Locations.h"
@@ -22,11 +23,16 @@
 #include <unordered_map>
 
 namespace klee {
+struct RefTargetHash;
+struct RefTargetCmp;
+struct TargetsHistoryHash;
+struct EquivTargetsHistoryCmp;
+struct TargetsHistoryCmp;
 
 class TargetForest {
 private:
   class Layer {
-    using InternalLayer = std::unordered_map<ref<Target>, ref<Layer>, TargetHash, TargetCmp>;
+    using InternalLayer = std::unordered_map<ref<Target>, ref<Layer>, RefTargetHash, RefTargetCmp>;
     InternalLayer forest;
 
     explicit Layer(const InternalLayer &forest) : forest(forest) {}
@@ -63,20 +69,28 @@ private:
 public:
   class History {
   private:
+    typedef std::unordered_set<History *, TargetsHistoryHash, EquivTargetsHistoryCmp> EquivTargetsHistoryHashSet;
+    typedef std::unordered_set<History *, TargetsHistoryHash, TargetsHistoryCmp> TargetsHistoryHashSet;
+
+    static EquivTargetsHistoryHashSet cachedHistories;
+    static TargetsHistoryHashSet histories;
     unsigned hashValue;
 
-  public:
-    const ref<Target> target;
-    const ref<History> visitedTargets;
 
     explicit History(ref<Target> _target, ref<History> _visitedTargets)
         : target(_target), visitedTargets(_visitedTargets) {
       computeHash();
     }
-    explicit History(ref<Target> _target) : History(_target, nullptr) {}
-    explicit History() : History(nullptr) {}
 
-    ref<History> add(ref<Target> _target) { return new History(_target, this); }
+  public:
+    const ref<Target> target;
+    const ref<History> visitedTargets;
+
+    static ref<History> create(ref<Target> _target, ref<History> _visitedTargets);
+    static ref<History> create(ref<Target> _target);
+    static ref<History> create();
+
+    ref<History> add(ref<Target> _target) { return History::create(_target, this); }
 
     unsigned hash() const { return hashValue; }
 
@@ -95,6 +109,8 @@ public:
 
     void dump() const;
 
+    ~History();
+
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;
   };
@@ -108,7 +124,7 @@ public:
   unsigned getDebugReferenceCount() { return forest->_refCount.getCount(); }
   void debugStepToRandomLoc();
 
-  TargetForest(ref<Layer> layer) : forest(layer), history(new History()) {}
+  TargetForest(ref<Layer> layer) : forest(layer), history(History::create()) {}
   TargetForest() : TargetForest(new Layer()) {}
   TargetForest(PathForest *pathForest, std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> &loc2Targets);
 
@@ -127,16 +143,38 @@ public:
   void dump() const;
 };
 
-struct TargetsHash {
+struct TargetsHistoryHash {
+  unsigned operator()(const TargetForest::History *t) const {
+    return t ? t->hash() : 0;
+  }
+};
+
+struct TargetsHistoryCmp {
+  bool operator()(const TargetForest::History *a,
+                  const TargetForest::History *b) const {
+    return a == b;
+  }
+};
+
+struct EquivTargetsHistoryCmp {
+  bool operator()(const TargetForest::History *a,
+                  const TargetForest::History *b) const {
+   if (a == NULL || b == NULL)
+      return false;
+    return a->compare(*b) == 0;
+  }
+};
+
+struct RefTargetsHistoryHash {
   unsigned operator()(const ref<TargetForest::History> &t) const {
     return t->hash();
   }
 };
 
-struct TargetsCmp {
+struct RefTargetsHistoryCmp {
   bool operator()(const ref<TargetForest::History> &a,
                   const ref<TargetForest::History> &b) const {
-    return a == b;
+    return a.get() == b.get();
   }
 };
 
