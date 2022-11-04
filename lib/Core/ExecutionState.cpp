@@ -295,7 +295,12 @@ bool ExecutionState::merge(const ExecutionState &b) {
   std::set< ref<Expr> > aConstraints(constraints.begin(), constraints.end());
   std::set< ref<Expr> > bConstraints(b.constraints.begin(), 
                                      b.constraints.end());
-  std::set< ref<Expr> > commonConstraints, aSuffix, bSuffix;
+  std::set<ref<Expr>> aConstraintsWithSymcretes(
+      constraintsWithSymcretes.begin(), constraintsWithSymcretes.end());
+  std::set<ref<Expr>> bConstraintsWithSymcretes(
+      b.constraintsWithSymcretes.begin(), b.constraintsWithSymcretes.end());
+
+  std::set< ref<Expr> > commonConstraints, commonConstraintsWithSymcretes, aSuffix, bSuffix, aSuffixWithSymcretes, bSuffixWithSymcretes;
   std::set_intersection(aConstraints.begin(), aConstraints.end(),
                         bConstraints.begin(), bConstraints.end(),
                         std::inserter(commonConstraints, commonConstraints.begin()));
@@ -305,6 +310,17 @@ bool ExecutionState::merge(const ExecutionState &b) {
   std::set_difference(bConstraints.begin(), bConstraints.end(),
                       commonConstraints.begin(), commonConstraints.end(),
                       std::inserter(bSuffix, bSuffix.end()));
+
+  std::set_intersection(aConstraintsWithSymcretes.begin(), aConstraintsWithSymcretes.end(),
+                        bConstraintsWithSymcretes.begin(), bConstraintsWithSymcretes.end(),
+                        std::inserter(commonConstraintsWithSymcretes, commonConstraintsWithSymcretes.begin()));
+  std::set_difference(aConstraintsWithSymcretes.begin(), aConstraintsWithSymcretes.end(),
+                      commonConstraintsWithSymcretes.begin(), commonConstraintsWithSymcretes.end(),
+                      std::inserter(aSuffixWithSymcretes, aSuffixWithSymcretes.end()));
+  std::set_difference(bConstraintsWithSymcretes.begin(), bConstraintsWithSymcretes.end(),
+                      commonConstraintsWithSymcretes.begin(), commonConstraintsWithSymcretes.end(),
+                      std::inserter(bSuffixWithSymcretes, bSuffixWithSymcretes.end()));
+
   if (DebugLogStateMerge) {
     llvm::errs() << "\tconstraint prefix: [";
     for (std::set<ref<Expr> >::iterator it = commonConstraints.begin(),
@@ -380,6 +396,17 @@ bool ExecutionState::merge(const ExecutionState &b) {
          ie = bSuffix.end(); it != ie; ++it)
     inB = AndExpr::create(inB, *it);
 
+
+  ref<Expr> inAWithSymcretes = ConstantExpr::alloc(1, Expr::Bool);
+  ref<Expr> inBWithSymcretes = ConstantExpr::alloc(1, Expr::Bool);
+  for (std::set< ref<Expr> >::iterator it = aSuffixWithSymcretes.begin(), 
+         ie = aSuffixWithSymcretes.end(); it != ie; ++it)
+    inAWithSymcretes = AndExpr::create(inAWithSymcretes, *it);
+  for (std::set< ref<Expr> >::iterator it = bSuffixWithSymcretes.begin(), 
+         ie = bSuffixWithSymcretes.end(); it != ie; ++it)
+    inBWithSymcretes = AndExpr::create(inBWithSymcretes, *it);
+
+
   // XXX should we have a preference as to which predicate to use?
   // it seems like it can make a difference, even though logically
   // they must contradict each other and so inA => !inB
@@ -419,11 +446,21 @@ bool ExecutionState::merge(const ExecutionState &b) {
   }
 
   constraints = ConstraintSet();
+  constraintsWithSymcretes = ConstraintSet();
 
   ConstraintManager m(constraints);
+  ConstraintManager ms(constraintsWithSymcretes);
+
   for (const auto &constraint : commonConstraints)
     m.addConstraint(constraint);
   m.addConstraint(OrExpr::create(inA, inB));
+
+  for (const auto &constraint: commonConstraintsWithSymcretes)
+    ms.addConstraint(constraint);
+  ms.addConstraint(OrExpr::create(inAWithSymcretes, inBWithSymcretes));
+
+  symcretes.bindings.insert(b.symcretes.bindings.begin(),
+                            b.symcretes.bindings.end());
 
   return true;
 }
@@ -465,8 +502,11 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
 void ExecutionState::addConstraint(ref<Expr> e) {
   ConstraintManager c(constraints);
   ConstraintManager cs(constraintsWithSymcretes);
+  
+  ref<Expr> evaluatedConstraint = evaluateWithSymcretes(e);
+
   c.addConstraint(e);
-  cs.addConstraint(evaluateWithSymcretes(e));
+  cs.addConstraint(evaluatedConstraint);
 }
 
 void ExecutionState::addCexPreference(const ref<Expr> &cond) {
