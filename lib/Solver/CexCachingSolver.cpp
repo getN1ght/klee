@@ -375,7 +375,11 @@ CexCachingSolver::computeInitialValues(const Query& query,
                                        bool &hasSolution) {
   TimerStatIncrementer t(stats::cexCacheTime);
   Assignment *a;
-  if (!getAssignment(query, a))
+
+  // FIXME: remove this
+  ValidityCore core;
+  
+  if (!getAssignment(query, a, &core))
     return false;
   hasSolution = !!a;
   
