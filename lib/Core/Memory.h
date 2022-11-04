@@ -131,7 +131,7 @@ public:
   }
 
   bool isLazyInstantiated() const {
-    return !getBaseExpr().isNull();
+    return !addressExpr.isNull();
   }
 
   ref<ConstantExpr> getSizeExpr() const { 
