@@ -53,7 +53,7 @@ private:
     Layer *removeChild(ref<Target> child) const;
     Layer *addChild(ref<Target> child) const;
     bool allNodesRefCountOne() const;
-    void dump() const;
+    void dump(unsigned n) const;
   };
 
   ref<Layer> forest;
@@ -92,6 +92,8 @@ public:
       }
       hashValue = res;
     }
+
+    void dump() const;
 
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;

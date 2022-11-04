@@ -83,16 +83,18 @@ bool TargetForest::Layer::allNodesRefCountOne() const {
   return all;
 }
 
-void TargetForest::Layer::dump() const {
-  llvm::errs() << "THE LAYER:\n";
+void TargetForest::Layer::dump(unsigned n) const {
+  llvm::errs() << "THE " << n << " LAYER:\n";
   for (const auto &kv : forest) {
     llvm::errs() << kv.first->toString() << "\n";
   }
   llvm::errs() << "-----------------------\n";
-  for (const auto &kv : forest) {
-    kv.second->dump();
+  if (!forest.empty()) {
+    for (const auto &kv : forest) {
+      kv.second->dump(n + 1);
+    }
+    llvm::errs() << "++++++++++++++++++++++\n";
   }
-  llvm::errs() << "-----------------------\n";
 }
 
 
@@ -115,6 +117,20 @@ int TargetForest::History::compare(const History &h) const {
   }
 
   return 0;
+}
+
+void TargetForest::History::dump() const {
+  if (target) {
+    llvm::errs() << target->toString() << "\n";
+  }
+  else {
+    llvm::errs() << "end.\n";
+    assert(!visitedTargets);
+    return;
+  }
+  if (visitedTargets)
+    visitedTargets->dump();
+
 }
 
 void TargetForest::stepTo(ref<Target> loc) {
@@ -149,7 +165,10 @@ void TargetForest::remove(ref<Target> target) {
 }
 
 void TargetForest::dump() const {
-  forest->dump();
+  llvm::errs() << "History:\n";
+  history->dump();
+  llvm::errs() << "Forest:\n";
+  forest->dump(1);
 }
 
 void TargetForest::debugStepToRandomLoc() {
