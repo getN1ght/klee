@@ -14,6 +14,7 @@
 #ifndef KLEE_LOCATIONS_H
 #define KLEE_LOCATIONS_H
 
+#include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/InstructionInfoTable.h"
 
@@ -26,20 +27,40 @@ enum ReachWithError {
 };
 
 class Location {
+  KInstruction *instruction = nullptr;
   unsigned line;
-  const std::string function;
 
 public:
+  unsigned offset;
+  const std::string function;
   const std::string filename;
 
-  Location(const std::string &f, const std::string &function, unsigned l)
-    : line(l), function(function), filename(f) {}
+  Location(const std::string &f, const std::string &function, unsigned line, unsigned offset)
+    : line(line), offset(offset), function(function), filename(f) {}
+  Location(const std::string &f, const std::string &function)
+    : Location(f, function, 0, 0) {}
+  Location(const std::string &filename, unsigned line)
+    : Location(filename, "", line, 0) {}
 
   bool isTheSameAsIn(KInstruction *instr) const;
   bool isInside(const FunctionInfo &info) const;
   bool isInside(KBlock *block) const;
 
   std::string toString() const;
+
+  bool hasFunctionWithOffset() const {
+    return !function.empty();
+  }
+
+  KInstruction *initInstruction(KModule *module);
+
+  friend bool operator <(const Location& lhs, const Location& rhs) {
+    return
+           lhs.line < rhs.line     ||     (lhs.line == rhs.line &&
+        (lhs.offset < rhs.offset   ||   (lhs.offset == rhs.offset &&
+      (lhs.filename < rhs.filename || (lhs.filename == rhs.filename &&
+      (lhs.function < rhs.function))))));
+  }
 };
 
 struct LocatedEvent {
@@ -48,6 +69,8 @@ struct LocatedEvent {
   bool isReported;
 
   LocatedEvent(Location location, ReachWithError error) : location(location), error(error), isReported(false) {}
+
+  bool hasFunctionWithOffset() { return location.hasFunctionWithOffset(); }
 
   std::string toString() const;
 };
@@ -58,6 +81,8 @@ struct PathForest {
 
   void addSubTree(LocatedEvent *loc, PathForest *subTree);
   void addLeaf(LocatedEvent *loc);
+
+  void addTrace(std::vector<LocatedEvent *> *trace);
 
   bool empty() const;
 

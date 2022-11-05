@@ -1,0 +1,107 @@
+{
+  "errors": [
+      {
+          "category": "NULL pointer deference",
+          "trace": [
+              {
+                  "location": {
+										"file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
+										"reportLine": 45,
+										"function": "GetResult"
+                  },
+                  "event": {
+                      "kind": "AssignZero"
+                  }
+              },
+              {
+								  "location": {
+										"file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
+										"reportLine": 66,
+										"function": "NullReturn_BadCase_WhiteBox01"
+                  },
+									"event": {
+										"kind": "ExitCall",
+										"function": "GetResult"
+									}
+              },
+              {
+								  "location": {
+										"file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
+										"reportLine": 68,
+										"function": "NullReturn_BadCase_WhiteBox01"
+                  },
+									"event": {
+										"kind": "EnterCall",
+										"function": "SendMsg"
+									}
+              },
+              {
+								  "location": {
+										"file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
+										"reportLine": 56,
+										"instructionOffset": 26,
+										"function": "SendMsg"
+                  },
+									"event": {
+										"kind": "Error",
+										"error": {
+											"sort": "NullDereference",
+											"target": "resultInfo"
+										}
+									}
+              }
+          ]
+      },
+      {
+          "category": "NULL pointer deference",
+          "trace": [
+              {
+                  "location": {
+										"file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
+										"reportLine": 45,
+										"function": "GetResult"
+                  },
+                  "event": {
+                      "kind": "AssignZero"
+                  }
+              },
+              {
+								  "location": {
+										"file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
+										"reportLine": 66,
+										"function": "NullReturn_BadCase_WhiteBox01"
+                  },
+									"event": {
+										"kind": "ExitCall",
+										"function": "GetResult"
+									}
+              },
+              {
+								  "location": {
+										"file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
+										"reportLine": 68,
+										"function": "NullReturn_BadCase_WhiteBox01"
+                  },
+									"event": {
+										"kind": "EnterCall",
+										"function": "SendMsg"
+									}
+              },
+              {
+								  "location": {
+										"file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
+										"reportLine": 54,
+										"function": "SendMsg"
+                  },
+									"event": {
+										"kind": "Error",
+										"error": {
+											"sort": "NullDereference",
+											"target": "resultInfo"
+										}
+									}
+              }
+          ]
+      }
+  ]
+}

@@ -691,6 +691,8 @@ void GuidedSearcher::clearReached(const std::vector<ExecutionState *> &removedSt
         }
       }
     }
+    if (targetedSearchers[history.first].empty())
+      targetedSearchers.erase(history.first);
   }
 
   for (auto &history : targetForestUpdateInfos) {

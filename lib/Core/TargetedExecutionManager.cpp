@@ -13,12 +13,57 @@
 #include "klee/Core/TerminationTypes.h"
 #include "klee/Module/KInstruction.h"
 
-
 using namespace llvm;
 using namespace klee;
 
+class LocatedEventManager {
+  using FilenameCache = std::unordered_map<std::string, bool>;
+  std::unordered_map<std::string, FilenameCache *> filenameCacheMap;
+  FilenameCache *filenameCache = nullptr;
 
-std::vector<LocatedEvent *> *collectLocations(PathForest *pathForest) {
+public:
+  LocatedEventManager() {}
+
+  void prefetchFindFilename(const std::string &filename) {
+    auto it = filenameCacheMap.find(filename);
+    if (it != filenameCacheMap.end())
+      filenameCache = it->second;
+    else
+      filenameCache = nullptr;
+  }
+
+  bool isInside(Location &loc, const klee::FunctionInfo &fi) {
+    bool isInside = false;
+    if (filenameCache == nullptr) {
+      isInside = loc.isInside(fi);
+      filenameCache = new FilenameCache();
+      filenameCacheMap.insert(std::make_pair(fi.file, filenameCache));
+      filenameCache->insert(std::make_pair(loc.filename, isInside));
+    } else {
+      auto it = filenameCache->find(loc.filename);
+      if (it == filenameCache->end()) {
+        isInside = loc.isInside(fi);
+        filenameCache->insert(std::make_pair(loc.filename, isInside));
+      } else {
+        isInside = it->second;
+      }
+    }
+    return isInside;
+  }
+};
+
+struct TargetedExecutionManager::TargetPreparator {
+  TargetedExecutionManager *tem;
+  KModule *kmodule;
+  std::vector<LocatedEvent *> filenameLineLocations;
+  std::vector<LocatedEvent *> functionOffsetLocations;
+
+TargetPreparator(TargetedExecutionManager *tem, KModule *kmodule, PathForest *pathForest)
+  : tem(tem), kmodule(kmodule) {
+  collectLocations(pathForest);
+}
+
+void collectLocations(PathForest *pathForest) {
   std::unordered_set<LocatedEvent *> result;
   std::vector<PathForest *> q{pathForest};
   while (!q.empty()) {
@@ -30,55 +75,36 @@ std::vector<LocatedEvent *> *collectLocations(PathForest *pathForest) {
         q.push_back(p.second);
     }
   }
-  auto out = new std::vector<LocatedEvent *>();
-  for (auto loc : result)
-    out->push_back(loc);
-  return out;
+  for (auto loc : result) {
+    if (loc->hasFunctionWithOffset())
+      functionOffsetLocations.push_back(loc);
+    else
+      filenameLineLocations.push_back(loc);
+  }
 }
 
-
-std::vector<std::pair<KFunction *, ref<TargetForest> > >
-TargetedExecutionManager::prepareTargets(const KModule *kmodule, PathForest *pathForest) {
-  pathForest->normalize();
-  auto all_locs = collectLocations(pathForest);
-
+void prepareFilenameLineLocations(std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> &loc2targets) {
   auto infos = kmodule->infos.get();
-  std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> loc2targets;
-  std::unordered_map<std::string, std::unordered_map<std::string, bool> > filenameCache;
+  LocatedEventManager lem;
   for (const auto &kfunc : kmodule->functions) {
     const auto &fi = infos->getFunctionInfo(*kfunc->function);
-    const auto &cache = filenameCache.find(fi.file);
+    lem.prefetchFindFilename(fi.file);
     auto targets = new std::set<ref<Target> >();
-    for (int i = all_locs->size() - 1; i >= 0; i--) {
-      auto le = (*all_locs)[i];
+    for (int i = filenameLineLocations.size() - 1; i >= 0; i--) {
+      auto le = filenameLineLocations[i];
       auto &loc = le->location;
       auto error = le->error;
-      bool isInside = false;
-      if (cache == filenameCache.end()) {
-        isInside = loc.isInside(fi);
-        std::unordered_map<std::string, bool> c;
-        c.insert(std::make_pair(loc.filename, isInside));
-        filenameCache.insert(std::make_pair(fi.file, c));
-      } else {
-        auto it = cache->second.find(loc.filename);
-        if (it == cache->second.end()) {
-          isInside = loc.isInside(fi);
-          cache->second.insert(std::make_pair(loc.filename, isInside));
-        } else {
-          isInside = it->second;
-        }
-      }
-      if (!isInside)
+      if (!lem.isInside(loc, fi))
         continue;
       for (const auto &kblock : kfunc->blocks) {
         auto b = kblock.get();
         if (!loc.isInside(b))
           continue;
 
-        auto it = block2targets.find(b);
+        auto it = tem->block2targets.find(b);
         std::unordered_map<ReachWithError, ref<Target> > *targetMap;
         ref<Target> target = nullptr;
-        if (it == block2targets.end()) {
+        if (it == tem->block2targets.end()) {
           targetMap = new std::unordered_map<ReachWithError, ref<Target> >();
         } else {
           targetMap = it->second;
@@ -89,21 +115,70 @@ TargetedExecutionManager::prepareTargets(const KModule *kmodule, PathForest *pat
         if (target.isNull()) {
           target = new Target(b, error);
           targetMap->insert(std::make_pair(error, target));
-          block2targets.insert(it, std::make_pair(b, targetMap));
-          target2location.insert(std::make_pair(target, le));
+          tem->block2targets.insert(it, std::make_pair(b, targetMap));
+          tem->target2location.insert(std::make_pair(target, le));
         }
         targets->insert(target);
       }
       if (targets->empty())
         continue;
-      (*all_locs)[i] = (*all_locs)[all_locs->size() - 1];
-      all_locs->pop_back();
+      filenameLineLocations[i] = filenameLineLocations.back();
+      filenameLineLocations.pop_back();
       loc2targets.insert(std::make_pair(le, targets));
       targets = new std::set<ref<Target> >();
     }
     delete targets;
   }
-  delete all_locs;
+}
+
+KBlock *resolveBlock(Location &loc) {
+  auto instr = loc.initInstruction(kmodule);
+  return instr->parent;
+}
+
+void prepareFunctionOffsetLocations(std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> &loc2targets) {
+  std::map<Location, KBlock *> loc2block;
+  for (auto loc : functionOffsetLocations) {
+    KBlock *block = nullptr;
+    auto it = loc2block.find(loc->location);
+    if (it == loc2block.end()) {
+      block = resolveBlock(loc->location);
+      loc2block.insert(it, std::make_pair(loc->location, block));
+    } else {
+      block = it->second;
+    }
+    auto error2targetIt = tem->block2targets.find(block);
+    std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>> *error2target = nullptr;
+    if (error2targetIt == tem->block2targets.end()) {
+      error2target = new std::unordered_map<klee::ReachWithError, klee::ref<klee::Target>>();
+      tem->block2targets.insert(error2targetIt, std::make_pair(block, error2target));
+    } else {
+      error2target = error2targetIt->second;
+    }
+    ref<Target> target = new Target(block, loc->error);
+    error2target->insert(std::make_pair(loc->error, target));
+    tem->target2location.insert(std::make_pair(target, loc));
+  }
+  for (auto loc : functionOffsetLocations) {
+    auto targets = new std::set<ref<Target> >();
+    auto targetMap = tem->block2targets.at(loc2block.at(loc->location));
+    for (auto &p : *targetMap)
+      targets->insert(p.second);
+    loc2targets.insert(std::make_pair(loc, targets));
+  }
+}
+
+}; // struct TargetPreparator
+
+
+std::vector<std::pair<KFunction *, ref<TargetForest> > >
+TargetedExecutionManager::prepareTargets(KModule *kmodule, PathForest *pathForest) {
+  pathForest->normalize();
+
+  TargetPreparator all_locs(this, kmodule, pathForest);
+  std::unordered_map<LocatedEvent *, std::set<ref<Target> > *> loc2targets;
+  all_locs.prepareFilenameLineLocations(loc2targets);
+  all_locs.prepareFunctionOffsetLocations(loc2targets);
 
   std::vector<std::pair<KFunction *, ref<TargetForest> > > whitelists;
   for (const auto &funcAndPaths : pathForest->layer) {
@@ -167,6 +242,8 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
   auto target = it->second;
   assert(target->getBlock() == state.prevPC->parent);
   auto expectedLocation = target2location[target.get()];
+  if (expectedLocation->isReported)
+    return true;
   if (!expectedLocation->location.isTheSameAsIn(state.prevPC))
     return false;
 

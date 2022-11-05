@@ -10,13 +10,30 @@
 #include "klee/Module/Locations.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/KInstruction.h"
+#include "klee/Support/ErrorHandling.h"
+#include "llvm/IR/Module.h"
 
 #include <sstream>
 
 using namespace klee;
 using namespace llvm;
 
+
+KInstruction *Location::initInstruction(KModule *module) {
+  auto f = module->module->getFunction(function);
+  if (!f)
+    klee_error("Cannot resolve function %s in llvm bitcode.", function.c_str());
+  auto kf = module->functionMap[f];
+  if (offset >= kf->numInstructions)
+    klee_error("Cannot get instruction %u in %s which has only %u instructions",
+      offset, function.c_str(), kf->numInstructions);
+  instruction = kf->instructions[offset];
+  return instruction;
+}
+
 bool Location::isTheSameAsIn(KInstruction *instr) const {
+  if (instruction)
+    return instruction == instr;
   return instr->info->line == line;
 }
 
@@ -29,14 +46,20 @@ bool Location::isInside(const FunctionInfo &info) const {
   int m = info.file.size() - 1, n = filename.size() - 1;
   for (;
        m >= 0 && n >= 0 && info.file[m] == filename[n];
-       m--, n--)
+       m--, n--) {
     suffixSize++;
-  return suffixSize >= 3 && (n == -1 ? m == -1 || isOSSeparator(info.file[m]) : m == -1 && isOSSeparator(filename[n]));
+    if (isOSSeparator(filename[n]))
+      return true;
+  }
+  return suffixSize >= 3 && n == -1 && m == -1;
 }
 
 std::string Location::toString() const {
   std::stringstream out;
-  out << filename << ":" << line;
+  if (hasFunctionWithOffset())
+    out << "instruction №" << offset << " in function " << function;
+  else
+    out << filename << ":" << line;;
   return out.str();
 }
 
@@ -57,7 +80,21 @@ void PathForest::addSubTree(LocatedEvent * loc, PathForest *subTree) {
 }
 
 void PathForest::addLeaf(LocatedEvent * loc) {
-  addSubTree(loc, nullptr);
+  addSubTree(loc, new PathForest());
+}
+
+void PathForest::addTrace(std::vector<LocatedEvent *> *trace) {
+  auto forest = this;
+  for (auto event : *trace) {
+    auto it = forest->layer.find(event);
+    if (it == forest->layer.end()) {
+      auto next = new PathForest();
+      forest->layer.insert(std::make_pair(event, next));
+      forest = next;
+    } else {
+      forest = it->second;
+    }
+  }
 }
 
 bool PathForest::empty() const {

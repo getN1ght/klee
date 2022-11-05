@@ -1491,11 +1491,11 @@ static PathForest *parseStaticAnalysisInput() {
       return parseInputPathTree(AnalysisReproduce);
     if (AnalysisFile == "" || AnalysisSink == 0)
       klee_error("--analysis-reproduce JSON file with error paths to be checked is not provided in error-guidance mode");
-    auto sinkLoc = new LocatedEvent(Location(AnalysisFile, "", AnalysisSink), ReachWithError::NullPointerException);
+    auto sinkLoc = new LocatedEvent(Location(AnalysisFile, AnalysisSink), ReachWithError::NullPointerException);
     auto sink = new PathForest();
     sink->addLeaf(sinkLoc);
     unsigned sourceLine = AnalysisSource == 0 ? AnalysisSink : AnalysisSource;
-    auto sourceLoc = new LocatedEvent(Location(AnalysisFile, "", sourceLine), ReachWithError::None);
+    auto sourceLoc = new LocatedEvent(Location(AnalysisFile, sourceLine), ReachWithError::None);
     auto source = new PathForest();
     source->addSubTree(sourceLoc, sink);
     return source;

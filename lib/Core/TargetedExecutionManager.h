@@ -23,6 +23,8 @@
 namespace klee {
 
 class TargetedExecutionManager {
+  struct TargetPreparator;
+
   /// Map of blocks to corresponding execution targets
   std::unordered_map<KBlock *, std::unordered_map<ReachWithError, ref<Target> > *> block2targets;
 
@@ -32,7 +34,7 @@ class TargetedExecutionManager {
 public:
   ~TargetedExecutionManager();
 
-  std::vector<std::pair<KFunction *, ref<TargetForest> > > prepareTargets(const KModule *kmodule, PathForest *paths);
+  std::vector<std::pair<KFunction *, ref<TargetForest> > > prepareTargets(KModule *kmodule, PathForest *paths);
   void stepTo(ExecutionState &state, KBlock *dst);
 
   /* Report for targeted static analysis mode */

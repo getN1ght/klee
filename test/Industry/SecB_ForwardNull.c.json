@@ -1,0 +1,33 @@
+{
+  "errors": [
+      {
+          "category": "NULL pointer deference",
+          "trace": [
+              {
+                  "location": {
+										"file": "/mnt/d/wsl-ubuntu/test2/forward_null/SecB_ForwardNull.c",
+										"reportLine": 133,
+										"function": "badbad"
+                  },
+                  "event": {
+                      "kind": "AssignZero"
+                  }
+              },
+              {
+                  "location": {
+										"file": "/mnt/d/wsl-ubuntu/test2/forward_null/SecB_ForwardNull.c",
+										"reportLine": 134,
+										"function": "badbad"
+                  },
+                  "event": {
+										"kind": "Error",
+										"error": {
+												"sort": "NullDereference",
+												"target": "ptr"
+										}
+                  }
+              }
+          ]
+      }
+  ]
+}
