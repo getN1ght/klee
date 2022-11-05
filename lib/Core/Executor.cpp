@@ -144,6 +144,12 @@ cl::opt<bool>
                       cl::desc("Enable lazy instantiation (default=true)"),
                       cl::cat(ExecCat));
 
+cl::opt<bool>
+    UseSymcreteAddresses("use-symcrete-addresses", cl::init(true),
+                         cl::desc("Use symcretes for addresses of Lazy "
+                                  "Instantiated objects (default=true)"),
+                         cl::cat(ExecCat));
+
 cl::opt<TypeSystemKind>
     TypeSystem("type-system",
                cl::desc("Use information about type system from specified "
