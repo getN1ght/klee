@@ -42,6 +42,10 @@ cl::opt<bool> DebugLogStateMerge(
     cl::cat(MergeCat));
 }
 
+namespace klee {
+extern cl::opt<bool> UseSymcreteAddresses;
+}
+
 /***/
 
 std::uint32_t ExecutionState::nextID = 1;
@@ -238,11 +242,11 @@ void ExecutionState::addSymcrete(
 }
 
 ref<Expr> ExecutionState::evaluateWithSymcretes(ref<Expr> e) const {
-  return symcretes.evaluate(e);
+  return UseSymcreteAddresses ? symcretes.evaluate(e) : e;
 }
 
 ConstraintSet ExecutionState::evaluateConstraintsWithSymcretes() const {
-  return constraintsWithSymcretes;
+  return UseSymcreteAddresses ? constraintsWithSymcretes : constraints;
 }
 
 /**/
