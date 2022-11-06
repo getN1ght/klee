@@ -180,6 +180,9 @@ void TargetForest::stepTo(ref<Target> loc) {
   } else {
     forest = forest->replaceChildWith(loc, res->second.get());
   }
+  if (forest->empty()) {
+    history = History::create();
+  }
 }
 
 void TargetForest::add(ref<Target> target) {

@@ -183,7 +183,7 @@ namespace klee {
     using TargetForestHistoryToSearcherMap = TargetForestHistoryTargetsHashMap<std::unique_ptr<TargetedSearcher>>;
     using TargetForestHistoryToStateSetMap = TargetForestHistoryTargetsHashMap<std::set<ExecutionState *>>;
     using TargetForestHisoryToStateVectorMap = TargetForestHistoryTargetsHashMap<std::vector<ExecutionState *>>;
-    using TargetForestHisoryToTargetSet = TargetForestHistoryHashMap<std::set<ref<Target>>>;
+    using TargetForestHisoryToTargetSet = TargetForestHistoryHashMap<std::unordered_set<ref<Target>, RefTargetHash, RefTargetCmp>>;
     using TargetForestHisoryToTargetVector = TargetForestHistoryHashMap<std::vector<ref<Target>>>;
     using TargetForestHisoryTargetVector = std::vector<std::pair<ref<TargetForest::History>, ref<Target>>>;
 
@@ -202,7 +202,16 @@ namespace klee {
     std::size_t bound;
     RNG &theRNG;
     unsigned index{1};
+
+    TargetForestHisoryToStateVectorMap addedTStates;
+    TargetForestHisoryToStateVectorMap removedTStates;
+    TargetForestHisoryToTargetSet targetForestInfos;
+    std::vector<ExecutionState *> targetlessStates;
+    TargetForestHisoryTargetVector historiesAndTargets;
+
     bool tryAddTarget(ref<TargetForest::History> history, ref<Target> target);
+    TargetForestHisoryTargetVector::iterator
+    removeTarget(ref<TargetForest::History> history, ref<Target> target);
     bool isStuck(ExecutionState &state);
     void innerUpdate(ExecutionState *current,
                      const std::vector<ExecutionState *> &addedStates,

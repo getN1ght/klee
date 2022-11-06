@@ -99,11 +99,12 @@ public:
 
     enum HistoryKind { Blocks, Transitions };
 
-    typedef std::map<llvm::BasicBlock *,
-                     std::map<llvm::BasicBlock *, VisitedBlocks>>
+    typedef std::unordered_map<llvm::BasicBlock *,
+                               std::unordered_map<llvm::BasicBlock *, VisitedBlocks>>
         BlocksHistory;
-    typedef std::map<llvm::BasicBlock *,
-                     std::map<llvm::BasicBlock *, VisitedTransitions>>
+    typedef std::unordered_map<
+        llvm::BasicBlock *,
+        std::unordered_map<llvm::BasicBlock *, VisitedTransitions>>
         TransitionsHistory;
 
   public:
@@ -124,11 +125,11 @@ public:
 
     bool differenceIsEmpty(
         const ExecutionState &state,
-        const std::map<llvm::BasicBlock *, VisitedBlocks> &history,
+        const std::unordered_map<llvm::BasicBlock *, VisitedBlocks> &history,
         KBlock *target);
     bool differenceIsEmpty(
         const ExecutionState &state,
-        const std::map<llvm::BasicBlock *, VisitedTransitions> &history,
+        const std::unordered_map<llvm::BasicBlock *, VisitedTransitions> &history,
         KBlock *target);
     ref<Target> calculateBy(HistoryKind kind, ExecutionState &state);
   };

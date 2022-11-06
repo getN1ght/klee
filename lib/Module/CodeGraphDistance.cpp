@@ -115,53 +115,53 @@ void CodeGraphDistance::calculateBackwardDistance(KFunction *kf) {
 const std::unordered_map<KBlock *, unsigned> &CodeGraphDistance::getDistance(KBlock *kb) {
   if (blockDistance.count(kb) == 0)
     calculateDistance(kb);
-  return blockDistance[kb];
+  return blockDistance.at(kb);
 }
 
 const std::unordered_map<KBlock *, unsigned> &
 CodeGraphDistance::getBackwardDistance(KBlock *kb) {
   if (blockBackwardDistance.count(kb) == 0)
     calculateBackwardDistance(kb);
-  return blockBackwardDistance[kb];
+  return blockBackwardDistance.at(kb);
 }
 
 const std::vector<std::pair<KBlock *, unsigned int>> &
 CodeGraphDistance::getSortedDistance(KBlock *kb) {
   if (blockDistance.count(kb) == 0)
     calculateDistance(kb);
-  return blockSortedDistance[kb];
+  return blockSortedDistance.at(kb);
 }
 
 const std::vector<std::pair<KBlock *, unsigned int>> &
 CodeGraphDistance::getSortedBackwardDistance(KBlock *kb) {
   if (blockBackwardDistance.count(kb) == 0)
     calculateBackwardDistance(kb);
-  return blockSortedBackwardDistance[kb];
+  return blockSortedBackwardDistance.at(kb);
 }
 
 const std::unordered_map<KFunction *, unsigned> &CodeGraphDistance::getDistance(KFunction *kf) {
   if (functionDistance.count(kf) == 0)
     calculateDistance(kf);
-  return functionDistance[kf];
+  return functionDistance.at(kf);
 }
 
 const std::unordered_map<KFunction *, unsigned> &
 CodeGraphDistance::getBackwardDistance(KFunction *kf) {
   if (functionBackwardDistance.count(kf) == 0)
     calculateBackwardDistance(kf);
-  return functionBackwardDistance[kf];
+  return functionBackwardDistance.at(kf);
 }
 
 const std::vector<std::pair<KFunction *, unsigned int>> &
 CodeGraphDistance::getSortedDistance(KFunction *kf) {
   if (functionDistance.count(kf) == 0)
     calculateDistance(kf);
-  return functionSortedDistance[kf];
+  return functionSortedDistance.at(kf);
 }
 
 const std::vector<std::pair<KFunction *, unsigned int>> &
 CodeGraphDistance::getSortedBackwardDistance(KFunction *kf) {
   if (functionBackwardDistance.count(kf) == 0)
     calculateBackwardDistance(kf);
-  return functionSortedBackwardDistance[kf];
+  return functionSortedBackwardDistance.at(kf);
 }
