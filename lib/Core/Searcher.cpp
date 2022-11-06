@@ -418,16 +418,18 @@ GuidedSearcher::GuidedSearcher(
     Searcher *baseSearcher, CodeGraphDistance &codeGraphDistance,
     TargetCalculator &stateHistory,
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
-    std::size_t bound)
-    : guidance(CoverageGuidance), baseSearcher(baseSearcher), codeGraphDistance(codeGraphDistance),
-      stateHistory(&stateHistory), pausedStates(pausedStates), bound(bound) {}
+    std::size_t bound, RNG &rng)
+    : guidance(CoverageGuidance), baseSearcher(baseSearcher),
+      codeGraphDistance(codeGraphDistance), stateHistory(&stateHistory),
+      pausedStates(pausedStates), bound(bound), theRNG(rng) {}
 
 GuidedSearcher::GuidedSearcher(
     CodeGraphDistance &codeGraphDistance,
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
-    std::size_t bound)
-    : guidance(ErrorGuidance), baseSearcher(nullptr), codeGraphDistance(codeGraphDistance),
-      stateHistory(nullptr), pausedStates(pausedStates), bound(bound) {}
+    std::size_t bound, RNG &rng)
+    : guidance(ErrorGuidance), baseSearcher(nullptr),
+      codeGraphDistance(codeGraphDistance), stateHistory(nullptr),
+      pausedStates(pausedStates), bound(bound), theRNG(rng) {}
 
 ExecutionState &GuidedSearcher::selectState() {
   TargetForestHisoryTargetVector targetForestInfos;
@@ -437,7 +439,7 @@ ExecutionState &GuidedSearcher::selectState() {
     }
   }
   unsigned size = targetForestInfos.size();
-  index = (index + 1) % (size + 1);
+  index = theRNG.getInt32() % (size + 1);
   if (CoverageGuidance == guidance && index == size) {
     assert(baseSearcher);
     return baseSearcher->selectState();
@@ -574,22 +576,19 @@ void GuidedSearcher::innerUpdate(
   }
 
   for (auto &history : targetForestInfos) {
-    if (targetedSearchers.count(history.first) == 0) {
-      targetedSearchers.insert(
-        std::make_pair(history.first, TargetHashMap<std::unique_ptr<TargetedSearcher>>()));
-    }
+    auto &historiedTargetedSearchers = targetedSearchers[history.first];
     for (auto &target : history.second) {
       ExecutionState *currTState =
           currTargets.count(target) != 0 ? current : nullptr;
 
-      if (targetedSearchers[history.first].count(target) != 0 ||
+      if (historiedTargetedSearchers.count(target) != 0 ||
           tryAddTarget(history.first, target)) {
 
-        targetedSearchers[history.first][target]->update(
+        historiedTargetedSearchers[target]->update(
             currTState, addedTStates[history.first][target],
             removedTStates[history.first][target]);
-        if (targetedSearchers[history.first][target]->empty()) {
-          targetedSearchers[history.first].erase(target);
+        if (historiedTargetedSearchers[target]->empty()) {
+          historiedTargetedSearchers.erase(target);
         }
       } else if (isReached(history.first, target)) {
         assert(removedTStates[history.first][target].empty());
@@ -678,7 +677,9 @@ void GuidedSearcher::clearReached(const std::vector<ExecutionState *> &removedSt
           reachedTargets[history.first].insert(target);
         }
         targetedSearchers[history.first][target]->removeReached();
-        if (targetedSearchers[history.first][target]->empty())
+        if (CoverageGuidance == guidance ||
+            (ErrorGuidance == guidance && target->shouldFailOnThisTarget()) ||
+            targetedSearchers[history.first][target]->empty())
           targetedSearchers[history.first].erase(target);
       }
 

@@ -200,6 +200,7 @@ namespace klee {
     TargetForestHisoryToTargetSet reachedTargets;
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates;
     std::size_t bound;
+    RNG &theRNG;
     unsigned index{1};
     bool tryAddTarget(ref<TargetForest::History> history, ref<Target> target);
     bool isStuck(ExecutionState &state);
@@ -216,11 +217,11 @@ namespace klee {
         Searcher *baseSearcher, CodeGraphDistance &codeGraphDistance,
         TargetCalculator &stateHistory,
         std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
-        std::size_t bound);
+        std::size_t bound, RNG &rng);
     GuidedSearcher(
         CodeGraphDistance &codeGraphDistance,
         std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
-        std::size_t bound);
+        std::size_t bound, RNG &rng);
     ~GuidedSearcher() override = default;
     ExecutionState &selectState() override;
     void update(ExecutionState *current,
