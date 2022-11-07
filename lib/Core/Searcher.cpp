@@ -271,7 +271,7 @@ TargetedSearcher::tryGetTargetWeight(ExecutionState *es, weight_type &weight) {
 
 TargetedSearcher::WeightResult
 TargetedSearcher::tryGetWeight(ExecutionState *es, weight_type &weight) {
-  if (target->atReturn()) {
+  if (target->atReturn() && !target->shouldFailOnThisTarget()) {
     if (es->prevPC->parent == target->getBlock() &&
         es->prevPC == target->getBlock()->getLastInstruction()) {
       return Done;
@@ -366,7 +366,7 @@ void TargetedSearcher::update(
 
   // remove states
   for (const auto state : removedStates) {
-    if (target->atReturn() &&
+    if (target->atReturn() && !target->shouldFailOnThisTarget() &&
         state->prevPC == target->getBlock()->getLastInstruction())
       reachedOnLastUpdate.push_back(state);
     else {
