@@ -4008,10 +4008,6 @@ void Executor::runGuided(ExecutionState &state, KFunction *kf) {
   run(state);
   processTree = nullptr;
 
-  // hack to clear memory objects
-  delete memory;
-  memory = new MemoryManager(NULL);
-
   if (statsTracker)
     statsTracker->done();
 }
@@ -5348,6 +5344,12 @@ void Executor::clearGlobal() {
   globalAddresses.clear();
 }
 
+void Executor::clearMemory() {
+  // hack to clear memory objects
+  delete memory;
+  memory = new MemoryManager(NULL);
+}
+
 void Executor:: prepareSymbolicValue(ExecutionState &state, KInstruction *target) {
   Instruction *allocSite = target->inst;
   uint64_t size = kmodule->targetData->getTypeStoreSize(allocSite->getType());
@@ -5419,10 +5421,7 @@ void Executor::runFunctionAsMain(Function *f,
   run(*state);
   processTree = nullptr;
 
-  // hack to clear memory objects
-  delete memory;
-  memory = new MemoryManager(NULL);
-
+  clearMemory();
   clearGlobal();
 
   if (statsTracker)
@@ -5439,6 +5438,7 @@ void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
   ExecutionState *initialState = state->withKFunction(kf);
   prepareSymbolicArgs(*initialState, kf);
   runGuided(*initialState, kf);
+  clearMemory();
   clearGlobal();
 }
 
@@ -5495,6 +5495,7 @@ void Executor::runThroughLocations(llvm::Function *f, int argc, char **argv,
     targetedExecutionManager.stepTo(*initialState, initialState->pc->parent);
     runGuided(*initialState, kf);
   }
+  clearMemory();
   clearGlobal();
 }
 
@@ -5505,6 +5506,7 @@ void Executor::runMainAsGuided(Function *mainFn, int argc, char **argv,
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   KFunction *kf = kmodule->functionMap[mainFn];
   runGuided(*state, kf);
+  clearMemory();
   clearGlobal();
 }
 
@@ -5515,9 +5517,7 @@ void Executor::runMainWithTarget(Function *mainFn, BasicBlock *target, int argc,
   KFunction *kf = kmodule->functionMap[mainFn];
   KBlock *kb = kmodule->functionMap[target->getParent()]->blockMap[target];
   runWithTarget(*state, kf, kb);
-  // hack to clear memory objects
-  delete memory;
-  memory = new MemoryManager(NULL);
+  clearMemory();
   clearGlobal();
 }
 

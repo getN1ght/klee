@@ -583,6 +583,8 @@ public:
 
   void clearGlobal();
 
+  void clearMemory();
+
   void prepareSymbolicValue(ExecutionState &state, KInstruction *targetW);
 
   void prepareSymbolicRegister(ExecutionState &state, StackFrame &sf,
