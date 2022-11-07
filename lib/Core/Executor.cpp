@@ -4070,22 +4070,11 @@ void Executor::targetedRun(ExecutionState &initialState, KBlock *target, Executi
         *resultState = state.copy();
         terminateStateOnTerminator(state);
         updateStates(&state);
-        break;;
+        haltExecution = true;
+        break;
       }
 
       executeStep(state);
-
-      if (targetedSearcher && !targetedSearcher->reached().empty()) {
-        newStates.clear();
-        for (auto &state : targetedSearcher->reached()) {
-          newStates.push_back(state);
-        }
-        targetedSearcher->removeReached();
-        delete searcher;
-        targetedSearcher = nullptr;
-        searcher = constructUserSearcher(*this);
-        searcher->update(0, newStates, std::vector<ExecutionState *>());
-      }
     }
   }
 
