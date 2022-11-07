@@ -1016,10 +1016,27 @@ void Executor::branch(ExecutionState &state,
     for (unsigned i=1; i<N; ++i) {
       ExecutionState *es = result[theRNG.getInt32() % i];
       ExecutionState *ns = es->branch();
-      ns->updateSymcretes(symcreteExamples[i]);
-      addedStates.push_back(ns);
-      result.push_back(ns);
-      processTree->attach(es->ptreeNode, ns, es, reason);
+      if (ns) {
+        ns->updateSymcretes(symcreteExamples[i]);
+        addedStates.push_back(ns);
+        processTree->attach(es->ptreeNode, ns, es, reason);
+        result.push_back(ns);
+        
+        ValidityCore checkExampleCore;
+        bool stateHasAppropriateConstraints;
+
+        solver->setTimeout(coreSolverTimeout);
+        bool success = solver->getValidityCore(
+            ns->evaluateConstraintsWithSymcretes(),
+            ConstantExpr::create(0, Expr::Bool), checkExampleCore,
+            stateHasAppropriateConstraints, ns->queryMetaData);
+        solver->setTimeout(time::Span());
+
+        if (stateHasAppropriateConstraints) {
+          terminateStateEarly(*ns, "", StateTerminationType::SilentExit);
+          result[i] = nullptr;
+        }
+      }
     }
   }
 
@@ -1168,7 +1185,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     assert(solver->getValidAssignment(current.constraints, condition, trueCore,
                                current.symcretes, current.symsizesToMO,
                                current.symcreteToConstraints, hasResult,
-                               trueSymcretes, current.queryMetaData));
+                               trueSymcretes, current.queryMetaData, true));
     /// res = Unknown if hasResult else res = True
     if (!hasResult) {
       ++resInt;
@@ -1180,7 +1197,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     assert(solver->getValidAssignment(current.constraints, Expr::createIsZero(condition), falseCore,
                                current.symcretes, current.symsizesToMO,
                                current.symcreteToConstraints, hasResult,
-                               falseSymcretes, current.queryMetaData));
+                               falseSymcretes, current.queryMetaData, true));
     if (!hasResult) {
       --resInt;
     }
@@ -2474,7 +2491,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       bool result;
       bool success __attribute__((unused)) =
           solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(), e,
-                            result, state.queryMetaData, symcreteExample);
+                            result, state.queryMetaData, symcreteExample, true);
       assert(success && "FIXME: Unhandled solver failure");
       if (result) {
         targets.push_back(d);
@@ -2487,7 +2504,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     Assignment symcreteExample;
     bool success __attribute__((unused)) =
         solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                          errorCase, result, state.queryMetaData, symcreteExample);
+                          errorCase, result, state.queryMetaData, symcreteExample, true);
     assert(success && "FIXME: Unhandled solver failure");
     if (result) {
       expressions.push_back(errorCase);
@@ -2572,7 +2589,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         Assignment symcreteExample;
         bool success =
             solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                              match, result, state.queryMetaData, symcreteExample);
+                              match, result, state.queryMetaData, symcreteExample, true);
         assert(success && "FIXME: Unhandled solver failure");
         (void) success;
         if (result) {
@@ -2604,7 +2621,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       Assignment symcreteExample;
       bool success =
           solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                            defaultValue, res, state.queryMetaData, symcreteExample);
+                            defaultValue, res, state.queryMetaData, symcreteExample, true);
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
       if (res) {
@@ -4749,22 +4766,22 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
       size_t middleModel = (lessModel + greaterModel) / 2;
       
       ref<Expr> middleModelExpr = Expr::createPointer(middleModel);
-      bool mayBeLess;
+      bool mustBeGreater;
 
-      Assignment assignmentHack;
       solver->setTimeout(coreSolverTimeout);
-      success = solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                                       UleExpr::create(optimizedSize, middleModelExpr),
-                                       mayBeLess, state.queryMetaData, assignmentHack); 
+      ValidityCore core;
+      success = solver->getValidityCore(state.evaluateConstraintsWithSymcretes(),
+                                        UgtExpr::create(optimizedSize, middleModelExpr),
+                                        core, mustBeGreater, state.queryMetaData); 
       solver->setTimeout(time::Span());
       if (!success) {
         terminateStateOnSolverError(state, "Query timed out (min example search).");
         return nullptr;
       }
-      if (mayBeLess) {
-        greaterModel = middleModel;
-      } else {
+      if (mustBeGreater) {
         lessModel = middleModel;
+      } else {
+        greaterModel = middleModel;
       }
     }
 
@@ -4980,7 +4997,12 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     }
 
     ref<Expr> offset = mo->getOffsetExpr(address);
-    ref<Expr> check = mo->getBoundsCheckOffset(offset, bytes);
+    ref<Expr> check = mo->getBoundsCheckPointer(address, bytes);
+    if (UseGEPExpr && isGEPExpr(address)) {
+      check = AndExpr::create(check, mo->getBoundsCheckPointer(base, 1));
+      check = AndExpr::create(check, mo->getBoundsCheckPointer(base, size));
+    }
+
     check = optimizer.optimizeExpr(check, true, state.symcretes);
 
     bool inBounds;
@@ -5072,7 +5094,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     Assignment symcreteExample;
     bool success =
         solver->mayBeTrue(*unbound, unbound->evaluateConstraintsWithSymcretes(),
-                          inBounds, mayBeDereferenced, unbound->queryMetaData, symcreteExample);
+                          inBounds, mayBeDereferenced, unbound->queryMetaData, symcreteExample, true);
     solver->setTimeout(time::Span());
     if (!success) {
       terminateStateOnSolverError(state, "Query timed out (resolve)");
@@ -5087,13 +5109,33 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       addedStates.push_back(bound);
       processTree->attach(unbound->ptreeNode, bound, unbound, BranchType::MemOp);
       auto mapping = bound->updateSymcretes(symcreteExample);
-    
-      outOfBound = AndExpr::create(outOfBound, NotExpr::create(inBounds));
-      addConstraint(*bound, inBounds);
       if (mapping.count(mo)) {
         os = mapping[mo].second;
         mo = mapping[mo].first;
       }
+
+      ValidityCore checkExampleCore;
+      bool stateHasAppropriateConstraints;
+
+      solver->setTimeout(coreSolverTimeout);
+      bool success = solver->getValidityCore(
+          bound->evaluateConstraintsWithSymcretes(),
+          ConstantExpr::create(0, Expr::Bool), checkExampleCore,
+          stateHasAppropriateConstraints, bound->queryMetaData);
+      solver->setTimeout(time::Span());
+      if (!success) {
+        terminateStateOnSolverError(*bound, "Query timed out (check after updateSymcretes!)");
+      }
+
+      if (stateHasAppropriateConstraints) {
+        terminateStateEarly(*bound, "", StateTerminationType::SilentExit);
+        bound = nullptr;
+      }
+    }
+
+    if (bound) {
+      outOfBound = AndExpr::create(outOfBound, NotExpr::create(inBounds));
+      addConstraint(*bound, inBounds);
       
       /* FIXME: Notice, that here we are creating a new instance of object
       for every memory operation in order to handle type changes. This might
@@ -5124,9 +5166,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         break;
       }
       }
-    }
-    if (!unbound) {
-      break;
     }
   }
 
@@ -5227,7 +5266,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       Assignment symcreteExample;
       bool success = solver->mayBeTrue(
           *unbound, unbound->evaluateConstraintsWithSymcretes(), outOfBound,
-          mayBeOutOfBound, unbound->queryMetaData, symcreteExample);
+          mayBeOutOfBound, unbound->queryMetaData, symcreteExample, true);
       solver->setTimeout(time::Span());
       if (!success) {
         terminateStateOnSolverError(*unbound, "Query timed out (executeMemoryOperation)");

@@ -53,7 +53,7 @@ bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
 bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constraints, ref<Expr> expr,
                               bool &result, SolverQueryMetaData &metaData,
                               Assignment &symcretesCex,
-                              bool produceValidityCore) {
+                              bool minimizeModel) {
   // Fast path, to avoid timer and OS overhead.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(expr)) {
     result = CE->isTrue() ? true : false;
@@ -66,7 +66,7 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
   //   expr = ConstraintManager::simplifyExpr(constraints, expr);
   bool success =
       solver->mustBeTrue(Query(constraints, expr, true), result);
-  
+
   if (success && result) {
     ValidityCore core;
     bool hasSolution;
@@ -76,7 +76,7 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
     Assignment newAssignment(true);
     success = getValidAssignment(
         state.constraints, expr, core, state.symcretes, state.symsizesToMO,
-        state.symcreteToConstraints, hasSolution, newAssignment, metaData);
+        state.symcreteToConstraints, hasSolution, newAssignment, metaData, minimizeModel);
     if (success && hasSolution) {
       result = false;
     }
@@ -90,16 +90,16 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
 
 bool TimingSolver::mustBeFalse(ExecutionState &state, const ConstraintSet &constraints, ref<Expr> expr,
                                bool &result, SolverQueryMetaData &metaData, Assignment &symcretesCex,
-                               bool produceValidityCore) {
+                               bool minimizeModel) {
   return mustBeTrue(state, constraints, Expr::createIsZero(expr), result, metaData, symcretesCex,
-                    produceValidityCore);
+                    minimizeModel);
 }
 
 bool TimingSolver::mayBeTrue(ExecutionState &state, const ConstraintSet &constraints, ref<Expr> expr,
                              bool &result, SolverQueryMetaData &metaData, Assignment &symcretesEx,
-                             bool produceValidityCore) {
+                             bool minimizeModel) {
   bool res;
-  if (!mustBeFalse(state, constraints, expr, res, metaData, symcretesEx, produceValidityCore))
+  if (!mustBeFalse(state, constraints, expr, res, metaData, symcretesEx, minimizeModel))
     return false;
   result = !res;
   return true;
@@ -107,9 +107,9 @@ bool TimingSolver::mayBeTrue(ExecutionState &state, const ConstraintSet &constra
 
 bool TimingSolver::mayBeFalse(ExecutionState &state, const ConstraintSet &constraints, ref<Expr> expr,
                               bool &result, SolverQueryMetaData &metaData, Assignment &symcretesEx,
-                              bool produceValidityCore) {
+                              bool minimizeModel) {
   bool res;
-  if (!mustBeTrue(state, constraints, expr, res, metaData, symcretesEx, produceValidityCore))
+  if (!mustBeTrue(state, constraints, expr, res, metaData, symcretesEx, minimizeModel))
     return false;
   result = !res;
   return true;
@@ -184,8 +184,8 @@ bool TimingSolver::getValidityCore(const ConstraintSet &constraints,
 
   TimerStatIncrementer timer(stats::solverTime);
 
-  if (simplifyExprs)
-    expr = ConstraintManager::simplifyExpr(constraints, expr);
+  // if (simplifyExprs)
+  //   expr = ConstraintManager::simplifyExpr(constraints, expr);
 
   bool success =
       solver->getValidityCore(Query(constraints, expr, true), validityCore, result);
@@ -212,7 +212,7 @@ bool TimingSolver::getValidAssignment(
     /* FIXME: full copy */ Assignment symcretes,
     const std::unordered_map<const Array *, MemoryObject *> &symsizes,
     ExprHashMap<std::set<const Array *>> &exprToSymcretes,
-    bool &hasResult, Assignment &result, SolverQueryMetaData &metaData) const {
+    bool &hasResult, Assignment &result, SolverQueryMetaData &metaData, bool minimizeModel) const {
   
   /// Received core for SAT query 
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(validityCore.expr)) {
@@ -230,10 +230,10 @@ bool TimingSolver::getValidAssignment(
 
 
   /// FIXME: MOVE THIS TO EXECUTION STATE
-  ref<Expr> optimizationRead = nullptr;
+  ref<Expr> optimizationRead = ConstantExpr::create(0, Expr::Int128);
 
   std::vector<const Array *> arrays;
-  findSymbolicObjects(expr, arrays);
+  findObjects(expr, arrays);
   for (const auto *array : arrays) {
     if (symcretes.bindings.count(array)) {
       exprToSymcretes[validityCore.expr].insert(array);
@@ -269,11 +269,8 @@ bool TimingSolver::getValidAssignment(
             requestedSizeSymcretes.emplace_back(brokenSymcrete);
                         
             ref<Expr> readFromSizeSymcrete = Expr::createTempRead(brokenSymcrete, Context::get().getPointerWidth());
-            if (optimizationRead.isNull()) {
-              optimizationRead = readFromSizeSymcrete;
-            } else {
-              optimizationRead = AddExpr::create(optimizationRead, readFromSizeSymcrete);
-            }
+            
+            optimizationRead = AddExpr::create(optimizationRead, ZExtExpr::create(readFromSizeSymcrete, Expr::Int128));
           }
           /// SUM MINIMIZATION 
         
@@ -287,22 +284,31 @@ bool TimingSolver::getValidAssignment(
 
     /// Add constraints for remaining symcretes
     for (const auto &symcrete : symcretes.bindings) {
-      cs.addConstraint(
+      ref<Expr> eqSymcreteExpr =
           EqExpr::create(Expr::createTempRead(symcrete.first,
                                               Context::get().getPointerWidth()),
-                         Expr::createPointer(bytesToAddress(symcrete.second))));
+                         Expr::createPointer(bytesToAddress(symcrete.second)));
+      ref<Expr> evaluatedEqSymcreteExpr =
+          cs.addConstraint(symcretes.evaluate(eqSymcreteExpr));
+      exprToSymcretes[evaluatedEqSymcreteExpr].insert(symcrete.first);
     }
 
     for (const auto &constraint : constraints) {
-      cs.addConstraint(symcretes.evaluate(constraint));
+      /// We can reuse set from previous iteration
+      ref<Expr> evaluatedConstraint =
+          cs.addConstraint(symcretes.evaluate(constraint));
+      std::vector<const Array *> arraysInConstraint;
+      findObjects(constraint, arraysInConstraint);
+      exprToSymcretes[evaluatedConstraint].insert(arraysInConstraint.begin(),
+                                                  arraysInConstraint.end());
     }
 
     TimerStatIncrementer timer(stats::solverTime);
     bool success = solver->check(
-        Query(constraintsWithSymcretes, symcretes.evaluate(expr), true),
+        Query(constraintsWithSymcretes, expr, true),
         solverResponse);
     metaData.queryCost += timer.delta();
-    
+
     if (!success) {
       return false;
     }
@@ -324,68 +330,82 @@ bool TimingSolver::getValidAssignment(
   /* ============================================================ */
   /*                FIXME: sum size minimization                  */
   /* ============================================================ */
-
-  /// Solution only for symcrete sizes: we want to minimize the sum.
-  /// So, we will binary search on minimum sum of objects sizes.
-  uint64_t minSumModel = 0, maxSumModel = 0;
+  
+  std::vector<std::vector<uint8_t>> requestedSymcretesConcretization;
 
   /// In the beggining we will take solution from model.
-  std::vector<std::vector<uint8_t>> requestedSymcretesConcretization;
   if (!solverResponse->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization)) {
     hasResult = false;
     return true;
   }
 
-  for (const auto &concretization: requestedSymcretesConcretization) {
-    uint64_t value = bytesToAddress(concretization);
+  if (minimizeModel) {
+    /// Solution only for symcrete sizes: we want to minimize the sum.
+    /// So, we will binary search on minimum sum of objects sizes.
+    uint64_t minSumModel = 0, maxSumModel = 0;
 
-    /// Overflow check. It is better to use builtin functions.
-    /// But some versions of clang do not support them (?)
-    if (maxSumModel + value < maxSumModel) {
-      maxSumModel = -1;
-      break;
+    /// "Bound" to prevent overflow during binary search
+    static const uint64_t maxSumModelValue =
+        ((uint64_t)1 << (sizeof(maxSumModel) * CHAR_BIT - 1)) - 1;
+
+    for (const auto &concretization: requestedSymcretesConcretization) {
+      uint64_t value = bytesToAddress(concretization);
+
+      /// Overflow check. It is better to use builtin functions.
+      /// But some versions of clang do not support them (?)
+      if (maxSumModel + value < maxSumModel ||
+          maxSumModel + value >= maxSumModelValue) {
+        maxSumModel = maxSumModelValue;
+        break;
+      }
+      maxSumModel += value;
     }
-    maxSumModel += value;
+
+    maxSumModel += 1;
+    uint64_t maxSumModelInit = maxSumModel;
+
+    ConstraintManager cs(constraintsWithSymcretes);
+    cs.addConstraint(NotExpr::create(symcretes.evaluate(expr)));
+
+    /// TODO: this formula is too complex. Maybe we should use another way?
+    while (maxSumModel && minSumModel < maxSumModel - 1) {
+      uint64_t middleSumModel = (minSumModel + maxSumModel) / 2;
+      ref<Expr> ask = UleExpr::create(
+          optimizationRead, ConstantExpr::create(middleSumModel, Expr::Int128));
+      ref<SolverResponse> newSolverRespone;
+
+      TimerStatIncrementer timer(stats::solverTime);
+      bool success =
+          solver->check(Query(constraintsWithSymcretes, ask, true).negateExpr(),
+                        newSolverRespone);
+      metaData.queryCost += timer.delta();
+      
+      if (!success) {
+        return false;
+      }
+
+      if (isa<InvalidResponse>(newSolverRespone)) {
+        solverResponse = newSolverRespone;
+        maxSumModel = middleSumModel;
+      } else {
+        minSumModel = middleSumModel;
+      }
+    }
+
+    if (maxSumModelInit == maxSumModel) {
+      hasResult = false;
+      return true;
+    }
+
+    requestedSymcretesConcretization.clear();
+    solverResponse->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization);
   }
 
-  ConstraintManager cs(constraintsWithSymcretes);
-  cs.addConstraint(NotExpr::create(symcretes.evaluate(expr)));
-  // cs.addConstraint(symcretes.evaluate(expr));
-
-  /// TODO: this formula is too complex. Maybe we should use another way?
-  while (maxSumModel && minSumModel < maxSumModel - 1) {
-    uint64_t middleSumModel = (minSumModel + maxSumModel) / 2;
-    ref<Expr> ask = UleExpr::create(optimizationRead, Expr::createPointer(middleSumModel));
-
-    ref<SolverResponse> newSolverResponse;
-
-    TimerStatIncrementer timer(stats::solverTime);
-    bool success =
-        solver->check(Query(constraintsWithSymcretes, ask, true).negateExpr(),
-                      newSolverResponse);
-    metaData.queryCost += timer.delta();
-    
-    if (!success) {
-      return false;
-    }
-
-    if (isa<InvalidResponse>(newSolverResponse)) {
-      solverResponse = newSolverResponse;
-      maxSumModel = middleSumModel;
-    } else {
-      minSumModel = middleSumModel;
-    }
-  }
-
-  /* Get concrete solution */
   hasResult = true;
   
-  requestedSymcretesConcretization.clear();
-
+  /* Get concrete solution */
   result = Assignment(true);
   /* Here we do not have cocretizations for sym addresses */
-  solverResponse->getInitialValuesFor(requestedSizeSymcretes,
-                                      requestedSymcretesConcretization);
   for (unsigned idx = 0; idx < requestedSizeSymcretes.size(); ++idx) {
     result.bindings[requestedSizeSymcretes[idx]] = requestedSymcretesConcretization[idx];
   }

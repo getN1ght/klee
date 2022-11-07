@@ -58,19 +58,19 @@ public:
 
   bool mustBeTrue(ExecutionState &state, const ConstraintSet &, ref<Expr>,
                   bool &result, SolverQueryMetaData &metaData,
-                  Assignment &symcretesCex, bool produceValidityCore = false);
+                  Assignment &symcretesCex, bool minimizeModel = false);
 
   bool mustBeFalse(ExecutionState &state, const ConstraintSet &, ref<Expr>,
                    bool &result, SolverQueryMetaData &metaData,
-                   Assignment &symcretesCex, bool produceValidityCore = false);
+                   Assignment &symcretesCex, bool minimizeModel = false);
 
   bool mayBeTrue(ExecutionState &state, const ConstraintSet &, ref<Expr>,
                  bool &result, SolverQueryMetaData &metaData,
-                 Assignment &symcretesEx, bool produceValidityCore = false);
+                 Assignment &symcretesEx, bool minimizeModel = false);
 
   bool mayBeFalse(ExecutionState &state, const ConstraintSet &, ref<Expr>,
                   bool &result, SolverQueryMetaData &metaData,
-                  Assignment &symcretesEx, bool produceValidityCore = false);
+                  Assignment &symcretesEx, bool minimizeModel = false);
 
   bool getValue(const ConstraintSet &, ref<Expr> expr,
                 ref<ConstantExpr> &result, SolverQueryMetaData &metaData);
@@ -92,7 +92,7 @@ public:
                           ExprHashMap<std::set<const Array *>> &exprToSymcretes,
                           bool &hasResult,
                           Assignment &result,
-                          SolverQueryMetaData &metaData) const;
+                          SolverQueryMetaData &metaData, bool minimizeModel = false) const;
 
   std::pair<ref<Expr>, ref<Expr>> getRange(const ConstraintSet &,
                                            ref<Expr> query,
