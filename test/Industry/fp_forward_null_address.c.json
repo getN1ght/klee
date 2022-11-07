@@ -1,0 +1,33 @@
+{
+    "errors": [
+        {
+            "category": "NULL pointer deference",
+            "trace": [
+                {
+                    "location": {
+                        "file": "/mnt/d/wsl-ubuntu/test2/forward_null/fp_forward_null_address.c",
+                        "reportLine": 10,
+                        "function": "foo"
+                    },
+                    "event": {
+                        "kind": "NoOp"
+                    }
+                },
+                {
+                    "location": {
+                        "file": "/mnt/d/wsl-ubuntu/test2/forward_null/fp_forward_null_address.c",
+                        "reportLine": 22,
+                        "function": "foo"
+                    },
+                    "event": {
+                        "kind": "Error",
+                        "error": {
+                            "sort": "NullDereference",
+                            "target": "p"
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,33 @@
+{
+    "errors": [
+        {
+            "category": "NULL pointer deference",
+            "trace": [
+                {
+                    "location": {
+                        "file": "/mnt/d/wsl-ubuntu/test2/./test.c",
+                        "reportLine": 18,
+                        "function": "TestBad8"
+                    },
+                    "event": {
+                        "kind": "NoOp"
+                    }
+                },
+                {
+                    "location": {
+                        "file": "/mnt/d/wsl-ubuntu/test2/./test.c",
+                        "reportLine": 19,
+                        "function": "TestBad8"
+                    },
+                    "event": {
+                        "kind": "Error",
+                        "error": {
+                            "sort": "NullDereference",
+                            "target": "buf"
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

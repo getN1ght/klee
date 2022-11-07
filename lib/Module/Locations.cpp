@@ -51,7 +51,7 @@ bool Location::isInside(const FunctionInfo &info) const {
     if (isOSSeparator(filename[n]))
       return true;
   }
-  return suffixSize >= 3 && n == -1 && m == -1;
+  return suffixSize >= 3 && (n == -1 ? (m == -1 || isOSSeparator(info.file[m])) : (m == -1 && isOSSeparator(filename[n])));
 }
 
 std::string Location::toString() const {
