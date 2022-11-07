@@ -352,7 +352,7 @@ ExecutionState::updateSymcretes(const Assignment &assignment) {
       ObjectState *newOS =
           oldArray ? new ObjectState(newMO, oldArray, os->getDynamicType())
                    : new ObjectState(newMO, os->getDynamicType());
-      addressSpace.bindObject(newMO, newOS);
+      addressSpace.bindObject(newMO, newOS);      
       
       /// Truncated size required if we have written 
       for (unsigned i = 0; i < oldSize; i++) {

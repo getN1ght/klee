@@ -123,7 +123,7 @@ void SeedInfo::patchSeed(ExecutionState &state,
   Assignment symcreteExample;
   bool success = solver->mayBeTrue(
       state, state.evaluateConstraintsWithSymcretes(),
-      assignment.evaluate(condition), res, state.queryMetaData, symcreteExample);
+      assignment.evaluate(condition), res, state.queryMetaData, symcreteExample, true);
   assert(success && "FIXME: Unhandled solver failure");
   (void) success;
   if (res) {
@@ -173,7 +173,7 @@ void SeedInfo::patchSeed(ExecutionState &state,
     bool success =
         solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
                           assignment.evaluate(condition), res,
-                          state.queryMetaData, symcreteExample);
+                          state.queryMetaData, symcreteExample, true);
     assert(success && "FIXME: Unhandled solver failure");            
     (void) success;
     assert(res && "seed patching failed");
