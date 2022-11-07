@@ -1,0 +1,91 @@
+{
+    "errors": [
+        {
+            "category": "NULL pointer deference",
+            "trace": [
+                {
+                    "location": {
+                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
+                        "reportLine": 22,
+                        "function": "TestErr2"
+                    },
+                    "event": {
+                        "kind": "NoOp"
+                    }
+                },
+                {
+                    "location": {
+                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
+                        "reportLine": 25,
+                        "function": "TestErr2"
+                    },
+                    "event": {
+                        "kind": "Error",
+                        "error": {
+                            "sort": "CheckAfterDeref",
+                            "target": "stru"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "category": "NULL pointer deference",
+            "trace": [
+                {
+                    "location": {
+                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
+                        "reportLine": 36,
+                        "function": "TestErr3"
+                    },
+                    "event": {
+                        "kind": "NoOp"
+                    }
+                },
+                {
+                    "location": {
+                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
+                        "reportLine": 36,
+                        "function": "TestErr3"
+                    },
+                    "event": {
+                        "kind": "Error",
+                        "error": {
+                            "sort": "CheckAfterDeref",
+                            "target": "arr"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "category": "NULL pointer deference",
+            "trace": [
+                {
+                    "location": {
+                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
+                        "reportLine": 14,
+                        "function": "TestErr1"
+                    },
+                    "event": {
+                        "kind": "NoOp"
+                    }
+                },
+                {
+                    "location": {
+                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
+                        "reportLine": 15,
+                        "function": "TestErr1"
+                    },
+                    "event": {
+                        "kind": "Error",
+                        "error": {
+                            "sort": "CheckAfterDeref",
+                            "target": "stru"
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

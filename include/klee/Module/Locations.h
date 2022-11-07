@@ -23,6 +23,7 @@ namespace klee {
 
 enum ReachWithError {
   NullPointerException,
+  NullCheckAfterDerefException,
   None
 };
 

@@ -5440,6 +5440,10 @@ void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
 
 void Executor::runThroughLocations(llvm::Function *f, int argc, char **argv,
                                char **envp, PathForest *paths) {
+  if (paths->empty()) {
+    klee_warning("No targets found in --error-guided mode");
+    return;
+  }
   guidanceKind = GuidanceKind::ErrorGuidance;
   ExecutionState *state = formState(f, argc, argv, envp);
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
@@ -5478,7 +5482,6 @@ void Executor::runThroughLocations(llvm::Function *f, int argc, char **argv,
   auto targets = targetedExecutionManager.prepareTargets(kmodule.get(), paths);
   if (targets.empty()) {
     klee_warning("No targets found in --error-guided mode");
-    return;
   }
   for (auto &startBlockAndWhiteList : targets) {
     auto kf = startBlockAndWhiteList.first;

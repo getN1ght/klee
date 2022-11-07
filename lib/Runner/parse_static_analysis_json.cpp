@@ -106,6 +106,8 @@ ReachWithError parseError(json &traceEvent) {
   std::string errorType = event.at("error").at("sort");
   if ("NullDereference" == errorType)
       return ReachWithError::NullPointerException;
+  else if ("CheckAfterDeref" == errorType)
+      return ReachWithError::NullCheckAfterDerefException;
   else //TODO: extent to new types
       return ReachWithError::None;
 }
@@ -162,9 +164,9 @@ public:
 TraceParser() {}
 
 PathForest *parseErrors(json &errors) {
-  if (errors.empty())
-    return nullptr;
   auto layer = new PathForest();
+  if (errors.empty())
+    return layer;
   for (auto errorTrace : errors) {
     auto trace = parseTrace(errorTrace.at("trace"));
     layer->addTrace(trace);
