@@ -105,8 +105,8 @@ ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
     unflushedMask(nullptr),
     updates(array, nullptr),
     dynamicType(dt),
-    size(mo->size),
     lastUpdate(nullptr),
+    size(mo->size),
     readOnly(false) {
   makeSymbolic();
   memset(concreteStore, 0, size);
