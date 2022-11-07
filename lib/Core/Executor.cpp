@@ -4622,17 +4622,6 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
         memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false,
                          allocSite, allocationAlignment);
 
-    if (checkOutOfMemory) {
-      ExecutionState *outOfMemoryState = nullptr;
-      outOfMemoryState = state.branch();
-      addedStates.push_back(outOfMemoryState);
-      processTree->attach(state.ptreeNode, outOfMemoryState, &state,
-                          BranchType::Alloc);
-      terminateStateOnError(*outOfMemoryState,
-                            "Out of memory, malloc returns null.",
-                            StateTerminationType::InternalOutOfMemory);
-    }
-
     if (!mo) {
       bindLocal(target, state, 
                 ConstantExpr::alloc(0, Context::get().getPointerWidth()));
@@ -4643,7 +4632,19 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
       } else {
         os->initializeToRandom();
       }
-      bindLocal(target, state, mo->getBaseExpr());
+
+      ref<Expr> address = mo->getBaseExpr();
+      if (checkOutOfMemory) {
+        const Array *symCheckOutOfMemory = makeArray(
+            state, 1, "symCheckOutOfMemory");
+
+        ref<Expr> symCheckOutOfMemoryExpr = Expr::createTempRead(
+            symCheckOutOfMemory, Expr::Bool);
+        address = SelectExpr::create(
+            symCheckOutOfMemoryExpr,
+            ConstantExpr::alloc(0, Context::get().getPointerWidth()), address);
+      }
+      bindLocal(target, state, address);
       
       if (reallocFrom) {
         unsigned count = std::min(reallocFrom->size, os->size);
@@ -4710,7 +4711,7 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
       (void) success;
       if (res) {
         executeAlloc(*fixedSize.second, tmp, isLocal, target, type, zeroMemory,
-                     reallocFrom);
+                     reallocFrom, checkOutOfMemory);
       } else {
         // See if a *really* big value is possible. If so assume
         // malloc will fail for it, so lets fork and return 0.
@@ -4739,7 +4740,7 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
 
     if (fixedSize.first) // can be zero when fork fails
       executeAlloc(*fixedSize.first, example, isLocal, target, type, zeroMemory,
-                   reallocFrom);
+                   reallocFrom, checkOutOfMemory);
   }
 }
 
