@@ -2361,7 +2361,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         // We check that the return value has no users instead of
         // checking the type, since C defaults to returning int for
         // undeclared functions.
-        if (!caller->use_empty()) {
+        if (kmodule->WithPOSIXRuntime() &&
+            cast<KCallBlock>(kcaller->parent)->getKFunction()->getName() ==
+                "__klee_posix_wrapped_main") {
+          bindLocal(kcaller, state, ConstantExpr::alloc(0, Expr::Int32));
+        } else if (!caller->use_empty()) {
           terminateStateOnExecError(state, "return void when caller expected a result");
         }
       }
