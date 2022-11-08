@@ -19,6 +19,21 @@
 using namespace llvm;
 using namespace klee;
 
+namespace klee {
+llvm::cl::opt<TargetCalculateBy> TargetCalculatorMode(
+    "target-calculator-kind", cl::desc("Specifiy the target calculator mode."),
+    cl::values(
+        clEnumValN(TargetCalculateBy::Default, "default",
+                   "Looks for the closest uncovered block."),
+        clEnumValN(
+            TargetCalculateBy::Blocks, "blocks",
+            "Looks for the closest uncovered block by state blocks history."),
+        clEnumValN(TargetCalculateBy::Transitions, "transitions",
+                   "Looks for the closest uncovered block by state transitions "
+                   "history.")),
+    cl::init(TargetCalculateBy::Default), cl::cat(ExecCat));
+} // namespace klee
+
 std::string Target::toString() const {
   std::string repr = "Target: ";
   if (shouldFailOnThisTarget()) {
@@ -60,10 +75,14 @@ Target::~Target() {
 }
 
 void TargetCalculator::update(const ExecutionState &state) {
-  blocksHistory[state.getInitPCBlock()][state.getPrevPCBlock()].insert(
-      state.level.begin(), state.level.end());
-  transitionsHistory[state.getInitPCBlock()][state.getPrevPCBlock()].insert(
-      state.transitionLevel.begin(), state.transitionLevel.end());
+  if (TargetCalculatorMode != TargetCalculateBy::Default) {
+    blocksHistory[state.getInitPCBlock()][state.getPrevPCBlock()].insert(
+        state.level.begin(), state.level.end());
+  }
+  if (TargetCalculatorMode == TargetCalculateBy::Transitions) {
+    transitionsHistory[state.getInitPCBlock()][state.getPrevPCBlock()].insert(
+        state.transitionLevel.begin(), state.transitionLevel.end());
+  }
 }
 
 bool TargetCalculator::differenceIsEmpty(
@@ -93,7 +112,7 @@ bool TargetCalculator::differenceIsEmpty(
   return diff.empty();
 }
 
-ref<Target> TargetCalculator::calculateBy(HistoryKind kind, ExecutionState &state) {
+ref<Target> TargetCalculator::calculate(ExecutionState &state) {
   BasicBlock *initialBlock = state.getInitPCBlock();
   std::unordered_map<llvm::BasicBlock *, VisitedBlocks> &history =
       blocksHistory[initialBlock];
@@ -119,15 +138,14 @@ ref<Target> TargetCalculator::calculateBy(HistoryKind kind, ExecutionState &stat
         if (history[target->basicBlock].size() != 0) {
           bool diffIsEmpty = true;
           if (!newCov) {
-            switch (kind) {
-            case HistoryKind::Blocks:
+            switch (TargetCalculatorMode) {
+            case TargetCalculateBy::Blocks:
               diffIsEmpty = differenceIsEmpty(state, history, target);
               break;
-            case HistoryKind::Transitions:
+            case TargetCalculateBy::Transitions:
               diffIsEmpty = differenceIsEmpty(state, transitionHistory, target);
               break;
-            default:
-              assert(0 && "unreachable");
+            case TargetCalculateBy::Default:
               break;
             }
           }
@@ -153,12 +171,4 @@ ref<Target> TargetCalculator::calculateBy(HistoryKind kind, ExecutionState &stat
   }
 
   return nearestBlock;
-}
-
-ref<Target> TargetCalculator::calculateByBlockHistory(ExecutionState &state) {
-  return calculateBy(HistoryKind::Blocks, state);
-}
-
-ref<Target> TargetCalculator::calculateByTransitionHistory(ExecutionState &state) {
-  return calculateBy(HistoryKind::Transitions, state);
 }

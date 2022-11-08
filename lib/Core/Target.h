@@ -17,6 +17,8 @@
 #include "klee/Module/Locations.h"
 #include "klee/System/Time.h"
 
+#include "klee/Support/OptionCategories.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -34,23 +36,29 @@ struct TargetHash;
 struct EquivTargetCmp;
 struct TargetCmp;
 
+enum TargetCalculateBy { Default, Blocks, Transitions };
+
 struct Target {
 private:
-  typedef std::unordered_set<Target *, TargetHash, EquivTargetCmp> EquivTargetHashSet;
+  typedef std::unordered_set<Target *, TargetHash, EquivTargetCmp>
+      EquivTargetHashSet;
   typedef std::unordered_set<Target *, TargetHash, TargetCmp> TargetHashSet;
   static EquivTargetHashSet cachedTargets;
   static TargetHashSet targets;
   KBlock *block;
   ReachWithError error;
 
-  explicit Target(KBlock *_block, ReachWithError error) : block(_block), error(error) {}
+  explicit Target(KBlock *_block, ReachWithError error)
+      : block(_block), error(error) {}
 
 public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
 
   static ref<Target> create(KBlock *_block, ReachWithError error);
-  static ref<Target> create(KBlock *_block); //TODO: [Aleksandr Misonizhnik], I think, this constructor should be entirely deleted
+  static ref<Target>
+  create(KBlock *_block); // TODO: [Aleksandr Misonizhnik], I think, this
+                          // constructor should be entirely deleted
 
   int compare(const Target &other) const {
     if (error != other.error)
@@ -84,55 +92,52 @@ public:
   ~Target();
 };
 
-  typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;
+typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;
 
-  struct TransitionHash {
-    std::size_t operator()(const Transition &p) const {
-      return reinterpret_cast<size_t>(p.first) * 31 +
-             reinterpret_cast<size_t>(p.second);
-    }
-  };
+struct TransitionHash {
+  std::size_t operator()(const Transition &p) const {
+    return reinterpret_cast<size_t>(p.first) * 31 +
+           reinterpret_cast<size_t>(p.second);
+  }
+};
 
-  class TargetCalculator {
-    typedef std::unordered_set<llvm::BasicBlock *> VisitedBlocks;
-    typedef std::unordered_set<Transition, TransitionHash> VisitedTransitions;
+class TargetCalculator {
+  typedef std::unordered_set<llvm::BasicBlock *> VisitedBlocks;
+  typedef std::unordered_set<Transition, TransitionHash> VisitedTransitions;
 
-    enum HistoryKind { Blocks, Transitions };
+  enum HistoryKind { Blocks, Transitions };
 
-    typedef std::unordered_map<llvm::BasicBlock *,
-                               std::unordered_map<llvm::BasicBlock *, VisitedBlocks>>
-        BlocksHistory;
-    typedef std::unordered_map<
-        llvm::BasicBlock *,
-        std::unordered_map<llvm::BasicBlock *, VisitedTransitions>>
-        TransitionsHistory;
+  typedef std::unordered_map<
+      llvm::BasicBlock *, std::unordered_map<llvm::BasicBlock *, VisitedBlocks>>
+      BlocksHistory;
+  typedef std::unordered_map<
+      llvm::BasicBlock *,
+      std::unordered_map<llvm::BasicBlock *, VisitedTransitions>>
+      TransitionsHistory;
 
-  public:
-    ref<Target> calculateByTransitionHistory(ExecutionState &state);
-    ref<Target> calculateByBlockHistory(ExecutionState &state);
+public:
+  TargetCalculator(const KModule &module, CodeGraphDistance &codeGraphDistance)
+      : module(module), codeGraphDistance(codeGraphDistance) {}
 
-    TargetCalculator(const KModule &module,
-                     CodeGraphDistance &codeGraphDistance)
-        : module(module), codeGraphDistance(codeGraphDistance) {}
+  void update(const ExecutionState &state);
 
-    void update(const ExecutionState &state);
+  ref<Target> calculate(ExecutionState &state);
 
-  private:
-    const KModule &module;
-    CodeGraphDistance &codeGraphDistance;
-    BlocksHistory blocksHistory;
-    TransitionsHistory transitionsHistory;
+private:
+  const KModule &module;
+  CodeGraphDistance &codeGraphDistance;
+  BlocksHistory blocksHistory;
+  TransitionsHistory transitionsHistory;
 
-    bool differenceIsEmpty(
-        const ExecutionState &state,
-        const std::unordered_map<llvm::BasicBlock *, VisitedBlocks> &history,
-        KBlock *target);
-    bool differenceIsEmpty(
-        const ExecutionState &state,
-        const std::unordered_map<llvm::BasicBlock *, VisitedTransitions> &history,
-        KBlock *target);
-    ref<Target> calculateBy(HistoryKind kind, ExecutionState &state);
-  };
+  bool differenceIsEmpty(
+      const ExecutionState &state,
+      const std::unordered_map<llvm::BasicBlock *, VisitedBlocks> &history,
+      KBlock *target);
+  bool differenceIsEmpty(
+      const ExecutionState &state,
+      const std::unordered_map<llvm::BasicBlock *, VisitedTransitions> &history,
+      KBlock *target);
+};
 } // namespace klee
 
 #endif /* KLEE_TARGET_H */

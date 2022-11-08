@@ -547,7 +547,7 @@ void GuidedSearcher::innerUpdate(
     assert(stateHistory);
     for (const auto state : targetlessStates) {
       if (isStuck(*state)) {
-        ref<Target> target(stateHistory->calculateByBlockHistory(*state));
+        ref<Target> target(stateHistory->calculate(*state));
         if (target) {
           state->targetForest.add(target);
           targetForestInfos[state->targetForest.getHistory()].insert(target);
