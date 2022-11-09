@@ -58,13 +58,12 @@ llvm::cl::opt<unsigned long long> DeterministicStartAddress(
     llvm::cl::init(0x7ff30000000), llvm::cl::cat(MemoryCat));
 } // namespace
 
-// namespace klee {
-// llvm::cl::opt<uint64_t> MaxSymSize(
-//     "max-symsize", llvm::cl::init((static_cast<uint64_t>(1) << 63) - 1),
-//     llvm::cl::desc(
-//         "Max size for objects of symbolic size (default=2 ^ 63 - 1)"),
-//     llvm::cl::cat(MemoryCat));
-// }
+llvm::cl::opt<uint64_t> MaxSymSize(
+    "max-symsize", llvm::cl::init((static_cast<uint64_t>(1) << 63) - 1),
+    llvm::cl::desc(
+        "Max size for objects of symbolic size (default=2 ^ 63 - 1)"),
+    llvm::cl::cat(MemoryCat));
+
 
 /***/
 MemoryManager::MemoryManager(ArrayCache *_arrayCache)

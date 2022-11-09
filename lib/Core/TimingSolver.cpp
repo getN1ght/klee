@@ -27,7 +27,7 @@ using namespace llvm;
 
 /***/
 
-// extern cl::opt<uint64_t> MaxSymSize;
+extern cl::opt<uint64_t> MaxSymSize;
 
 bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
                             Solver::Validity &result,
@@ -72,10 +72,8 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
   if (success && result) {
     ValidityCore core;
     bool hasSolution;
-    // Query(constraints, expr, true).dump();
     success = solver->getValidityCore(Query(constraints, expr, true), core,
                                       hasSolution);
-    // core.dump();
     assert(success && hasSolution);
     Assignment newAssignment(true);
     success = getValidAssignment(
@@ -348,8 +346,6 @@ bool TimingSolver::getValidAssignment(
     /// So, we will binary search on minimum sum of objects sizes.
     uint64_t minSumModel = 0, maxSumModel = 0;
 
-    uint64_t MaxSymSize = (static_cast<uint64_t>(1) << 63) - 1;
-
     for (const auto &concretization: requestedSymcretesConcretization) {
       uint64_t value = bytesToAddress(concretization);
 
@@ -377,7 +373,6 @@ bool TimingSolver::getValidAssignment(
       ref<SolverResponse> newSolverRespone;
 
       TimerStatIncrementer timer(stats::solverTime);
-      // Query(constraintsWithSymcretes, ask, true).dump();
       bool success =
           solver->check(Query(constraintsWithSymcretes, ask, true).negateExpr(),
                         newSolverRespone);
@@ -392,6 +387,25 @@ bool TimingSolver::getValidAssignment(
         maxSumModel = middleSumModel;
       } else {
         minSumModel = middleSumModel;
+      }
+    }
+
+    if (maxSumModel == 1) {
+      ref<SolverResponse> newSolverResponse;
+      TimerStatIncrementer timer(stats::solverTime);
+      bool success =
+          solver->check(Query(constraintsWithSymcretes,
+                              Expr::createIsZero(optimizationRead), true)
+                            .negateExpr(),
+                        newSolverResponse);
+      metaData.queryCost += timer.delta();
+      if (!success) {
+        return false;
+      }
+
+      if (isa<InvalidResponse>(newSolverResponse)) {
+        solverResponse = newSolverResponse;
+        maxSumModel = 0;
       }
     }
 

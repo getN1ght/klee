@@ -165,7 +165,10 @@ cl::opt<bool>
                           cl::desc("Makes symbolic pointers aligned according"
                                    "to the used type system (default=true)"),
                           cl::init(true));
+
 } // namespace klee
+
+extern cl::opt<uint64_t> MaxSymSize;
 
 namespace {
 
@@ -4777,7 +4780,10 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
       return nullptr;
     }
 
-    size_t lessModel = 0, greaterModel = greaterModelInstance->getZExtValue();
+    size_t lessModel = 0,
+           greaterModel = std::min(MaxSymSize.getValue(),
+                                   greaterModelInstance->getZExtValue()) +
+                          1;
     while (greaterModel != 0 && lessModel < greaterModel - 1) {
       size_t middleModel = (lessModel + greaterModel) / 2;
       
@@ -4801,6 +4807,32 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
       }
     }
 
+    if (greaterModel == 1) {
+      bool isNotZeroSize;
+
+      solver->setTimeout(coreSolverTimeout);
+      ValidityCore core;
+      success = solver->getValidityCore(state.evaluateConstraintsWithSymcretes(),
+                                        NotExpr::create(Expr::createIsZero(optimizedSize)),
+                                        core, isNotZeroSize, state.queryMetaData); 
+      solver->setTimeout(time::Span());
+      if (!success) {
+        terminateStateOnSolverError(state, "Query timed out (min example search).");
+        return nullptr;
+      }
+
+      if (!isNotZeroSize) {
+        greaterModel = 0;
+      }
+    }
+
+    if (greaterModel == MaxSymSize + 1) {
+      terminateStateOnError(state,
+                            "Cannot find model for object of symbolic size.",
+                            StateTerminationType::OutOfMemory, "");
+      return nullptr;
+    }
+
     modelSize = greaterModel;
   }
 
@@ -4813,11 +4845,10 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
                           allocationAlignment);
   } else {
-    // FIXME: temporary soliton. We do not want to have static variables.
     ref<ConstantExpr> pointerWidth =
         Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT);
 
-    /// We'll use this address to make realloc's later.
+    /* We'll use this address to make realloc's later */
     const Array *addressArray =
         makeArray(state, pointerWidth, std::string("symAddress"));
     ref<Expr> addressExpr =
@@ -4837,9 +4868,11 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     state.addSymSize(mo, sizeArray);
     
     addConstraint(state, EqExpr::create(sizeExpr, size));
+
+    /* Size cannot be negative */
+    addConstraint(state, Expr::createIsZero(AndExpr::create(
+                        size, Expr::createPointer((uint64_t)1 << 63))));
   }
-  addConstraint(state, Expr::createIsZero(AndExpr::create(
-                           size, Expr::createPointer((uint64_t)1 << 63))));
   return mo;
 }
 
