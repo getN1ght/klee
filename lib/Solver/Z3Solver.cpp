@@ -292,7 +292,8 @@ bool Z3SolverImpl::computeValue(const Query &query, ref<Expr> &result) {
 bool Z3SolverImpl::computeInitialValues(
     const Query &query, const std::vector<const Array *> &objects,
     std::vector<std::vector<unsigned char> > &values, bool &hasSolution) {
-  return internalRunSolver(query, &objects, &values, /*validityCore=*/NULL, hasSolution);
+  ValidityCore core;
+  return internalRunSolver(query, &objects, &values, /*validityCore=*/&core, hasSolution);
 }
 
 bool Z3SolverImpl::check(const Query &query,

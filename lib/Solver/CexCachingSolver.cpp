@@ -227,7 +227,7 @@ bool CexCachingSolver::lookupAssignment(const Query &query,
 bool CexCachingSolver::getAssignment(const Query &query, Assignment *&result,
                                      ValidityCore *validityCore) {
   KeyType key;
-  if (lookupAssignment(query, key, result))
+  if (lookupAssignment(query, key, result) && result)
     return true;
 
   std::vector<const Array*> objects;
