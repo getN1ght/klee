@@ -140,6 +140,7 @@ public:
   void add(ref<Target>);
   void remove(ref<Target>);
   const ref<History> getHistory() { return history; };
+  const ref<Layer> getTargets() { return forest; };
   void dump() const;
 };
 

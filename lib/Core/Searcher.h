@@ -140,7 +140,7 @@ namespace klee {
     ref<Target> target;
     CodeGraphDistance &codeGraphDistance;
     const std::unordered_map<KFunction *, unsigned int> &distanceToTargetFunction;
-    std::vector<ExecutionState *> reachedOnLastUpdate;
+    std::set<ExecutionState *> reachedOnLastUpdate;
 
     bool distanceInCallGraph(KFunction *kf, KBlock *kb, unsigned int &distance);
     WeightResult tryGetLocalWeight(ExecutionState *es, weight_type &weight,
@@ -160,7 +160,7 @@ namespace klee {
                 const std::vector<ExecutionState *> &removedStates) override;
     bool empty() override;
     void printName(llvm::raw_ostream &os) override;
-    std::vector<ExecutionState *> reached();
+    std::set<ExecutionState *> reached();
     void removeReached();
   };
 
@@ -203,9 +203,9 @@ namespace klee {
     RNG &theRNG;
     unsigned index{1};
 
-    TargetForestHisoryToStateVectorMap addedTStates;
-    TargetForestHisoryToStateVectorMap removedTStates;
-    TargetForestHisoryToTargetSet targetForestInfos;
+    std::vector<ExecutionState *> baseAddedStates;
+    std::vector<ExecutionState *> baseRemovedStates;
+    std::vector<ExecutionState *> targetedAddedStates;
     std::vector<ExecutionState *> targetlessStates;
     TargetForestHisoryTargetVector historiesAndTargets;
 
@@ -216,6 +216,11 @@ namespace klee {
     void innerUpdate(ExecutionState *current,
                      const std::vector<ExecutionState *> &addedStates,
                      const std::vector<ExecutionState *> &removedStates);
+    void
+    updateTargetedSearcher(ref<TargetForest::History> history,
+                           ref<Target> target, ExecutionState *current,
+                           const std::vector<ExecutionState *> &addedStates,
+                           const std::vector<ExecutionState *> &removedStates);
 
     void clearReached(const std::vector<ExecutionState *> &removedStates);
     void collectReached(TargetToStateSetMap &reachedStates);
