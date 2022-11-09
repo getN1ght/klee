@@ -75,13 +75,23 @@ Target::~Target() {
 }
 
 void TargetCalculator::update(const ExecutionState &state) {
-  if (TargetCalculatorMode != TargetCalculateBy::Default) {
+  switch (TargetCalculatorMode) {
+  case TargetCalculateBy::Default:
+    blocksHistory[state.getInitPCBlock()][state.getPrevPCBlock()].insert(
+        state.getInitPCBlock());
+    break;
+
+  case TargetCalculateBy::Blocks:
     blocksHistory[state.getInitPCBlock()][state.getPrevPCBlock()].insert(
         state.level.begin(), state.level.end());
-  }
-  if (TargetCalculatorMode == TargetCalculateBy::Transitions) {
+    break;
+
+  case TargetCalculateBy::Transitions:
+    blocksHistory[state.getInitPCBlock()][state.getPrevPCBlock()].insert(
+        state.level.begin(), state.level.end());
     transitionsHistory[state.getInitPCBlock()][state.getPrevPCBlock()].insert(
         state.transitionLevel.begin(), state.transitionLevel.end());
+    break;
   }
 }
 
