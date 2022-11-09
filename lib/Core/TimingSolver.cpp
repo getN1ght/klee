@@ -27,6 +27,8 @@ using namespace llvm;
 
 /***/
 
+// extern cl::opt<uint64_t> MaxSymSize;
+
 bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
                             Solver::Validity &result,
                             SolverQueryMetaData &metaData,
@@ -70,8 +72,10 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
   if (success && result) {
     ValidityCore core;
     bool hasSolution;
+    // Query(constraints, expr, true).dump();
     success = solver->getValidityCore(Query(constraints, expr, true), core,
                                       hasSolution);
+    // core.dump();
     assert(success && hasSolution);
     Assignment newAssignment(true);
     success = getValidAssignment(
@@ -344,9 +348,7 @@ bool TimingSolver::getValidAssignment(
     /// So, we will binary search on minimum sum of objects sizes.
     uint64_t minSumModel = 0, maxSumModel = 0;
 
-    /// "Bound" to prevent overflow during binary search
-    static const uint64_t maxSumModelValue =
-        ((uint64_t)1 << (sizeof(maxSumModel) * CHAR_BIT - 1)) - 1;
+    uint64_t MaxSymSize = (static_cast<uint64_t>(1) << 63) - 1;
 
     for (const auto &concretization: requestedSymcretesConcretization) {
       uint64_t value = bytesToAddress(concretization);
@@ -354,8 +356,8 @@ bool TimingSolver::getValidAssignment(
       /// Overflow check. It is better to use builtin functions.
       /// But some versions of clang do not support them (?)
       if (maxSumModel + value < maxSumModel ||
-          maxSumModel + value >= maxSumModelValue) {
-        maxSumModel = maxSumModelValue;
+          maxSumModel + value >= MaxSymSize) {
+        maxSumModel = MaxSymSize;
         break;
       }
       maxSumModel += value;
@@ -375,6 +377,7 @@ bool TimingSolver::getValidAssignment(
       ref<SolverRespone> newSolverRespone;
 
       TimerStatIncrementer timer(stats::solverTime);
+      // Query(constraintsWithSymcretes, ask, true).dump();
       bool success =
           solver->check(Query(constraintsWithSymcretes, ask, true).negateExpr(),
                         newSolverRespone);

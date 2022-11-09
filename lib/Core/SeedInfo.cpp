@@ -128,7 +128,19 @@ void SeedInfo::patchSeed(ExecutionState &state,
   (void) success;
   if (res) {
     state.updateSymcretes(symcreteExample);
-    return;
+
+    ValidityCore checkExampleCore;
+    bool stateHasNonAppropriateConstraints;
+    assert(solver->getValidityCore(
+               state.evaluateConstraintsWithSymcretes(),
+               ConstantExpr::create(0, Expr::Bool), checkExampleCore,
+               stateHasNonAppropriateConstraints, state.queryMetaData) &&
+           "FIXME: Unhandled solver failure");
+
+    if (!stateHasNonAppropriateConstraints) {
+      return;
+    }
+
   }
   
   // We could still do a lot better than this, for example by looking at
@@ -178,6 +190,16 @@ void SeedInfo::patchSeed(ExecutionState &state,
     (void) success;
     assert(res && "seed patching failed");
     state.updateSymcretes(symcreteExample);
+    
+    ValidityCore checkExampleCore;
+    bool stateHasNonAppropriateConstraints;
+    assert(solver->getValidityCore(
+               state.evaluateConstraintsWithSymcretes(),
+               ConstantExpr::create(0, Expr::Bool), checkExampleCore,
+               stateHasNonAppropriateConstraints, state.queryMetaData) &&
+           "FIXME: Unhandled solver failure");
+
+    assert(!stateHasNonAppropriateConstraints && "seed patching failed");
   }
 #endif
 }

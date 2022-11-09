@@ -1021,19 +1021,8 @@ void Executor::branch(ExecutionState &state,
         addedStates.push_back(ns);
         processTree->attach(es->ptreeNode, ns, es, reason);
         result.push_back(ns);
-        
-        ValidityCore checkExampleCore;
-        bool stateHasAppropriateConstraints;
 
-        solver->setTimeout(coreSolverTimeout);
-        bool success = solver->getValidityCore(
-            ns->evaluateConstraintsWithSymcretes(),
-            ConstantExpr::create(0, Expr::Bool), checkExampleCore,
-            stateHasAppropriateConstraints, ns->queryMetaData);
-        solver->setTimeout(time::Span());
-
-        if (stateHasAppropriateConstraints) {
-          terminateStateEarly(*ns, "", StateTerminationType::SilentExit);
+        if (terminateStateIfWrongModel(*ns, conditions[i])) {
           result[i] = nullptr;
         }
       }
@@ -1317,7 +1306,6 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
 
     symcreteExamples.first = trueState->updateSymcretes(falseSymcretes);
     symcreteExamples.second = falseState->updateSymcretes(trueSymcretes);
-    
 
     if (it != seedMap.end()) {
       std::vector<SeedInfo> seeds = it->second;
@@ -1373,8 +1361,13 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
       }
     }
 
-    addConstraint(*trueState, condition);
-    addConstraint(*falseState, Expr::createIsZero(condition));
+    if (!terminateStateIfWrongModel(*trueState, condition)) {
+      addConstraint(*trueState, condition);
+    }
+
+    if (!terminateStateIfWrongModel(*falseState, Expr::createIsZero(condition))) {
+      addConstraint(*falseState, Expr::createIsZero(condition));
+    }
 
     // Kinda gross, do we even really still want this option?
     if (MaxDepth && MaxDepth<=trueState->depth) {
@@ -4346,6 +4339,29 @@ void Executor::terminateState(ExecutionState &state) {
   }
 }
 
+bool Executor::terminateStateIfWrongModel(ExecutionState &state, ref<Expr> expr) {
+  ValidityCore checkExampleCore;
+  bool stateHasNonAppropriateConstraints;
+
+  solver->setTimeout(coreSolverTimeout);
+  bool success = solver->getValidityCore(
+      state.evaluateConstraintsWithSymcretes(),
+      NotExpr::create(expr), checkExampleCore,
+      stateHasNonAppropriateConstraints, state.queryMetaData);
+  solver->setTimeout(time::Span());
+  if (!success) {
+    terminateStateOnSolverError(state, "Query timed out (check after updateSymcretes!)");
+    return true;
+  }
+
+  if (stateHasNonAppropriateConstraints) {
+    terminateStateEarly(state, "", StateTerminationType::SilentExit);
+    return true;
+  }
+
+  return false;
+}
+
 static bool shouldWriteTest(const ExecutionState &state) {
   return !OnlyOutputStatesCoveringNew || state.coveredNew;
 }
@@ -4821,7 +4837,9 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     state.addSymSize(mo, sizeArray);
     
     addConstraint(state, EqExpr::create(sizeExpr, size));
-  }  
+  }
+  addConstraint(state, Expr::createIsZero(AndExpr::create(
+                           size, Expr::createPointer((uint64_t)1 << 63))));
   return mo;
 }
 
@@ -5114,21 +5132,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         mo = mapping[mo].first;
       }
 
-      ValidityCore checkExampleCore;
-      bool stateHasAppropriateConstraints;
-
-      solver->setTimeout(coreSolverTimeout);
-      bool success = solver->getValidityCore(
-          bound->evaluateConstraintsWithSymcretes(),
-          ConstantExpr::create(0, Expr::Bool), checkExampleCore,
-          stateHasAppropriateConstraints, bound->queryMetaData);
-      solver->setTimeout(time::Span());
-      if (!success) {
-        terminateStateOnSolverError(*bound, "Query timed out (check after updateSymcretes!)");
-      }
-
-      if (stateHasAppropriateConstraints) {
-        terminateStateEarly(*bound, "", StateTerminationType::SilentExit);
+      if (terminateStateIfWrongModel(*bound, inBounds)) {
         bound = nullptr;
       }
     }
@@ -5275,9 +5279,11 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
       if (mayBeOutOfBound) {
         unbound->updateSymcretes(symcreteExample);
-        terminateStateOnError(*unbound, "memory error: out of bound pointer",
-                              StateTerminationType::Ptr,
-                              getAddressInfo(*unbound, address));
+        if (!terminateStateIfWrongModel(*unbound, outOfBound)) {
+          terminateStateOnError(*unbound, "memory error: out of bound pointer",
+                                StateTerminationType::Ptr,
+                                getAddressInfo(*unbound, address));
+        }
       } else {
         terminateStateEarly(*unbound, "", StateTerminationType::SilentExit);
       }

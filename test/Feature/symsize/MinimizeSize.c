@@ -4,12 +4,12 @@
 
 
 #include "klee/klee.h"
-#include "stdlib.h"
+#include <stdlib.h>
 
 int main() {
   int n = klee_int("n");
   if (n >= 3 && n != 4) {
-    char *storage = malloc(n);
+    char *storage = (char *) malloc(n);
     storage[0] = 'a';
     storage[1] = 'b';
     storage[2] = 'c';
@@ -17,3 +17,7 @@ int main() {
     storage[3] = 'd';
   }
 }
+
+// CHECK: KLEE: done: completed paths = 1
+// CHECK: KLEE: done: partially completed paths = 2
+// CHECK: KLEE: done: generated tests = 3

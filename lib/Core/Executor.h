@@ -493,6 +493,10 @@ private:
                              const llvm::Twine &longMessage = "",
                              const char *suffix = nullptr);
 
+  /// Terminates state if it holds a model not consistent with
+  /// constraints. Returns true iff state was termainted.
+  bool terminateStateIfWrongModel(ExecutionState &state, ref<Expr> expr);
+
   void terminateStateOnTerminator(ExecutionState &state);
 
   /// Call error handler and terminate state in case of execution errors
