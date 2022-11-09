@@ -5,13 +5,14 @@
 #include "klee/klee.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 
 int main() {
   int n = klee_int("n");
   if (n >= 5) {
-    char *c1 = malloc(n);
-    char *c2 = malloc(9 - n);
+    char *c1 = (char *) malloc(n);
+    char *c2 = (char *) malloc(9 - n);
     // CHECK: ImplicitSizeConcretization.c:[[@LINE+1]]: memory error: out of bound pointer
     c2[3] = 10;
     if (n >= 6) {
