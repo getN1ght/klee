@@ -1,0 +1,33 @@
+{
+    "errors": [
+        {
+            "category": "NULL pointer deference",
+            "trace": [
+                {
+                    "location": {
+                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c",
+                        "reportLine": 45,
+                        "function": "TestBad5"
+                    },
+                    "event": {
+                        "kind": "AssignZero"
+                    }
+                },
+                {
+                    "location": {
+                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c",
+                        "reportLine": 47,
+                        "function": "TestBad5"
+                    },
+                    "event": {
+                        "kind": "Error",
+                        "error": {
+                            "sort": "NullDereference",
+                            "target": "stu"
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}
