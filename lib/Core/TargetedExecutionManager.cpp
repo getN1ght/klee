@@ -240,7 +240,9 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
     return false;
 
   auto target = it->second;
-  assert(target->getBlock() == state.prevPC->parent);
+  if (target->getBlock() != state.prevPC->parent) {
+    return false;
+  }
   auto expectedLocation = target2location[target.get()];
   if (expectedLocation->isReported)
     return true;
