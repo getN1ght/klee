@@ -347,104 +347,109 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
                                ResolutionList &rl, ResolutionList &rlSkipped,
                                unsigned maxResolutions,
                                time::Span timeout) const {
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(p)) {
+  if (ref<ConstantExpr> CE =
+          dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(p))) {
     ObjectPair res;
-    if (resolveOne(CE, objectType, res))
+    if (resolveOne(CE, objectType, res)) {
       rl.push_back(res);
-    return false;
-  } else {
-    TimerStatIncrementer timer(stats::resolveTime);
+      return false;
+    }
+    /// Did no succeed in constant case
+    if (isa<ConstantExpr>(p)) { 
+      return false;
+    }
+  } 
+  TimerStatIncrementer timer(stats::resolveTime);
 
-    // XXX in general this isn't exactly what we want... for
-    // a multiple resolution case (or for example, a \in {b,c,0})
-    // we want to find the first object, find a cex assuming
-    // not the first, find a cex assuming not the second...
-    // etc.
+  // XXX in general this isn't exactly what we want... for
+  // a multiple resolution case (or for example, a \in {b,c,0})
+  // we want to find the first object, find a cex assuming
+  // not the first, find a cex assuming not the second...
+  // etc.
 
-    // XXX how do we smartly amortize the cost of checking to
-    // see if we need to keep searching up/down, in bad cases?
-    // maybe we don't care?
+  // XXX how do we smartly amortize the cost of checking to
+  // see if we need to keep searching up/down, in bad cases?
+  // maybe we don't care?
 
-    // XXX we really just need a smart place to start (although
-    // if its a known solution then the code below is guaranteed
-    // to hit the fast path with exactly 2 queries). we could also
-    // just get this by inspection of the expr.
+  // XXX we really just need a smart place to start (although
+  // if its a known solution then the code below is guaranteed
+  // to hit the fast path with exactly 2 queries). we could also
+  // just get this by inspection of the expr.
 
-    ref<ConstantExpr> cex;
-    if (!solver->getValue(state.evaluateConstraintsWithSymcretes(),
-                          state.evaluateWithSymcretes(p), cex,
-                          state.queryMetaData))
+  ref<ConstantExpr> cex;
+  if (!solver->getValue(state.evaluateConstraintsWithSymcretes(),
+                        state.evaluateWithSymcretes(p), cex,
+                        state.queryMetaData))
+    return true;
+  uint64_t example = cex->getZExtValue();
+  MemoryObject hack(example);
+
+  MemoryMap::iterator oi = objects.upper_bound(&hack);
+  MemoryMap::iterator begin = objects.begin();
+  MemoryMap::iterator end = objects.end();
+
+  MemoryMap::iterator start = oi;
+  // search backwards, start with one minus because this
+  // is the object that p *should* be within, which means we
+  // get write off the end with 4 queries
+
+  Assignment assignmentHack;
+
+  while (oi != begin) {
+    --oi;
+    const MemoryObject *mo = oi->first;
+    if (mo == nullptr || !mo->isLazyInstantiated() ||
+        !mo->isKleeMakeSymbolic ||
+        !oi->second->isAccessableFrom(objectType)) {
+      rlSkipped.emplace_back(mo, oi->second.get());
+      continue;
+    }
+
+    if (timeout && timeout < timer.delta())
       return true;
-    uint64_t example = cex->getZExtValue();
-    MemoryObject hack(example);
 
-    MemoryMap::iterator oi = objects.upper_bound(&hack);
-    MemoryMap::iterator begin = objects.begin();
-    MemoryMap::iterator end = objects.end();
+    auto op = std::make_pair<>(mo, oi->second.get());
 
-    MemoryMap::iterator start = oi;
-    // search backwards, start with one minus because this
-    // is the object that p *should* be within, which means we
-    // get write off the end with 4 queries
+    int incomplete =
+        checkPointerInObject(state, solver, p, op, rl, maxResolutions);
+    if (incomplete != 2)
+      return incomplete ? true : false;
 
-    Assignment assignmentHack;
+    bool mustBeTrue;
+    if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                                UgeExpr::create(p, mo->getBaseExpr()),
+                            mustBeTrue, state.queryMetaData, assignmentHack))
+      return true;
+    if (mustBeTrue)
+      break;
+  }
 
-    while (oi != begin) {
-      --oi;
-      const MemoryObject *mo = oi->first;
-      if (mo == nullptr || !mo->isLazyInstantiated() ||
-          !mo->isKleeMakeSymbolic ||
-          !oi->second->isAccessableFrom(objectType)) {
-        rlSkipped.emplace_back(mo, oi->second.get());
-        continue;
-      }
-
-      if (timeout && timeout < timer.delta())
-        return true;
-
-      auto op = std::make_pair<>(mo, oi->second.get());
-
-      int incomplete =
-          checkPointerInObject(state, solver, p, op, rl, maxResolutions);
-      if (incomplete != 2)
-        return incomplete ? true : false;
-
-      bool mustBeTrue;
-      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                                  UgeExpr::create(p, mo->getBaseExpr()),
-                              mustBeTrue, state.queryMetaData, assignmentHack))
-        return true;
-      if (mustBeTrue)
-        break;
+  // search forwards
+  for (oi = start; oi != end; ++oi) {
+    const MemoryObject *mo = oi->first;
+    if (mo == nullptr || !mo->isLazyInstantiated() ||
+        !mo->isKleeMakeSymbolic ||
+        !oi->second->isAccessableFrom(objectType)) {
+      rlSkipped.emplace_back(mo, oi->second.get());
+      continue;
     }
 
-    // search forwards
-    for (oi = start; oi != end; ++oi) {
-      const MemoryObject *mo = oi->first;
-      if (mo == nullptr || !mo->isLazyInstantiated() ||
-          !mo->isKleeMakeSymbolic ||
-          !oi->second->isAccessableFrom(objectType)) {
-        rlSkipped.emplace_back(mo, oi->second.get());
-        continue;
-      }
+    if (timeout && timeout < timer.delta())
+      return true;
 
-      if (timeout && timeout < timer.delta())
-        return true;
+    bool mustBeTrue;
+    if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                                UltExpr::create(p, mo->getBaseExpr()),
+                            mustBeTrue, state.queryMetaData, assignmentHack))
+      return true;
+    if (mustBeTrue)
+      break;
+    auto op = std::make_pair<>(mo, oi->second.get());
 
-      bool mustBeTrue;
-      if (!solver->mustBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                                  UltExpr::create(p, mo->getBaseExpr()),
-                              mustBeTrue, state.queryMetaData, assignmentHack))
-        return true;
-      if (mustBeTrue)
-        break;
-      auto op = std::make_pair<>(mo, oi->second.get());
-
-      int incomplete =
-          checkPointerInObject(state, solver, p, op, rl, maxResolutions);
-      if (incomplete != 2)
-        return incomplete ? true : false;
-    }
+    int incomplete =
+        checkPointerInObject(state, solver, p, op, rl, maxResolutions);
+    if (incomplete != 2)
+      return incomplete ? true : false;
   }
 
   return false;

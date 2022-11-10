@@ -5246,10 +5246,13 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       }
 
       assert(p.first && p.second);
-
-      const MemoryObject *mo = p.first;
       
-      ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
+      ref<Expr> inBounds = p.first->getBoundsCheckPointer(address, bytes);
+      if (UseGEPExpr && isGEPExpr(address)) {
+        inBounds = AndExpr::create(inBounds, p.first->getBoundsCheckPointer(base, 1));
+        inBounds =
+            AndExpr::create(inBounds, p.first->getBoundsCheckPointer(base, size));
+      }
 
       /// Here we check SAT for constarint and need to evaluate with symbolics
       SymcreteContainerPairType symcreteExamples;
@@ -5258,18 +5261,23 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       unbound = sp.second;
 
       if (unbound) {
+        auto &mapping = symcreteExamples.second;
+        const MemoryObject *failedMO = p.first;
+        if (mapping.count(p.first)) {
+          failedMO = mapping[p.first].first;
+        }
         terminateStateOnError(*unbound, "memory error: out of bound pointer",
                               StateTerminationType::Ptr,
-                              getAddressInfo(*unbound, address, mo));
-        return;  
+                              getAddressInfo(*unbound, address, failedMO));
       } 
 
       if (inbound) {
         /* FIXME: same as above. Wasting memory. */
-        auto &mapping = symcreteExamples.second;
+        auto &mapping = symcreteExamples.first;
         if (mapping.count(p.first)) {
           p = mapping[p.first];
         }
+        addConstraint(state, EqExpr::create(p.first->getBaseExpr(), base));
 
         ObjectState *wos =
             inbound->addressSpace.getWriteable(p.first, p.second);
@@ -5351,35 +5359,32 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
   const llvm::Value *allocSite = target ? target->inst : nullptr;
   MemoryObject *mo = allocate(state, size, false, allocSite,
                               /*allocationAlignment=*/8);
-  mo->wasLazyInstantiated = true;
+  mo->lazyInstantiationSource = address;
 
   assert(mo);
 
-  ref<Expr> checkPointerExpr = EqExpr::create(address, mo->getBaseConstantExpr());
-  bool mustBeFalse;
+  ref<Expr> checkPointerExpr =
+      Expr::createIsZero(EqExpr::create(address, mo->getBaseConstantExpr()));
+  bool isNotAppropratePointer;
 
-  Assignment assignmentHack;
-  /// FIXME:
   /// Check that the constructed model does not contradict itself 
   solver->setTimeout(coreSolverTimeout);
-  bool success =
-      solver->mustBeFalse(state, state.evaluateConstraintsWithSymcretes(),
-                          checkPointerExpr, mustBeFalse, state.queryMetaData, assignmentHack);
+  ValidityCore coreHack;
+  bool success = solver->getValidityCore(
+      state.evaluateConstraintsWithSymcretes(), checkPointerExpr, coreHack,
+      isNotAppropratePointer, state.queryMetaData);
   solver->setTimeout(time::Span());
 
   if (!success) {
     terminateStateOnSolverError(state, "Query timed out.");
     return ObjectPair(nullptr, nullptr);
   }
-  solver->setTimeout(time::Span());
 
-  if (mustBeFalse) {
-    terminateStateOnExecError(
-        state, "Malloc returned address not consistent with constrains");
+  if (isNotAppropratePointer) {
+    terminateStateOnError(state, "memory error: out of bound pointer",
+                          StateTerminationType::Ptr);
     return ObjectPair(nullptr, nullptr);
   }
-
-  addConstraint(state, EqExpr::create(mo->getBaseExpr(), address));
 
   return lazyInstantiate(state, targetType, /*isLocal=*/false, mo);
 }
@@ -5778,7 +5783,7 @@ int Executor::resolveLazyInstantiation(ExecutionState &state) {
       continue;
     }
     status = 1;
-    auto lisource = i.first->getBaseExpr();
+    auto lisource = i.first->lazyInstantiationSource;
     switch (lisource->getKind()) {
     case Expr::Read: {
       ref<ReadExpr> base = dyn_cast<ReadExpr>(lisource);
@@ -5813,7 +5818,7 @@ void Executor::setInstantiationGraph(ExecutionState &state, TestCase &tc) {
     if (!state.symbolics[i].first->isLazyInstantiated())
       continue;
     auto parent =
-        state.pointers[state.symbolics[i].first->getBaseExpr()];
+        state.pointers[state.symbolics[i].first->lazyInstantiationSource];
     // Resolve offset (parent.second)
     ref<ConstantExpr> offset;
     bool success = solver->getValue(state.evaluateConstraintsWithSymcretes(), state.evaluateWithSymcretes(parent.second), offset,

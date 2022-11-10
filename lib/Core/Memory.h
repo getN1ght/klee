@@ -57,6 +57,8 @@ public:
 
   /// "Virtual" memory address 
   ref<Expr> addressExpr;
+  ref<Expr> lazyInstantiationSource;
+
   ref<Expr> sizeExpr;
 
   /// "Physical" size in bytes
@@ -71,7 +73,6 @@ public:
   mutable bool isGlobal;
   bool isFixed;
   bool isKleeMakeSymbolic = false;
-  bool wasLazyInstantiated = false;
 
   bool isUserSpecified;
 
@@ -93,6 +94,7 @@ public:
     : id(counter++),
       address(_address),
       addressExpr(nullptr),
+      lazyInstantiationSource(nullptr),
       sizeExpr(nullptr),
       size(0),
       isFixed(true),
@@ -109,6 +111,7 @@ public:
     : id(counter++),
       address(_address),
       addressExpr(_addressExpr),
+      lazyInstantiationSource(nullptr),
       sizeExpr(_sizeExpr),
       size(_size),
       name("unnamed"),
@@ -131,7 +134,7 @@ public:
   }
 
   bool isLazyInstantiated() const {
-    return wasLazyInstantiated;
+    return !lazyInstantiationSource.isNull();
   }
 
   ref<ConstantExpr> getBaseConstantExpr() const {

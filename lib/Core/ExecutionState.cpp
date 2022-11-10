@@ -347,6 +347,8 @@ ExecutionState::updateSymcretes(const Assignment &assignment) {
       assert(mo->parent);
       MemoryObject *newMO = mo->parent->allocate(newSize, mo->isLocal, /*isGlobal=*/mo->isGlobal, mo->allocSite,
                           /* FIXME: allocation alignment should be saved in MO */ 8, mo->addressExpr, mo->sizeExpr);
+      newMO->lazyInstantiationSource = mo->lazyInstantiationSource;
+      newMO->isKleeMakeSymbolic = mo->isKleeMakeSymbolic;
 
       const Array *oldArray = replaceSymbolicArray(mo, newMO);
       ObjectState *newOS =
