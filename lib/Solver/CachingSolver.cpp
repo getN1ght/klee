@@ -87,12 +87,9 @@ public:
   bool computeInitialValues(const Query& query,
                             const std::vector<const Array*> &objects,
                             std::vector< std::vector<unsigned char> > &values,
-                            bool &hasSolution) {
-    ++stats::queryCacheMisses;
-    return solver->impl->computeInitialValues(query, objects, values, 
-                                              hasSolution);
-  }
-  bool check(const Query &query, ref<SolverRespone> &result);
+                            bool &hasSolution);
+
+  bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &, ValidityCore &validityCore,
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
@@ -264,7 +261,7 @@ bool CachingSolver::computeValidity(const Query &query,
   ++stats::queryCacheMisses;
 
   ValidityCore validityCore;
-  ref<SolverRespone> queryResult, negatedQueryResult;
+  ref<SolverResponse> queryResult, negatedQueryResult;
 
   if (query.produceValidityCore
           ? !solver->impl->computeValidity(query, queryResult,
@@ -398,7 +395,35 @@ bool CachingSolver::computeValidityCore(const Query &query,
   return true;
 }
 
-bool CachingSolver::check(const Query &query, ref<SolverRespone> &result) {
+bool CachingSolver::computeInitialValues(
+    const Query &query, const std::vector<const Array *> &objects,
+    std::vector<std::vector<unsigned char>> &values, bool &hasSolution) {
+  ++stats::queryCacheMisses;
+  if (!query.produceValidityCore) {
+    return solver->impl->computeInitialValues(query, objects, values,
+                                              hasSolution);
+  }
+
+  ref<SolverResponse> response;
+  if (!solver->impl->check(query, response)) {
+    return false;
+  }
+
+  if (isa<ValidResponse>(response)) {
+    ValidityCore validityCore;
+    response->getValidityCore(validityCore);
+    validityCoreCacheInsert(query, validityCore);
+    hasSolution = false;
+  } else if (response->getInitialValuesFor(objects, values)) {
+    hasSolution = true;
+  } else {
+    return false;
+  }
+
+  return true;
+}
+
+bool CachingSolver::check(const Query &query, ref<SolverResponse> &result) {
   IncompleteSolver::PartialValidity cachedResult;
   bool tmp, cacheHit = cacheLookup(query, cachedResult);
 

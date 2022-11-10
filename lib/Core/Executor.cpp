@@ -1156,14 +1156,14 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   if (isSeeding)
     timeout *= static_cast<unsigned>(it->second.size());
 
-  ref<SolverRespone> trueRespone, falseRespone;
+  ref<SolverResponse> trueResponse, falseResponse;
   Assignment trueSymcretes, falseSymcretes;
   ValidityCore trueCore, falseCore;
 
   solver->setTimeout(timeout);
   bool success =
       solver->evaluate(current.evaluateConstraintsWithSymcretes(), condition,
-                       trueRespone, falseRespone, current.queryMetaData);
+                       trueResponse, falseResponse, current.queryMetaData);
   solver->setTimeout(time::Span());
   if (!success) {
     current.pc = current.prevPC;
@@ -1172,7 +1172,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   }
 
   int resInt = 0;
-  if (trueRespone->getValidityCore(trueCore)) {
+  if (trueResponse->getValidityCore(trueCore)) {
     bool hasResult;
     assert(solver->getValidAssignment(current.constraints, condition, trueCore,
                                current.symcretes, current.symsizesToMO,
@@ -1184,7 +1184,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     }
   }
 
-  if (falseRespone->getValidityCore(falseCore)) {
+  if (falseResponse->getValidityCore(falseCore)) {
     bool hasResult;
     assert(solver->getValidAssignment(current.constraints, Expr::createIsZero(condition), falseCore,
                                current.symcretes, current.symsizesToMO,

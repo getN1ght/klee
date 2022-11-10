@@ -404,7 +404,7 @@ public:
                             const std::vector<const Array*> &objects,
                             std::vector< std::vector<unsigned char> > &values,
                             bool &hasSolution);
-  bool check(const Query &query, ref<SolverRespone> &result);
+  bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &query, ValidityCore &validityCore,
                         bool &isValid);
   SolverRunStatus getOperationStatusCode();
@@ -590,7 +590,7 @@ bool IndependentSolver::computeInitialValues(const Query& query,
   return true;
 }
 
-bool IndependentSolver::check(const Query &query, ref<SolverRespone> &result) {
+bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
   // We assume the query has a solution except proven differently
   // This is important in case we don't have any constraints but
   // we need initial values for requested array objects.
@@ -613,7 +613,7 @@ bool IndependentSolver::check(const Query &query, ref<SolverRespone> &result) {
       continue;
     }
     ConstraintSet tmp(it->exprs);
-    ref<SolverRespone> tempResult;
+    ref<SolverResponse> tempResult;
     std::vector<std::vector<unsigned char>> tempValues;
     if (!solver->impl->check(Query(tmp, ConstantExpr::alloc(0, Expr::Bool),
                                    query.produceValidityCore),

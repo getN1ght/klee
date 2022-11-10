@@ -52,8 +52,8 @@ public:
                 SolverQueryMetaData &metaData, bool produceValidityCore = false);
 
   bool evaluate(const ConstraintSet &, ref<Expr>,
-                ref<SolverRespone> &queryResult,
-                ref<SolverRespone> &negateQueryResult,
+                ref<SolverResponse> &queryResult,
+                ref<SolverResponse> &negateQueryResult,
                 SolverQueryMetaData &metaData);
 
   bool mustBeTrue(ExecutionState &state, const ConstraintSet &, ref<Expr>,

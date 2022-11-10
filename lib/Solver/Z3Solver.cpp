@@ -101,7 +101,7 @@ public:
                             const std::vector<const Array *> &objects,
                             std::vector<std::vector<unsigned char> > &values,
                             bool &hasSolution);
-  bool check(const Query &query, ref<SolverRespone> &result);
+  bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &query, ValidityCore &validityCore,
                         bool &isValid);
   SolverRunStatus
@@ -297,7 +297,7 @@ bool Z3SolverImpl::computeInitialValues(
 }
 
 bool Z3SolverImpl::check(const Query &query,
-                                      ref<SolverRespone> &result) {
+                                      ref<SolverResponse> &result) {
   ExprHashSet expressions;
   expressions.insert(query.constraints.begin(), query.constraints.end());
   expressions.insert(query.expr);
@@ -313,8 +313,8 @@ bool Z3SolverImpl::check(const Query &query,
   bool status =
       internalRunSolver(query, &objects, &values, &validityCore, hasSolution);
   if (status) {
-    result = hasSolution ? (SolverRespone *)new InvalidResponse(objects, values)
-                         : (SolverRespone *)new ValidResponse(validityCore);
+    result = hasSolution ? (SolverResponse *)new InvalidResponse(objects, values)
+                         : (SolverResponse *)new ValidResponse(validityCore);
   }
   return status;
 }

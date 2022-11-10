@@ -158,8 +158,8 @@ bool TimingSolver::getInitialValues(
 }
 
 bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
-                            ref<SolverRespone> &queryResult,
-                            ref<SolverRespone> &negatedQueryResult,
+                            ref<SolverResponse> &queryResult,
+                            ref<SolverResponse> &negatedQueryResult,
                             SolverQueryMetaData &metaData) {
   TimerStatIncrementer timer(stats::solverTime);
 
@@ -227,7 +227,7 @@ bool TimingSolver::getValidAssignment(
   bool foundSymcreteDependendentConstraint = false;
   std::vector<const Array *> requestedSizeSymcretes;
 
-  ref<SolverRespone> solverRespone;
+  ref<SolverResponse> solverResponse;
   ConstraintSet constraintsWithSymcretes;
 
 
@@ -308,13 +308,13 @@ bool TimingSolver::getValidAssignment(
     TimerStatIncrementer timer(stats::solverTime);
     bool success = solver->check(
         Query(constraintsWithSymcretes, expr, true),
-        solverRespone);
+        solverResponse);
     metaData.queryCost += timer.delta();
 
     if (!success) {
       return false;
     }
-  } while (foundSymcreteDependendentConstraint && solverRespone->getValidityCore(validityCore));
+  } while (foundSymcreteDependendentConstraint && solverResponse->getValidityCore(validityCore));
 
   /// Query is still have unsat core, but we did not remove any
   /// symcrete dependent constraints. 
@@ -336,7 +336,7 @@ bool TimingSolver::getValidAssignment(
   std::vector<std::vector<uint8_t>> requestedSymcretesConcretization;
 
   /// In the beggining we will take solution from model.
-  if (!solverRespone->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization)) {
+  if (!solverResponse->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization)) {
     hasResult = false;
     return true;
   }
@@ -370,20 +370,20 @@ bool TimingSolver::getValidAssignment(
       uint64_t middleSumModel = (minSumModel + maxSumModel) / 2;
       ref<Expr> ask = UleExpr::create(
           optimizationRead, ConstantExpr::create(middleSumModel, Expr::Int128));
-      ref<SolverRespone> newSolverRespone;
+      ref<SolverResponse> newSolverResponse;
 
       TimerStatIncrementer timer(stats::solverTime);
       bool success =
           solver->check(Query(constraintsWithSymcretes, ask, true).negateExpr(),
-                        newSolverRespone);
+                        newSolverResponse);
       metaData.queryCost += timer.delta();
       
       if (!success) {
         return false;
       }
 
-      if (isa<InvalidResponse>(newSolverRespone)) {
-        solverRespone = newSolverRespone;
+      if (isa<InvalidResponse>(newSolverResponse)) {
+        solverResponse = newSolverResponse;
         maxSumModel = middleSumModel;
       } else {
         minSumModel = middleSumModel;
@@ -391,7 +391,7 @@ bool TimingSolver::getValidAssignment(
     }
 
     if (maxSumModel == 1) {
-      ref<SolverRespone> newSolverResponse;
+      ref<SolverResponse> newSolverResponse;
       TimerStatIncrementer timer(stats::solverTime);
       bool success =
           solver->check(Query(constraintsWithSymcretes,
@@ -404,7 +404,7 @@ bool TimingSolver::getValidAssignment(
       }
 
       if (isa<InvalidResponse>(newSolverResponse)) {
-        solverRespone = newSolverResponse;
+        solverResponse = newSolverResponse;
         maxSumModel = 0;
       }
     }
@@ -415,7 +415,7 @@ bool TimingSolver::getValidAssignment(
     }
 
     requestedSymcretesConcretization.clear();
-    solverRespone->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization);
+    solverResponse->getInitialValuesFor(requestedSizeSymcretes, requestedSymcretesConcretization);
   }
 
   hasResult = true;
