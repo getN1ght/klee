@@ -80,7 +80,9 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                               KType *objectType, ObjectPair &result,
                               bool &success) const {
   if (ref<ConstantExpr> CE =
-          dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(address))) {
+          dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
+              state.evaluateConstraintsWithSymcretes(),
+              state.evaluateWithSymcretes(address)))) {
     success = resolveOne(CE, objectType, result);
     if (success || isa<ConstantExpr>(address)) {
       return true;
@@ -238,7 +240,9 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
                            ResolutionList &rl, ResolutionList &rlSkipped,
                            unsigned maxResolutions, time::Span timeout) const {
   if (ref<ConstantExpr> CE =
-          dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(p))) {
+          dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
+              state.evaluateConstraintsWithSymcretes(),
+              state.evaluateWithSymcretes(p)))) {
     ObjectPair res;
     if (resolveOne(CE, objectType, res)) {
       rl.push_back(res);
@@ -248,7 +252,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     if (isa<ConstantExpr>(p)) { 
       return false;
     }
-  } 
+  }
   TimerStatIncrementer timer(stats::resolveTime);
 
   // XXX in general this isn't exactly what we want... for
@@ -348,7 +352,9 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
                                unsigned maxResolutions,
                                time::Span timeout) const {
   if (ref<ConstantExpr> CE =
-          dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(p))) {
+          dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
+              state.evaluateConstraintsWithSymcretes(),
+              state.evaluateWithSymcretes(p)))) {
     ObjectPair res;
     if (resolveOne(CE, objectType, res)) {
       rl.push_back(res);

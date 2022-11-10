@@ -5222,7 +5222,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   if (unbound) {
     if (incomplete) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
-    } else if (LazyInstantiation && isReadFromSymbolicArray(state.evaluateWithSymcretes(base)) &&
+    } else if (LazyInstantiation &&
+               isReadFromSymbolicArray(ConstraintManager::simplifyExpr(
+                   unbound->evaluateConstraintsWithSymcretes(),
+                   unbound->evaluateWithSymcretes(base))) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 (UseGEPExpr && isGEPExpr(address)))) {
 
@@ -5247,61 +5250,29 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
       assert(p.first && p.second);
       
-      ref<Expr> inBounds = p.first->getBoundsCheckPointer(address, bytes);
-      if (UseGEPExpr && isGEPExpr(address)) {
-        inBounds = AndExpr::create(inBounds, p.first->getBoundsCheckPointer(base, 1));
-        inBounds =
-            AndExpr::create(inBounds, p.first->getBoundsCheckPointer(base, size));
+      /* FIXME: same as above. Wasting memory. */
+      ObjectState *wos =
+          unbound->addressSpace.getWriteable(p.first, p.second);
+      switch (operation) {
+      case Write: {
+        wos->getDynamicType()->handleMemoryAccess(
+            targetType, p.first->getOffsetExpr(address),
+            ConstantExpr::alloc(size, Context::get().getPointerWidth()),
+            true);
+        // Here we are trying to simplify write by using constant addresses
+        wos->write(p.first->getOffsetExpr(address), value);
+        break;
       }
-
-      /// Here we check SAT for constarint and need to evaluate with symbolics
-      SymcreteContainerPairType symcreteExamples;
-      StatePair sp = fork(*unbound, inBounds, true, BranchType::MemOp, symcreteExamples);
-      ExecutionState *inbound = sp.first;
-      unbound = sp.second;
-
-      if (unbound) {
-        auto &mapping = symcreteExamples.second;
-        const MemoryObject *failedMO = p.first;
-        if (mapping.count(p.first)) {
-          failedMO = mapping[p.first].first;
-        }
-        terminateStateOnError(*unbound, "memory error: out of bound pointer",
-                              StateTerminationType::Ptr,
-                              getAddressInfo(*unbound, address, failedMO));
-      } 
-
-      if (inbound) {
-        /* FIXME: same as above. Wasting memory. */
-        auto &mapping = symcreteExamples.first;
-        if (mapping.count(p.first)) {
-          p = mapping[p.first];
-        }
-        addConstraint(state, EqExpr::create(p.first->getBaseExpr(), base));
-
-        ObjectState *wos =
-            inbound->addressSpace.getWriteable(p.first, p.second);
-        switch (operation) {
-        case Write: {
-          wos->getDynamicType()->handleMemoryAccess(
-              targetType, p.first->getOffsetExpr(address),
-              ConstantExpr::alloc(size, Context::get().getPointerWidth()),
-              true);
-          // Here we are trying to simplify write by using constant addresses
-          wos->write(p.first->getOffsetExpr(address), value);
-          break;
-        }
-        case Read: {
-          wos->getDynamicType()->handleMemoryAccess(
-              targetType, p.first->getOffsetExpr(address),
-              ConstantExpr::alloc(size, Context::get().getPointerWidth()),
-              false);
-          // Here we are trying to simplify write by using constant addresses
-          ref<Expr> result = wos->read(p.first->getOffsetExpr(address), type);
-          bindLocal(target, *inbound, result);
-          break;
-        }
-        }
+      case Read: {
+        wos->getDynamicType()->handleMemoryAccess(
+            targetType, p.first->getOffsetExpr(address),
+            ConstantExpr::alloc(size, Context::get().getPointerWidth()),
+            false);
+        // Here we are trying to simplify write by using constant addresses
+        ref<Expr> result = wos->read(p.first->getOffsetExpr(address), type);
+        bindLocal(target, *unbound, result);
+        break;
+      }
       }
     } else {
       bool mayBeOutOfBound = false;
@@ -5386,6 +5357,7 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
     return ObjectPair(nullptr, nullptr);
   }
 
+  addConstraint(state, EqExpr::create(mo->getBaseExpr(), address));
   return lazyInstantiate(state, targetType, /*isLocal=*/false, mo);
 }
 

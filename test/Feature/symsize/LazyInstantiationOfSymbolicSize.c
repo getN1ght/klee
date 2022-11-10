@@ -9,8 +9,7 @@
 int main() {
   int *ptr;
   klee_make_symbolic(&ptr, sizeof(ptr), "ptr");
-  // CHECK: LazyInstantiationOfSymbolicSize.c:[[@LINE+2]]: memory error: null pointer exception
-  // CHECK: LazyInstantiationOfSymbolicSize.c:[[@LINE+1]]: memory error: out of bound pointer
+  // CHECK: LazyInstantiationOfSymbolicSize.c:[[@LINE+1]]: memory error: null pointer exception
   int x = ptr[0];
   // CHECK: LazyInstantiationOfSymbolicSize.c:[[@LINE+1]]: memory error: out of bound pointer
   int y = ptr[2];
@@ -21,5 +20,5 @@ int main() {
 }
 
 // CHECK: KLEE: done: completed paths = 1
-// CHECK: KLEE: done: partially completed paths = 4
-// CHECK: KLEE: done: generated tests = 5
+// CHECK: KLEE: done: partially completed paths = 3
+// CHECK: KLEE: done: generated tests = 4
