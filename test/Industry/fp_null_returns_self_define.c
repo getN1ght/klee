@@ -20,7 +20,7 @@ void TEST_NullReturns004(unsigned short index)
     return;
   }
   unsigned int *value = MyValue(index);           // (2)
-  if (*value == 0) { /* expect NULL_RETURNS */    // CHECK: KLEE: WARNING: False Positive at: /mnt/d/wsl-ubuntu/test2/null_returns/fp_null_returns_self_define.c:23
+  if (*value == 0) { /* expect NULL_RETURNS */    // CHECK: KLEE: WARNING: False Positive at trace 1
     return;
   }
 }

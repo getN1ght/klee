@@ -219,7 +219,7 @@ void TargetedExecutionManager::reportFalsePositives(bool noMoreStates) {
     }
     assert(0 <= confidenceRate && confidenceRate <= 100);
     // klee_warning("%u%% False Positive at: %s", confidenceRate, expectedLocation->toString().c_str());
-    klee_warning("False Positive at: %s", expectedLocation->toString().c_str());
+    klee_warning("False Positive at trace %u", expectedLocation->id);
   }
 }
 
@@ -248,7 +248,7 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWi
     return false;
 
   state.error = error;
-  klee_warning("True Positive at: %s", expectedLocation->toString().c_str());
+  klee_warning("True Positive at trace %u", expectedLocation->id);
   // klee_warning("100%% True Positive at: %s", expectedLocation->toString().c_str());
   expectedLocation->isReported = true;
   return true;

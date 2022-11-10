@@ -131,5 +131,5 @@ void WB_BadCase03(UINT32 *output, UINT32 *input, UINT32 flag)
 void badbad(char *ptr)
 {
   ptr = NULL;
-  *ptr = 'a'; // CHECK: KLEE: WARNING: True Positive at: /mnt/d/wsl-ubuntu/test2/forward_null/SecB_ForwardNull.c:134
+  *ptr = 'a'; // CHECK: KLEE: WARNING: True Positive at trace 1
 }

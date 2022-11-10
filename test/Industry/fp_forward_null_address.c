@@ -19,7 +19,7 @@ void foo()
   if (i >= loopCntMax) {
     return;
   }
-  int v = *p; // CHECK: KLEE: WARNING: False Positive at: /mnt/d/wsl-ubuntu/test2/forward_null/fp_forward_null_address.c:22
+  int v = *p; // CHECK: KLEE: WARNING: False Positive at trace 1
 }
 // RUN: %clang %s -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone -o %t1.bc
 // RUN: rm -rf %t.klee-out

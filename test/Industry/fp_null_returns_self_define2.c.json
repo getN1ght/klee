@@ -2,6 +2,7 @@
   "errors": [
       {
           "category": "NULL pointer deference",
+          "id": 1,
           "trace": [
               {
                   "location": {

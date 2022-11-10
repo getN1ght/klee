@@ -16,7 +16,7 @@ void TestBad8(int len)
 {
         // char *buf = HelpTestBad8(len);
         char *buf = (char *)malloc(10);
-        buf[0] = 'a'; // CHECK: KLEE: WARNING: True Positive at: /mnt/d/wsl-ubuntu/test2/./test.c:19
+        buf[0] = 'a'; // CHECK: KLEE: WARNING: True Positive at trace 1
 }
 
 // RUN: %clang %s -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone -o %t1.bc

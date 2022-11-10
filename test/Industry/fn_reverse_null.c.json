@@ -2,6 +2,7 @@
     "errors": [
         {
             "category": "NULL pointer deference",
+            "id": 1,
             "trace": [
                 {
                     "location": {
@@ -31,6 +32,7 @@
         },
         {
             "category": "NULL pointer deference",
+            "id": 2,
             "trace": [
                 {
                     "location": {
@@ -60,6 +62,7 @@
         },
         {
             "category": "NULL pointer deference",
+            "id": 3,
             "trace": [
                 {
                     "location": {

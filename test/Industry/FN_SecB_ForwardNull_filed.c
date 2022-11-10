@@ -47,5 +47,5 @@ void WB_BadCase_field2(DataInfo *data)
   *data->dataBuff = 'c'; // CHECK: KLEE: WARNING: False Negative at: test/Industry/FN_SecB_ForwardNull_filed.c:47:19
 
   char *ptr = NULL;
-  *ptr = 'c'; // CHECK: KLEE: WARNING: False Positive at: /mnt/d/wsl-ubuntu/test2/forward_null/./FN_SecB_ForwardNull_filed.c:50
+  *ptr = 'c'; // CHECK: KLEE: WARNING: False Positive at trace 1
 }

@@ -17,7 +17,7 @@ unsigned int *MyValue(unsigned short index)
 
 void sink(unsigned int *arg)
 {
-    if (*arg== 0) { /* expect NULL_RETURNS */  // CHECK: KLEE: WARNING: False Positive at: instruction №3 in function sink
+    if (*arg== 0) { /* expect NULL_RETURNS */  // CHECK: KLEE: WARNING: False Positive at trace 1
         return;
     }
 }

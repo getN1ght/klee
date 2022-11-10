@@ -67,6 +67,7 @@ public:
 struct LocatedEvent {
   Location location;
   ReachWithError error;
+  unsigned id = 0;
   bool isReported;
 
   LocatedEvent(Location location, ReachWithError error) : location(location), error(error), isReported(false) {}

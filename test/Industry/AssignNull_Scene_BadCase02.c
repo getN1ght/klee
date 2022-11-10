@@ -44,7 +44,7 @@ void TestBad5(struct STU *pdev, const char *buf, unsigned int count)
     // 开始事件，assign_zero - 结构体变量被赋予 {0} 值
     struct STU *stu = 0;
     /* POTENTIAL FLAW: 结束事件，var_deref_op - null 指针解引用运算，访问成员变量 */
-    tea = stu->teacher; // CHECK: KLEE: WARNING: True Positive at: /mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c:47
+    tea = stu->teacher; // CHECK: KLEE: WARNING: True Positive at trace 1
     unsigned int teacherID = tea->id;
     printf("teacher id is %ud", teacherID);
 }

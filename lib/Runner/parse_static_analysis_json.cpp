@@ -80,13 +80,15 @@ class TraceParser {
 
 struct cmpLocatedEvent {
     bool operator()(const LocatedEvent& a, const LocatedEvent& b) const {
-        return a.error < b.error || (a.error == b.error && a.location < b.location);
+        return a.location < b.location;
     }
 };
 
 std::map<LocatedEvent, LocatedEvent *, cmpLocatedEvent> locatedEvents;
 
 LocatedEvent *locatedEvent(LocatedEvent *event) {
+  if (event->error != ReachWithError::None)
+    return event;
   auto it = locatedEvents.find(*event);
   if (it == locatedEvents.end()) {
     locatedEvents.insert(std::make_pair(*event, event));
@@ -146,16 +148,20 @@ LocatedEvent *deduceEntryPoint(json &trace) {
   }
   auto p = frames.entryPoint();
   auto le = new LocatedEvent(Location(p->first, p->second), ReachWithError::None);
+  // llvm::errs() << "Deduced entry point: " << p->first << ' ' << p->second << '\n';
   return locatedEvent(le);
 }
 
-std::vector<LocatedEvent *> *parseTrace(json &trace) {
+std::vector<LocatedEvent *> *parseTrace(json &trace, unsigned id) {
   auto out = new std::vector<LocatedEvent *>();
   out->reserve(trace.size() + 1);
   auto entryPoint = deduceEntryPoint(trace);
   out->push_back(entryPoint);
   for (auto traceEvent : trace) {
-    out->push_back(parseTraceEvent(traceEvent));
+    auto le = parseTraceEvent(traceEvent);
+    if (le->error != ReachWithError::None)
+      le->id = id;
+    out->push_back(le);
   }
   return out;
 }
@@ -168,7 +174,8 @@ PathForest *parseErrors(json &errors) {
   if (errors.empty())
     return layer;
   for (auto errorTrace : errors) {
-    auto trace = parseTrace(errorTrace.at("trace"));
+    unsigned id = errorTrace.at("id");
+    auto trace = parseTrace(errorTrace.at("trace"), id);
     layer->addTrace(trace);
     delete trace;
   }

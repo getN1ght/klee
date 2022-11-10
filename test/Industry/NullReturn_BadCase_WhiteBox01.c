@@ -51,9 +51,9 @@ static inline SchrltStru *GetResult(UINT16 usrId, UINT32 schIndex)
 void SendMsg(UINT8 index, UINT16 usrId, SchrltStru *resultInfo)
 {
     if ((index + usrId) > MAX_SCHED_USER_NUM_PER_TTI) {
-        resultInfo->userType = 1; // CHECK: KLEE: WARNING: True Positive at: /mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c:54
+        resultInfo->userType = 1; // CHECK: KLEE: WARNING: True Positive at trace 2
     } else {
-        resultInfo->userType = 0; // CHECK: KLEE: WARNING: True Positive at: instruction №26 in function SendMsg
+        resultInfo->userType = 0; // CHECK: KLEE: WARNING: True Positive at trace 1
     }
 }
 

@@ -12,7 +12,7 @@ extern int CheckValid(int value);
 void TestErr1(TreeNode *stru)
 {
     stru->value = 0;
-    if (stru == NULL) { // CHECK: KLEE: WARNING: True Positive at: /mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c:15
+    if (stru == NULL) { // CHECK: KLEE: WARNING: True Positive at trace 3
         return;
     }
 }
@@ -22,7 +22,7 @@ void TestErr2(TreeNode *stru, int *flag)
     if (CheckValid(stru->value) != OK) {
         return;
     }
-    if (flag == NULL || stru == NULL) { // CHECK: KLEE: WARNING: True Positive at: /mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c:25
+    if (flag == NULL || stru == NULL) { // CHECK: KLEE: WARNING: True Positive at trace 1
         return;
     }
     BusinessFunc();
@@ -33,7 +33,7 @@ void TestErr2(TreeNode *stru, int *flag)
 
 int TestErr3(int *arr) 
 {
-    if (arr[0] == 0 || arr == NULL) { // CHECK: KLEE: WARNING: True Positive at: /mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c:36
+    if (arr[0] == 0 || arr == NULL) { // CHECK: KLEE: WARNING: True Positive at trace 2
         return ERR;
     }
     return OK;
