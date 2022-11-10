@@ -40,15 +40,16 @@ The following flags should be used when calling klee binary.
 
 ### Our KLEE reports results to **stderr** as lines of the form:
 
-`KLEE: WARNING: *verdict* at: *filename*:*error line*:*error column*`
+`KLEE: WARNING: False Negative at: *filename*:*error line*:*error column*`
+
+where *filename*, *error line*, *error column* is an error address with program trace which does not match input source-sink request, which is proven to be reachable.
+
+`KLEE: WARNING: *verdict* at trace *number*`
 
 where
 
-* *verdict* is one of: “False Positive”, “False Negative”, “True Positive”
-* *filename*, *error line*, *error column* is an error address
-  * in case of “True Positive” it is a sink address, which is proven to be reachable
-  * in case of “False Negative” it is an error found with program trace which does not match input source-sink request, which is proven to be reachable
-  * in case of “False Positive” it is a sink address, which is proven to be unreachable
+* *verdict* is either: “False Positive” or “True Positive”
+* *number* is an id of the proved or refuted trace from JSON input
 
 ### Known limitations
 
