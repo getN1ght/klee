@@ -1815,10 +1815,10 @@ int run_klee(int argc, char **argv, char **envp) {
 
     llvm::Module *mainModule = M.get();
 
-    std::vector<llvm::Function *> mainFunctions;
+    std::vector<std::string> mainFunctions;
     for (auto &Function : *mainModule) {
       if (!Function.isDeclaration()) {
-        mainFunctions.push_back(&Function);
+        mainFunctions.push_back(Function.getName().str());
       }
     }
 

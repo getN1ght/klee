@@ -523,6 +523,14 @@ std::map<KFunction *, unsigned int> &KModule::getDistance(KFunction *kf) {
   return distance[kf];
 }
 
+bool KModule::inMainModule(llvm::Function *f) {
+  auto found = std::find_if(mainFunctions.begin(), mainFunctions.end(),
+                            [&f](const std::string &str) {
+                              return str == f->getName().str();
+                            });
+  return found != mainFunctions.end();
+}
+
 Function *llvm::getTargetFunction(Value *calledVal) {
   SmallPtrSet<const GlobalValue *, 3> Visited;
 

@@ -21,8 +21,10 @@
 #include <map>
 #include <memory>
 #include <set>
-#include <vector>
+#include <string>
+#include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace llvm {
   class BasicBlock;
@@ -176,7 +178,7 @@ namespace klee {
     // Functions which escape (may be called indirectly)
     // XXX change to KFunction
     std::set<llvm::Function*> escapingFunctions;
-    std::unordered_set<llvm::Function *> mainFunctions;
+    std::vector<std::string> mainFunctions;
 
     std::unique_ptr<InstructionInfoTable> infos;
 
@@ -246,6 +248,8 @@ namespace klee {
     KBlock *getKBlock(llvm::BasicBlock *bb);
     std::map<KFunction *, unsigned int> &getBackwardDistance(KFunction *kf);
     std::map<KFunction *, unsigned int> &getDistance(KFunction *kf);
+    
+    bool inMainModule(llvm::Function *f);
   };
 } // End klee namespace
 
