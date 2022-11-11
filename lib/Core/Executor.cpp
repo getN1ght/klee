@@ -4872,6 +4872,11 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     /* Size cannot be negative */
     addConstraint(state, Expr::createIsZero(AndExpr::create(
                         size, Expr::createPointer((uint64_t)1 << 63))));
+    // FIXME: It is not what we want. Just temporary solution to
+    // avoid huge allocs in solver. It would be better if we returned 
+    // map from index to value from solver, not all array.
+    addConstraint(state, UleExpr::create(
+                             size, Expr::createPointer(MaxSymSize.getValue())));
   }
   return mo;
 }
@@ -5849,7 +5854,8 @@ bool Executor::getSymbolicSolution(ExecutionState &state,
     // If the particular constraint operated on in this iteration through
     // the loop isn't implied then add it to the list of constraints.
     if (!mustBeTrue)
-      cm.addConstraint(state.evaluateWithSymcretes(pi));
+      cm.addConstraint(ConstraintManager::simplifyExpr(
+          extendedConstraints, state.evaluateWithSymcretes(pi)));
   }
 
   std::vector< std::vector<unsigned char> > values;

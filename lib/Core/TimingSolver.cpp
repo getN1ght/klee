@@ -66,23 +66,21 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
 
   // if (simplifyExprs)
   //   expr = ConstraintManager::simplifyExpr(constraints, expr);
+  
+  ValidityCore core;
   bool success =
-      solver->mustBeTrue(Query(constraints, expr, true), result);
+      solver->getValidityCore(Query(constraints, expr, true), core, result);
 
-  if (success && result) {
-    ValidityCore core;
+  if (success && result) {    
     bool hasSolution;
-    success = solver->getValidityCore(Query(constraints, expr, true), core,
-                                      hasSolution);
-    assert(success && hasSolution);
     Assignment newAssignment(true);
     success = getValidAssignment(
         state.constraints, expr, core, state.symcretes, state.symsizesToMO,
         state.symcreteToConstraints, hasSolution, newAssignment, metaData, minimizeModel);
     if (success && hasSolution) {
       result = false;
+      symcretesCex = newAssignment;
     }
-    symcretesCex = newAssignment;
   }
 
   metaData.queryCost += timer.delta();

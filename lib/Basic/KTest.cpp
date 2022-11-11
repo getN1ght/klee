@@ -206,7 +206,7 @@ int kTest_toFile(KTest *bo, const char *path) {
       goto error;
     if (!write_uint32(f, o->numBytes))
       goto error;
-    if (fwrite(o->bytes, o->numBytes, 1, f)!=1)
+    if (o->numBytes && fwrite(o->bytes, o->numBytes, 1, f)!=1)
       goto error;
   }
 
