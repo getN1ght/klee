@@ -441,7 +441,7 @@ void ExecutionState::addLevel(BasicBlock *bb) {
   KModule *kmodule = kf->parent;
 
   if (prevPC->inst->isTerminator() &&
-      kmodule->mainFunctions.count(kf->function)) {
+      kmodule->inMainModule(kf->function)) {
     multilevel.insert(bb);
     level.insert(bb);
   }
