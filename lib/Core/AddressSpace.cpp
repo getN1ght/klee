@@ -78,7 +78,9 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                               KType *objectType, ObjectPair &result,
                               bool &success) const {
   if (ref<ConstantExpr> CE =
-          dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(address))) {
+          dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
+              state.evaluateConstraintsWithSymcretes(),
+              state.evaluateWithSymcretes(address)))) {
     success = resolveOne(CE, objectType, result);
     return true;
   } else {
@@ -230,7 +232,9 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
                            ResolutionList &rl, ResolutionList &rlSkipped,
                            unsigned maxResolutions, time::Span timeout) const {
   if (ref<ConstantExpr> CE =
-          dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(p))) {
+          dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
+              state.evaluateConstraintsWithSymcretes(),
+              state.evaluateWithSymcretes(p)))) {
     ObjectPair res;
     if (resolveOne(CE, objectType, res))
       rl.push_back(res);
@@ -335,7 +339,10 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
                                ResolutionList &rl, ResolutionList &rlSkipped,
                                unsigned maxResolutions,
                                time::Span timeout) const {
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(p)) {
+  if (ref<ConstantExpr> CE =
+          dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
+              state.evaluateConstraintsWithSymcretes(),
+              state.evaluateWithSymcretes(p)))) {
     ObjectPair res;
     if (resolveOne(CE, objectType, res))
       rl.push_back(res);

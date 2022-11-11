@@ -5018,7 +5018,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   if (unbound) {
     if (incomplete) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
-    } else if (LazyInstantiation && isReadFromSymbolicArray(state.evaluateWithSymcretes(base)) &&
+    } else if (LazyInstantiation &&
+               isReadFromSymbolicArray(ConstraintManager::simplifyExpr(
+                   unbound->evaluateConstraintsWithSymcretes(),
+                   unbound->evaluateWithSymcretes(base))) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 (UseGEPExpr && isGEPExpr(address)))) {
       ObjectPair p =
@@ -5029,45 +5032,29 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
       assert(p.first && p.second);
 
-      const MemoryObject *mo = p.first;
-      
-      ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
-
-      StatePair sp = fork(*unbound, inBounds, true, BranchType::MemOp);
-      ExecutionState *bound = sp.first;
-      unbound = sp.second;
-
-      if (unbound) {
-        terminateStateOnError(*unbound, "memory error: out of bound pointer",
-                              StateTerminationType::Ptr,
-                              getAddressInfo(*unbound, address, mo));
+      /* FIXME: same as above. Wasting memory. */
+      ObjectState *wos =
+          unbound->addressSpace.getWriteable(p.first, p.second);
+      switch (operation) {
+      case Write: {
+        wos->getDynamicType()->handleMemoryAccess(
+            targetType, p.first->getOffsetExpr(address),
+            ConstantExpr::alloc(size, Context::get().getPointerWidth()),
+            true);
+        // Here we are trying to simplify write by using constant addresses
+        wos->write(p.first->getOffsetExpr(address), value);
+        break;
       }
-
-      if (bound) {
-        addConstraint(*bound, inBounds);
-        /* FIXME: same as above. Wasting memory. */
-        ObjectState *wos = bound->addressSpace.getWriteable(p.first, p.second);
-        switch (operation) {
-        case Write: {
-          wos->getDynamicType()->handleMemoryAccess(
-              targetType, p.first->getOffsetExpr(address),
-              ConstantExpr::alloc(size, Context::get().getPointerWidth()),
-              true);
-          // Here we are trying to simplify write by using constant addresses
-          wos->write(p.first->getOffsetExpr(address), value);
-          break;
-        }
-        case Read: {
-          wos->getDynamicType()->handleMemoryAccess(
-              targetType, p.first->getOffsetExpr(address),
-              ConstantExpr::alloc(size, Context::get().getPointerWidth()),
-              false);
-          // Here we are trying to simplify write by using constant addresses
-          ref<Expr> result = wos->read(p.first->getOffsetExpr(address), type);
-          bindLocal(target, *bound, result);
-          break;
-        }
-        }
+      case Read: {
+        wos->getDynamicType()->handleMemoryAccess(
+            targetType, p.first->getOffsetExpr(address),
+            ConstantExpr::alloc(size, Context::get().getPointerWidth()),
+            false);
+        // Here we are trying to simplify write by using constant addresses
+        ref<Expr> result = wos->read(p.first->getOffsetExpr(address), type);
+        bindLocal(target, *unbound, result);
+        break;
+      }
       }
     } else {
       terminateStateOnError(*unbound, "memory error: out of bound pointer",
