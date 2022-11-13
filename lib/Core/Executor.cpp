@@ -2264,7 +2264,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
 
             ObjectPair op;
             state.addressSpace.resolveOne(
-                CE, typeSystemManager->getWrappedType(argType), op);
+                state, CE, typeSystemManager->getWrappedType(argType), op);
             const ObjectState *osarg = op.second;
             assert(osarg);
             for (unsigned i = 0; i < osarg->size; i++)
@@ -4283,11 +4283,14 @@ std::string Executor::getAddressInfo(ExecutionState &state, ref<Expr> address,
   } else {
     const MemoryObject *mo = lower->first;
     const ObjectState *os = lower->second.get();
+    uint64_t size =
+    cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()))
+        ->getZExtValue();
 
     std::string alloc_info;
     mo->getAllocInfo(alloc_info);
     info << "object at " << mo->address
-         << " of size " << os->size << "\n"
+         << " of size " << size << "\n"
          << "\t\t" << alloc_info << "\n";
   }
   if (lower!=state.addressSpace.objects.begin()) {
@@ -4298,10 +4301,13 @@ std::string Executor::getAddressInfo(ExecutionState &state, ref<Expr> address,
     } else {
       const MemoryObject *mo = lower->first;
       const ObjectState *os = lower->second.get();
+      uint64_t size =
+          cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()))
+              ->getZExtValue();
       std::string alloc_info;
       mo->getAllocInfo(alloc_info);
       info << "object at " << mo->address 
-           << " of size " << os->size << "\n"
+           << " of size " << size << "\n"
            << "\t\t" << alloc_info << "\n";
     }
   }
@@ -4595,7 +4601,7 @@ void Executor::callExternalFunction(ExecutionState &state,
       }
       if (ce->getWidth() == Context::get().getPointerWidth() &&
           state.addressSpace.resolveOne(
-              ce, typeSystemManager->getWrappedType(argumentType), op)) {
+              state, ce, typeSystemManager->getWrappedType(argumentType), op)) {
         op.second->flushToConcreteStore(solver, state);
       }
       wordIndex += (ce->getWidth()+63)/64;
@@ -4634,7 +4640,7 @@ void Executor::callExternalFunction(ExecutionState &state,
       kmodule->targetData->getAllocaAddrSpace());
 
   bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64),
+      state, ConstantExpr::create((uint64_t)errno_addr, Expr::Int64),
       typeSystemManager->getWrappedType(pointerErrnoAddr), result);
 
   if (!resolved)
@@ -5040,16 +5046,18 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   if (!state.addressSpace.resolveOne(state, solver, address, base, targetType,
                                      op, success)) {
     address = toConstant(state, address, "resolveOne failure");
-    success = state.addressSpace.resolveOne(cast<ConstantExpr>(address),
+    success = state.addressSpace.resolveOne(state, cast<ConstantExpr>(address),
                                             targetType, op);
   }
   solver->setTimeout(time::Span());
 
   if (success) {
     const MemoryObject *mo = op.first;
-    const ObjectState *os = op.second; 
-
-    if (MaxSymArraySize && os->size >= MaxSymArraySize) {
+    const ObjectState *os = op.second;
+    uint64_t objectSize =
+        cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()))
+            ->getZExtValue();
+    if (MaxSymArraySize && objectSize >= MaxSymArraySize) {
       address = toConstant(state, address, "max-sym-array-size");
     }
 
@@ -5314,8 +5322,8 @@ ObjectPair Executor::lazyInstantiate(ExecutionState &state, KType *targetType,
                                      const MemoryObject *mo) {
   executeMakeSymbolic(state, mo, targetType, "lazy_instantiation", isLocal);
   ObjectPair op;
-  state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), targetType,
-                                op);
+  state.addressSpace.resolveOne(state, mo->getBaseConstantExpr().get(),
+                                targetType, op);
   return op;
 }
 
@@ -5383,6 +5391,9 @@ const Array *Executor::makeArray(ExecutionState &state, ref<Expr> size,
 void Executor::executeMakeSymbolic(ExecutionState &state, 
                                    const MemoryObject *mo, KType *type,
                                    const std::string &name, bool isLocal) {
+  uint64_t size =
+      cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()))
+          ->getZExtValue();
   // Create a new object state for the memory object (instead of a copy).
   if (!replayKTest) {
     // Find a unique name for this array.  First try the original name,
@@ -5392,12 +5403,9 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
     ObjectState *os = bindObjectInState(state, mo, type, isLocal, array);
 
     if (AlignSymbolicPointers) {
-      ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()));
       /// FIXME: alignment should be made for entire object
-      assert(CE && "Object should have constant size during execution!");
-
       if (ref<Expr> alignmentRestrictions = type->getContentRestrictions(
-              os->read(0, CE->getZExtValue() * CHAR_BIT))) {
+              os->read(0, size * CHAR_BIT))) {
         addConstraint(state, alignmentRestrictions);
       }
     }
@@ -5416,19 +5424,19 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
         if (!obj) {
           if (ZeroSeedExtension) {
             std::vector<unsigned char> &values = si.assignment.bindings[array];
-            values = std::vector<unsigned char>(mo->size, '\0');
+            values = std::vector<unsigned char>(size, '\0');
           } else if (!AllowSeedExtension) {
             terminateStateOnUserError(state, "ran out of inputs during seeding");
             break;
           }
         } else {
-          if (obj->numBytes != mo->size &&
+          if (obj->numBytes != size &&
               ((!(AllowSeedExtension || ZeroSeedExtension)
-                && obj->numBytes < mo->size) ||
-               (!AllowSeedTruncation && obj->numBytes > mo->size))) {
+                && obj->numBytes < size) ||
+               (!AllowSeedTruncation && obj->numBytes > size))) {
 	    std::stringstream msg;
 	    msg << "replace size mismatch: "
-		<< mo->name << "[" << mo->size << "]"
+		<< mo->name << "[" << size << "]"
 		<< " vs " << obj->name << "[" << obj->numBytes << "]"
 		<< " in test\n";
 
@@ -5437,9 +5445,9 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
           } else {
             std::vector<unsigned char> &values = si.assignment.bindings[array];
             values.insert(values.begin(), obj->bytes, 
-                          obj->bytes + std::min(obj->numBytes, mo->size));
+                          obj->bytes + std::min(static_cast<uint64_t>(obj->numBytes), size));
             if (ZeroSeedExtension) {
-              for (unsigned i=obj->numBytes; i<mo->size; ++i)
+              for (unsigned i=obj->numBytes; i<size; ++i)
                 values.push_back('\0');
             }
           }
@@ -5452,10 +5460,10 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
       terminateStateOnUserError(state, "replay count mismatch");
     } else {
       KTestObject *obj = &replayKTest->objects[replayPosition++];
-      if (obj->numBytes != mo->size) {
+      if (obj->numBytes != size) {
         terminateStateOnUserError(state, "replay size mismatch");
       } else {
-        for (unsigned i=0; i<mo->size; i++)
+        for (unsigned i=0; i<size; i++)
           os->write8(i, obj->bytes[i]);
       }
     }

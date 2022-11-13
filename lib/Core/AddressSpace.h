@@ -71,8 +71,8 @@ namespace klee {
 
     /// Resolve address to an ObjectPair in result.
     /// \return true iff an object was found.
-    bool resolveOne(const ref<ConstantExpr> &address, KType *objectType,
-                    ObjectPair &result) const;
+    bool resolveOne(ExecutionState &state, const ref<ConstantExpr> &address,
+                    KType *objectType, ObjectPair &result) const;
 
     /// Resolve address to an ObjectPair in result.
     ///

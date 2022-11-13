@@ -52,9 +52,10 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
   return newObjectState.get();
 }
 
-/// 
+///
 
-bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr, KType *objectType,
+bool AddressSpace::resolveOne(ExecutionState &state,
+                              const ref<ConstantExpr> &addr, KType *objectType,
                               ObjectPair &result) const {
   uint64_t address = addr->getZExtValue();
   MemoryObject hack(address);
@@ -63,9 +64,11 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr, KType *objectType,
     const auto &mo = res->first;
     // Check if the provided address is between start and end of the object
     // [mo->address, mo->address + mo->size) or the object is a 0-sized object.
-    const auto &os = findObject(mo);
-    if ((os->size==0 && address==mo->address) ||
-        (address - mo->address < os->size)) {
+    uint64_t size =
+        cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()))
+            ->getZExtValue();
+    if ((size==0 && address==mo->address) ||
+        (address - mo->address < size)) {
       result.first = res->first;
       result.second = res->second.get();
       return true;
@@ -83,7 +86,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
           dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
               state.evaluateConstraintsWithSymcretes(),
               state.evaluateWithSymcretes(address)))) {
-    success = resolveOne(CE, objectType, result);
+    success = resolveOne(state, CE, objectType, result);
     if (success || isa<ConstantExpr>(address)) {
       return true;
     }
@@ -104,10 +107,14 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   
   const auto res = objects.lookup_previous(&hack);
 
-  if (res) {
+  if (res) {  
     const MemoryObject *mo = res->first;
-    const auto &os = findObject(mo);
-    if (example - mo->address < os->size) {
+
+    uint64_t size =
+    cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()))
+        ->getZExtValue();
+
+    if (example - mo->address < size) {
       if (res->second->isAccessableFrom(objectType)) {
         result.first = res->first;
         result.second = res->second.get();
@@ -244,7 +251,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
               state.evaluateConstraintsWithSymcretes(),
               state.evaluateWithSymcretes(p)))) {
     ObjectPair res;
-    if (resolveOne(CE, objectType, res)) {
+    if (resolveOne(state, CE, objectType, res)) {
       rl.push_back(res);
       return false;
     }
@@ -356,7 +363,7 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
               state.evaluateConstraintsWithSymcretes(),
               state.evaluateWithSymcretes(p)))) {
     ObjectPair res;
-    if (resolveOne(CE, objectType, res)) {
+    if (resolveOne(state, CE, objectType, res)) {
       rl.push_back(res);
       return false;
     }

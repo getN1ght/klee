@@ -328,7 +328,7 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
   }
   ref<ConstantExpr> address = cast<ConstantExpr>(addressExpr);
   if (!state.addressSpace.resolveOne(
-          address, executor.typeSystemManager->getUnknownType(), op)) {
+          state, address, executor.typeSystemManager->getUnknownType(), op)) {
     executor.terminateStateOnUserError(
         state, "Invalid string pointer passed to one of the klee_ functions");
     return "";
@@ -342,7 +342,11 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
 
   std::ostringstream buf;
   char c = 0;
-  for (size_t i = offset; i < os->size; ++i) {
+
+  uint64_t size =
+    cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()))
+        ->getZExtValue();
+  for (size_t i = offset; i < size; ++i) {
     ref<Expr> cur = os->read8(i);
     cur = executor.toUnique(state, cur);
     assert(isa<ConstantExpr>(cur) && 
@@ -771,7 +775,7 @@ void SpecialFunctionHandler::handleGetErrno(ExecutionState &state,
       executor.kmodule->targetData->getAllocaAddrSpace());
 
   bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64),
+      state, ConstantExpr::create((uint64_t)errno_addr, Expr::Int64),
       executor.typeSystemManager->getWrappedType(pointerErrnoAddr), result);
   if (!resolved)
     executor.terminateStateOnUserError(state, "Could not resolve address for errno");
@@ -882,7 +886,7 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(ExecutionState &state,
     ObjectPair op;
 
     if (!state.addressSpace.resolveOne(
-            cast<ConstantExpr>(address),
+            state, cast<ConstantExpr>(address),
             executor.typeSystemManager->getUnknownType(), op)) {
       executor.terminateStateOnError(state,
                                      "check_memory_access: memory error",
