@@ -4282,7 +4282,6 @@ std::string Executor::getAddressInfo(ExecutionState &state, ref<Expr> address,
     info << "none\n";
   } else {
     const MemoryObject *mo = lower->first;
-    const ObjectState *os = lower->second.get();
     uint64_t size =
     cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()))
         ->getZExtValue();
@@ -4300,7 +4299,6 @@ std::string Executor::getAddressInfo(ExecutionState &state, ref<Expr> address,
       info << "none\n";
     } else {
       const MemoryObject *mo = lower->first;
-      const ObjectState *os = lower->second.get();
       uint64_t size =
           cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()))
               ->getZExtValue();
@@ -4866,8 +4864,9 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     ref<Expr> sizeExpr =
         Expr::createTempRead(sizeArray, Context::get().getPointerWidth());
 
-    mo = memory->allocate(modelSize, isLocal, /*isGlobal=*/false, allocSite,
-                          allocationAlignment, addressExpr, sizeExpr);
+    mo = memory->allocate(std::max(modelSize, static_cast<size_t>(1)), isLocal,
+                          /*isGlobal=*/false, allocSite, allocationAlignment,
+                          addressExpr, sizeExpr);
 
     state.addSymcrete(addressArray, addressToBytes(mo->address), mo->address);
     state.addSymcrete(sizeArray, addressToBytes(modelSize), modelSize);
@@ -5053,7 +5052,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   if (success) {
     const MemoryObject *mo = op.first;
-    const ObjectState *os = op.second;
     uint64_t objectSize =
         cast<ConstantExpr>(state.evaluateWithSymcretes(mo->getSizeExpr()))
             ->getZExtValue();
