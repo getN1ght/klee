@@ -260,22 +260,28 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
       return false;
     }
 
-    MemoryObject hack(CE->getZExtValue());
-    const auto op = objects.lookup_previous(&hack);
-    const MemoryObject *mo = op->first;
+    // But can it be non-constant?..
+    if (ref<ConstantExpr> baseCE =
+        dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
+            state.evaluateConstraintsWithSymcretes(),
+            state.evaluateWithSymcretes(base)))) {
+      MemoryObject hack(baseCE->getZExtValue());
+      const auto op = objects.lookup_previous(&hack);
+      const MemoryObject *mo = op->first;
 
-    ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
-    bool mayBeTrue;
-    Assignment assignmentHack;
+      ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
+      bool mayBeTrue;
+      Assignment assignmentHack;
 
-    if (!solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                          inBounds, mayBeTrue,
-                          state.queryMetaData, assignmentHack)) {
-      return true;
-    }
+      if (!solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                            inBounds, mayBeTrue,
+                            state.queryMetaData, assignmentHack)) {
+        return true;
+      }
 
-    if (mayBeTrue) {
-      rl.emplace_back(op->first, op->second.get());
+      if (mayBeTrue) {
+        rl.emplace_back(op->first, op->second.get());
+      }
     }
     return false;
   }
@@ -391,22 +397,28 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
       return false;
     }
 
-    MemoryObject hack(CE->getZExtValue());
-    const auto op = objects.lookup_previous(&hack);
-    const MemoryObject *mo = op->first;
+    // But can it be non-constant?..
+    if (ref<ConstantExpr> baseCE =
+        dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
+            state.evaluateConstraintsWithSymcretes(),
+            state.evaluateWithSymcretes(base)))) {
+      MemoryObject hack(baseCE->getZExtValue());
+      const auto op = objects.lookup_previous(&hack);
+      const MemoryObject *mo = op->first;
 
-    ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
-    bool mayBeTrue;
-    Assignment assignmentHack;
+      ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
+      bool mayBeTrue;
+      Assignment assignmentHack;
 
-    if (!solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
-                          inBounds, mayBeTrue,
-                          state.queryMetaData, assignmentHack)) {
-      return true;
-    }
+      if (!solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                            inBounds, mayBeTrue,
+                            state.queryMetaData, assignmentHack)) {
+        return true;
+      }
 
-    if (mayBeTrue) {
-      rl.emplace_back(op->first, op->second.get());
+      if (mayBeTrue) {
+        rl.emplace_back(op->first, op->second.get());
+      }
     }
     return false;
   } 
