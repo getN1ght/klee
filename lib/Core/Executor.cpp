@@ -1175,10 +1175,12 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   int resInt = 0;
   if (trueResponse->getValidityCore(trueCore)) {
     bool hasResult;
-    assert(solver->getValidAssignment(current.constraints, condition, trueCore,
-                               current.symcretes, current.symsizesToMO,
-                               current.symcreteToConstraints, hasResult,
-                               trueSymcretes, current.queryMetaData, true));
+    if (!solver->getValidAssignment(
+            current.constraints, condition, trueCore, current.symcretes,
+            current.symsizesToMO, current.symcreteToConstraints, hasResult,
+            trueSymcretes, current.queryMetaData, true)) {
+      terminateStateOnSolverError(current, "Query timed out (fork).");
+    }
     /// res = Unknown if hasResult else res = True
     if (!hasResult) {
       ++resInt;
@@ -1187,10 +1189,13 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
 
   if (falseResponse->getValidityCore(falseCore)) {
     bool hasResult;
-    assert(solver->getValidAssignment(current.constraints, Expr::createIsZero(condition), falseCore,
-                               current.symcretes, current.symsizesToMO,
-                               current.symcreteToConstraints, hasResult,
-                               falseSymcretes, current.queryMetaData, true));
+    if (!solver->getValidAssignment(
+            current.constraints, Expr::createIsZero(condition), falseCore,
+            current.symcretes, current.symsizesToMO,
+            current.symcreteToConstraints, hasResult, falseSymcretes,
+            current.queryMetaData, true)) {
+      terminateStateOnSolverError(current, "Query timed out (fork).");
+    }
     if (!hasResult) {
       --resInt;
     }
