@@ -5348,15 +5348,15 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state,
 
   assert(mo);
 
-  ref<Expr> checkPointerExpr =
-      Expr::createIsZero(EqExpr::create(address, mo->getBaseConstantExpr()));
+  ref<Expr> checkNotPointerExpr =
+      NotExpr::create(EqExpr::create(address, mo->getBaseConstantExpr()));
   bool isNotAppropratePointer;
 
   /// Check that the constructed model does not contradict itself 
   solver->setTimeout(coreSolverTimeout);
   ValidityCore coreHack;
   bool success = solver->getValidityCore(
-      state.evaluateConstraintsWithSymcretes(), checkPointerExpr, coreHack,
+      state.evaluateConstraintsWithSymcretes(), checkNotPointerExpr, coreHack,
       isNotAppropratePointer, state.queryMetaData);
   solver->setTimeout(time::Span());
 

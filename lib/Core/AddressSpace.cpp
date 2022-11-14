@@ -259,6 +259,25 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     if (isa<ConstantExpr>(p)) { 
       return false;
     }
+
+    MemoryObject hack(CE->getZExtValue());
+    const auto op = objects.lookup_previous(&hack);
+    const MemoryObject *mo = op->first;
+
+    ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
+    bool mayBeTrue;
+    Assignment assignmentHack;
+
+    if (!solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                          inBounds, mayBeTrue,
+                          state.queryMetaData, assignmentHack)) {
+      return true;
+    }
+
+    if (mayBeTrue) {
+      rl.emplace_back(op->first, op->second.get());
+    }
+    return false;
   }
   TimerStatIncrementer timer(stats::resolveTime);
 
@@ -371,6 +390,25 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
     if (isa<ConstantExpr>(p)) { 
       return false;
     }
+
+    MemoryObject hack(CE->getZExtValue());
+    const auto op = objects.lookup_previous(&hack);
+    const MemoryObject *mo = op->first;
+
+    ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
+    bool mayBeTrue;
+    Assignment assignmentHack;
+
+    if (!solver->mayBeTrue(state, state.evaluateConstraintsWithSymcretes(),
+                          inBounds, mayBeTrue,
+                          state.queryMetaData, assignmentHack)) {
+      return true;
+    }
+
+    if (mayBeTrue) {
+      rl.emplace_back(op->first, op->second.get());
+    }
+    return false;
   } 
   TimerStatIncrementer timer(stats::resolveTime);
 
