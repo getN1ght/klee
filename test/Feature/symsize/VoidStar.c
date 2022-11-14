@@ -1,6 +1,6 @@
-// RUN: %clang %s -emit-llvm %O0opt -c -o %t1.bc
+// RUN: %clang %s -g -emit-llvm %O0opt -c -o %t1.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --max-symsize=128 --skip-not-lazy-and-symbolic-pointers --output-dir=%t.klee-out %t1.bc
+// RUN: %klee --output-dir=%t.klee-out --max-symsize=128 --skip-not-lazy-and-symbolic-pointers --rewrite-equalities=false %t1.bc 2>&1 | FileCheck %s
 
 #include "klee/klee.h"
 #include <stdlib.h>
