@@ -230,7 +230,7 @@ void KModule::calculateBackwardDistance(KFunction *kf) {
         continue;
       KFunction *callKF = functionMap[cf];
       if (bdist.find(callKF) == bdist.end()) {
-        bdist[callKF] = bdist[callKF] + 1;
+        bdist[callKF] = bdist[currKF] + 1;
         nodes.push_back(callKF);
       }
     }
@@ -251,7 +251,7 @@ void KModule::calculateDistance(KFunction *kf) {
         continue;
       KFunction *callKF = functionMap[callBlock->calledFunction];
       if (dist.find(callKF) == dist.end()) {
-        dist[callKF] = dist[callKF] + 1;
+        dist[callKF] = dist[currKF] + 1;
         nodes.push_back(callKF);
       }
     }
