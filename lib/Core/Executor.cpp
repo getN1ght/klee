@@ -4068,26 +4068,28 @@ KBlock *Executor::calculateTarget(ExecutionState &state) {
        sfi++, sfNum++) {
     kf = sfi->kf;
 
-    for (auto &kbd : kf->getDistance(kb)) {
-      KBlock *target = kbd.first;
-      unsigned distance = kbd.second;
-      if ((sfNum > 0 || distance > 0) && distance < minDistance) {
-        if (history[target->basicBlock].size() != 0) {
-          std::vector<BasicBlock *> diff;
-          /*if (!newCov) {
-            std::set<BasicBlock *> left(state.level.begin(), state.level.end());
-            std::set<BasicBlock *> right(history[target->basicBlock].begin(),
-                                         history[target->basicBlock].end());
-            std::set_difference(left.begin(), left.end(), right.begin(),
-                                right.end(), std::inserter(diff, diff.begin()));
-          }*/
-          if (diff.empty()) {
-            continue;
-          }
-        } else
-          newCov = true;
-        nearestBlock = target;
-        minDistance = distance;
+    if (kmodule->inMainModule(kf->function)) {
+      for (auto &kbd : kf->getDistance(kb)) {
+        KBlock *target = kbd.first;
+        unsigned distance = kbd.second;
+        if ((sfNum > 0 || distance > 0) && distance < minDistance) {
+          if (history[target->basicBlock].size() != 0) {
+            std::vector<BasicBlock *> diff;
+            if (!newCov) {
+              std::set<BasicBlock *> left(state.level.begin(), state.level.end());
+              std::set<BasicBlock *> right(history[target->basicBlock].begin(),
+                                           history[target->basicBlock].end());
+              std::set_difference(left.begin(), left.end(), right.begin(),
+                                  right.end(), std::inserter(diff, diff.begin()));
+            }
+            if (diff.empty()) {
+              continue;
+            }
+          } else
+            newCov = true;
+          nearestBlock = target;
+          minDistance = distance;
+        }
       }
     }
 

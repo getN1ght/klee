@@ -966,42 +966,51 @@ static void parseArguments(int argc, char **argv) {
 
 static void
 preparePOSIX(std::vector<std::unique_ptr<llvm::Module>> &loadedModules,
-             llvm::StringRef libCPrefix) {
-    // Get the main function from the main module and rename it such that it can
-    // be called after the POSIX setup
-    Function *mainFn = nullptr;
-    for (auto &module : loadedModules) {
-        mainFn = module->getFunction(EntryPoint);
-        if (mainFn)
-            break;
-    }
+             llvm::StringRef libCPrefix,
+             std::vector<std::string> &mainFunctions) {
+  // Get the main function from the main module and rename it such that it can
+  // be called after the POSIX setup
+  Function *mainFn = nullptr;
+  for (auto &module : loadedModules) {
+    mainFn = module->getFunction(EntryPoint);
+    if (mainFn)
+      break;
+  }
 
-    if (!mainFn)
-        klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());
-    mainFn->setName("__klee_posix_wrapped_main");
+  if (!mainFn)
+    klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());
+  auto itMain = find(mainFunctions.begin(), mainFunctions.end(), mainFn->getValueName()->first().str());
+  mainFn->setName("__klee_posix_wrapped_main");
+  if (itMain != mainFunctions.end()) {
+    mainFunctions.push_back(mainFn->getValueName()->first());
+  }
 
-    // Add a definition of the entry function if needed. This is the case if we
-    // link against a libc implementation. Preparing for libc linking (i.e.
-    // linking with uClibc will expect a main function and rename it to
-    // _user_main. We just provide the definition here.
-    if (!libCPrefix.empty() && !mainFn->getParent()->getFunction(EntryPoint))
-        llvm::Function::Create(mainFn->getFunctionType(),
-                               llvm::Function::ExternalLinkage, EntryPoint,
-                               mainFn->getParent());
+  // Add a definition of the entry function if needed. This is the case if we
+  // link against a libc implementation. Preparing for libc linking (i.e.
+  // linking with uClibc will expect a main function and rename it to
+  // _user_main. We just provide the definition here.
+  if (!libCPrefix.empty() && !mainFn->getParent()->getFunction(EntryPoint))
+    llvm::Function::Create(mainFn->getFunctionType(),
+                           llvm::Function::ExternalLinkage, EntryPoint,
+                           mainFn->getParent());
 
-    llvm::Function *wrapper = nullptr;
-    for (auto &module : loadedModules) {
-        wrapper = module->getFunction("__klee_posix_wrapper");
-        if (wrapper)
-            break;
-    }
-    assert(wrapper && "klee_posix_wrapper not found");
+  llvm::Function *wrapper = nullptr;
+  for (auto &module : loadedModules) {
+    wrapper = module->getFunction("__klee_posix_wrapper");
+    if (wrapper)
+      break;
+  }
+  assert(wrapper && "klee_posix_wrapper not found");
 
-    // Rename the POSIX wrapper to prefixed entrypoint, e.g. _user_main as uClibc
-    // would expect it or main otherwise
-    wrapper->setName(libCPrefix + EntryPoint);
+  // Rename the POSIX wrapper to prefixed entrypoint, e.g. _user_main as uClibc
+  // would expect it or main otherwise
+  auto itWrapper = find(mainFunctions.begin(), mainFunctions.end(), wrapper->getValueName()->first().str());
+  wrapper->setName(libCPrefix + EntryPoint);
+  if (itWrapper != mainFunctions.end()) {
+    mainFunctions.push_back(wrapper->getValueName()->first());
+  }
+
 }
-
 
 // This is a terrible hack until we get some real modeling of the
 // system. All we do is check the undefined symbols and warn about
@@ -1365,7 +1374,8 @@ static void replaceOrRenameFunction(llvm::Module *module,
 static void
 createLibCWrapper(std::vector<std::unique_ptr<llvm::Module>> &modules,
                   llvm::StringRef intendedFunction,
-                  llvm::StringRef libcMainFunction) {
+                  llvm::StringRef libcMainFunction,
+                  std::vector<std::string> &mainFunctions) {
     // XXX we need to rearchitect so this can also be used with
     // programs externally linked with libc implementation.
 
@@ -1380,7 +1390,11 @@ createLibCWrapper(std::vector<std::unique_ptr<llvm::Module>> &modules,
     Function *userMainFn = modules[0]->getFunction(intendedFunction);
     assert(userMainFn && "unable to get user main");
     // Rename entry point using a prefix
+    auto itMain = find(mainFunctions.begin(), mainFunctions.end(), userMainFn->getValueName()->first().str());
     userMainFn->setName("__user_" + intendedFunction);
+    if (itMain != mainFunctions.end()) {
+      *itMain = userMainFn->getValueName()->first().str();
+    }
 
     // force import of libcMainFunction
     llvm::Function *libcMainFn = nullptr;
@@ -1432,7 +1446,7 @@ createLibCWrapper(std::vector<std::unique_ptr<llvm::Module>> &modules,
 
 static void
 linkWithUclibc(StringRef libDir, std::string opt_suffix,
-               std::vector<std::unique_ptr<llvm::Module>> &modules) {
+               std::vector<std::unique_ptr<llvm::Module>> &modules, std::vector<std::string> &mainFunctions) {
     LLVMContext &ctx = modules[0]->getContext();
 
     size_t newModules = modules.size();
@@ -1450,7 +1464,7 @@ linkWithUclibc(StringRef libDir, std::string opt_suffix,
         replaceOrRenameFunction(modules[i].get(), "__libc_fcntl", "fcntl");
     }
 
-    createLibCWrapper(modules, EntryPoint, "__uClibc_main");
+    createLibCWrapper(modules, EntryPoint, "__uClibc_main", mainFunctions);
     klee_message("NOTE: Using klee-uclibc : %s", uclibcBCA.c_str());
 
     // Link the fortified library
@@ -1875,7 +1889,7 @@ int run_klee(int argc, char **argv, char **envp) {
 
         if (!UTBotMode) {
           std::string libcPrefix = (Libc == LibcType::UcLibc ? "__user_" : "");
-          preparePOSIX(loadedModules, libcPrefix);
+          preparePOSIX(loadedModules, libcPrefix, mainFunctions);
         }
     }
 
@@ -1939,7 +1953,7 @@ int run_klee(int argc, char **argv, char **envp) {
             break;
         }
         case LibcType::UcLibc:
-            linkWithUclibc(LibraryDir, opt_suffix, loadedModules);
+            linkWithUclibc(LibraryDir, opt_suffix, loadedModules, mainFunctions);
             break;
     }
 
