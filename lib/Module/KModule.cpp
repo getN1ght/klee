@@ -715,9 +715,11 @@ void KFunction::calculateDistance(KBlock *bb) {
   while (!nodes.empty()) {
     KBlock *currBB = nodes.front();
     for (auto const &succ : successors(currBB->basicBlock)) {
-      if (dist.find(blockMap[succ]) == dist.end()) {
-        dist[blockMap[succ]] = dist[currBB] + 1;
-        nodes.push_back(blockMap[succ]);
+      if (!isa<LandingPadInst>(succ->begin())) {
+        if (dist.find(blockMap[succ]) == dist.end()) {
+          dist[blockMap[succ]] = dist[currBB] + 1;
+          nodes.push_back(blockMap[succ]);
+        }
       }
     }
     nodes.pop_front();

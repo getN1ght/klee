@@ -62,14 +62,14 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
     return true;
   }
 
-  TimerStatIncrementer timer(stats::solverTime);
-
   // if (simplifyExprs)
   //   expr = ConstraintManager::simplifyExpr(constraints, expr);
   
+  TimerStatIncrementer timer(stats::solverTime);
   ValidityCore core;
   bool success =
       solver->getValidityCore(Query(constraints, expr, true), core, result);
+  metaData.queryCost += timer.delta();
 
   if (success && result) {    
     bool hasSolution;
@@ -82,8 +82,6 @@ bool TimingSolver::mustBeTrue(ExecutionState &state, const ConstraintSet &constr
       symcretesCex = newAssignment;
     }
   }
-
-  metaData.queryCost += timer.delta();
 
   return success;
 }

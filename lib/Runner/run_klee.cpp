@@ -982,7 +982,7 @@ preparePOSIX(std::vector<std::unique_ptr<llvm::Module>> &loadedModules,
   auto itMain = find(mainFunctions.begin(), mainFunctions.end(), mainFn->getValueName()->first().str());
   mainFn->setName("__klee_posix_wrapped_main");
   if (itMain != mainFunctions.end()) {
-    *itMain = mainFn->getValueName()->first().str();
+    mainFunctions.push_back(mainFn->getValueName()->first());
   }
 
   // Add a definition of the entry function if needed. This is the case if we
@@ -1007,7 +1007,7 @@ preparePOSIX(std::vector<std::unique_ptr<llvm::Module>> &loadedModules,
   auto itWrapper = find(mainFunctions.begin(), mainFunctions.end(), wrapper->getValueName()->first().str());
   wrapper->setName(libCPrefix + EntryPoint);
   if (itWrapper != mainFunctions.end()) {
-    *itWrapper = wrapper->getValueName()->first().str();
+    mainFunctions.push_back(wrapper->getValueName()->first());
   }
 
 }
@@ -1392,7 +1392,9 @@ createLibCWrapper(std::vector<std::unique_ptr<llvm::Module>> &modules,
     // Rename entry point using a prefix
     auto itMain = find(mainFunctions.begin(), mainFunctions.end(), userMainFn->getValueName()->first().str());
     userMainFn->setName("__user_" + intendedFunction);
-    *itMain = userMainFn->getValueName()->first().str();
+    if (itMain != mainFunctions.end()) {
+      *itMain = userMainFn->getValueName()->first().str();
+    }
 
     // force import of libcMainFunction
     llvm::Function *libcMainFn = nullptr;
