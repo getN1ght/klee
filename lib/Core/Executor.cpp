@@ -4358,15 +4358,22 @@ bool Executor::terminateStateIfWrongModel(ExecutionState &state, ref<Expr> expr)
   ValidityCore checkExampleCore;
   bool stateHasNonAppropriateConstraints;
 
-  solver->setTimeout(coreSolverTimeout);
-  bool success = solver->getValidityCore(
-      state.evaluateConstraintsWithSymcretes(),
-      NotExpr::create(expr), checkExampleCore,
-      stateHasNonAppropriateConstraints, state.queryMetaData);
-  solver->setTimeout(time::Span());
-  if (!success) {
-    terminateStateOnSolverError(state, "Query timed out (check after updateSymcretes!)");
-    return true;
+  if (ref<ConstantExpr> CE =
+          dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
+              state.evaluateConstraintsWithSymcretes(),
+              state.evaluateWithSymcretes(expr)))) {
+    stateHasNonAppropriateConstraints = !CE->isTrue();
+  } else {
+    solver->setTimeout(coreSolverTimeout);
+    bool success = solver->getValidityCore(
+        state.evaluateConstraintsWithSymcretes(),
+        NotExpr::create(expr), checkExampleCore,
+        stateHasNonAppropriateConstraints, state.queryMetaData);
+    solver->setTimeout(time::Span());
+    if (!success) {
+      terminateStateOnSolverError(state, "Query timed out (check after updateSymcretes!)");
+      return true;
+    }
   }
 
   if (stateHasNonAppropriateConstraints) {

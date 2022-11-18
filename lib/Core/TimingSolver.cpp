@@ -213,9 +213,9 @@ bool TimingSolver::getValidAssignment(
     bool &hasResult, Assignment &result, SolverQueryMetaData &metaData, bool minimizeModel) const {
   
   /// Received core for SAT query 
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(validityCore.expr)) {
-    if (validityCore.constraints.empty() && CE->isTrue()) {
-      hasResult = false;
+  if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(validityCore.expr)) {
+    if (validityCore.constraints.empty()) {
+      hasResult = !CE->isTrue();
       return true;
     }
   }

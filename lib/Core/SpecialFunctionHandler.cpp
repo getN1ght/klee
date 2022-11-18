@@ -595,9 +595,9 @@ void SpecialFunctionHandler::handleAssume(ExecutionState &state,
   
   Assignment assignmentHack;
   bool res;
-  bool success __attribute__((unused)) = executor.solver->mustBeFalse(state, 
-      state.evaluateConstraintsWithSymcretes(), state.evaluateWithSymcretes(e),
-      res, state.queryMetaData, assignmentHack);
+  bool success __attribute__((unused)) = executor.solver->mustBeFalse(
+      state, state.evaluateConstraintsWithSymcretes(), e, res,
+      state.queryMetaData, assignmentHack);
   assert(success && "FIXME: Unhandled solver failure");
   if (res) {
     if (SilentKleeAssume) {
