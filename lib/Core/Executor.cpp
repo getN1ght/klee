@@ -5883,6 +5883,14 @@ bool Executor::getSymbolicSolution(ExecutionState &state,
   std::vector<const Array*> objects;
   for (unsigned i = 0; i != state.symbolics.size(); ++i)
     objects.push_back(state.symbolics[i].second);
+
+  for (unsigned i = 0; i != state.symbolics.size(); ++i) {
+    const MemoryObject *sizeofSymbolicMO = state.symbolics[i].first.get();
+    if (state.symSizes.count(sizeofSymbolicMO)) {
+      objects.push_back(state.symSizes.at(sizeofSymbolicMO));
+    }
+  }
+
   bool success = solver->getInitialValues(extendedConstraints, objects, values,
                                           state.queryMetaData);
   solver->setTimeout(time::Span());
