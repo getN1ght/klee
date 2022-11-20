@@ -144,14 +144,17 @@ void RandomSearcher::printName(llvm::raw_ostream &os) {
   os << "RandomSearcher\n";
 }
 
-TargetedSearcher::TargetedSearcher(KBlock *targetBB)
-    : states(std::make_unique<
+TargetedSearcher::TargetedSearcher(RNG &rng, KBlock *targetBB)
+    : rng(rng),
+      states(std::make_unique<
              DiscretePDF<ExecutionState *, ExecutionStateIDCompare>>()),
       target(targetBB),
       distanceToTargetFunction(
           target->parent->parent->getBackwardDistance(target->parent)) {}
 
-ExecutionState &TargetedSearcher::selectState() { return *states->choose(0); }
+ExecutionState &TargetedSearcher::selectState() { 
+  return *states->choose(rng.getDoubleL());
+}
 
 bool TargetedSearcher::distanceInCallGraph(KFunction *kf, KBlock *kb,
                                            unsigned int &distance) {
@@ -198,7 +201,7 @@ TargetedSearcher::tryGetLocalWeight(ExecutionState *es, double &weight,
     return Done;
 
   intWeight += localWeight;
-  weight = intWeight / 4294967296.0; // number on [0,1)-real-interval
+  weight = 1 - std::max(intWeight / 4294967296.0, std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
   return Continue;
 }
 
@@ -218,7 +221,7 @@ TargetedSearcher::tryGetPreTargetWeight(ExecutionState *es, double &weight) {
     return Miss;
 
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = 1.0 / 2.0 + weight / 2.0; // number on [0.5,1)-real-interval
+  weight = 1 - std::max(1.0 / 2.0 + weight / 2.0, std::numeric_limits<double>::epsilon()); // number on [0.5,1)-real-interval
   return res == Done ? Continue : res;
 }
 
@@ -231,7 +234,7 @@ TargetedSearcher::tryGetPostTargetWeight(ExecutionState *es, double &weight) {
     return Miss;
 
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = 1.0 / 2.0 + weight / 2.0; // number on [0.5,1)-real-interval
+  weight = 1 - std::max(1.0 / 2.0 + weight / 2.0, std::numeric_limits<double>::epsilon()); // number on [0.5,1)-real-interval
   return res == Done ? Continue : res;
 }
 
@@ -239,7 +242,7 @@ TargetedSearcher::WeightResult
 TargetedSearcher::tryGetTargetWeight(ExecutionState *es, double &weight) {
   std::vector<KBlock *> localTargets = {target};
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = weight / 2.0; // number on [0,0.5)-real-interval
+  weight = 1.0 - std::max(weight / 2.0, std::numeric_limits<double>::epsilon()) ; // number on [0,0.5)-real-interval
   return res;
 }
 
@@ -340,8 +343,8 @@ void TargetedSearcher::printName(llvm::raw_ostream &os) {
   os << "TargetedSearcher";
 }
 
-GuidedSearcher::GuidedSearcher(Searcher *_baseSearcher)
-    : baseSearcher(_baseSearcher) {}
+GuidedSearcher::GuidedSearcher(RNG &rng, Searcher *_baseSearcher)
+    : rng(rng), baseSearcher(_baseSearcher) {}
 
 ExecutionState &GuidedSearcher::selectState() {
   unsigned size = targetedSearchers.size();
@@ -383,7 +386,7 @@ void GuidedSearcher::update(
   for (auto target : targets) {
     ExecutionState *currTState = currTarget == target ? current : nullptr;
     if (targetedSearchers.count(target) == 0)
-      addTarget(target);
+      addTarget(rng, target);
     targetedSearchers[target]->update(currTState, addedTStates[target],
                                       removedTStates[target]);
     if (targetedSearchers[target]->empty())
@@ -399,8 +402,8 @@ void GuidedSearcher::printName(llvm::raw_ostream &os) {
   os << "GuidedSearcher";
 }
 
-void GuidedSearcher::addTarget(KBlock *target) {
-  targetedSearchers[target] = std::make_unique<TargetedSearcher>(target);
+void GuidedSearcher::addTarget(RNG &rng, KBlock *target) {
+  targetedSearchers[target] = std::make_unique<TargetedSearcher>(rng, target);
 }
 
 ///
