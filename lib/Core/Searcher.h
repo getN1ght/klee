@@ -130,6 +130,8 @@ namespace klee {
     };
 
   private:
+    RNG &rng;
+
     std::unique_ptr<DiscretePDF<ExecutionState *, ExecutionStateIDCompare>>
         states;
     KBlock *target;
@@ -145,7 +147,7 @@ namespace klee {
 
   public:
     ExecutionState *result = nullptr;
-    TargetedSearcher(KBlock *targetBB);
+    TargetedSearcher(RNG &rng, KBlock *targetBB);
     ~TargetedSearcher() override = default;
     ExecutionState &selectState() override;
     void update(ExecutionState *current,
@@ -158,13 +160,15 @@ namespace klee {
   class GuidedSearcher final : public Searcher {
 
   private:
+    RNG &rng;
+
     std::unique_ptr<Searcher> baseSearcher;
     std::map<KBlock *, std::unique_ptr<TargetedSearcher>> targetedSearchers;
     unsigned index{1};
-    void addTarget(KBlock *target);
+    void addTarget(RNG &rng, KBlock *target);
 
   public:
-    GuidedSearcher(Searcher *baseSearcher);
+    GuidedSearcher(RNG &rng, Searcher *baseSearcher);
     ~GuidedSearcher() override = default;
     ExecutionState &selectState() override;
     void update(ExecutionState *current,

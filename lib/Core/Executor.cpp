@@ -4011,7 +4011,7 @@ void Executor::targetedRun(ExecutionState &initialState, KBlock *target) {
 
   states.insert(&initialState);
 
-  TargetedSearcher *targetedSearcher = new TargetedSearcher(target);
+  TargetedSearcher *targetedSearcher = new TargetedSearcher(theRNG, target);
   searcher = targetedSearcher;
 
   std::vector<ExecutionState *> newStates(states.begin(), states.end());
@@ -4115,7 +4115,7 @@ void Executor::guidedRun(ExecutionState &initialState) {
     seed(initialState);
   }
 
-  searcher = new GuidedSearcher(constructUserSearcher(*this));
+  searcher = new GuidedSearcher(theRNG, constructUserSearcher(*this));
 
   std::vector<ExecutionState *> newStates(states.begin(), states.end());
   searcher->update(0, newStates, std::vector<ExecutionState *>());
