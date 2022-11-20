@@ -201,7 +201,7 @@ TargetedSearcher::tryGetLocalWeight(ExecutionState *es, double &weight,
     return Done;
 
   intWeight += localWeight;
-  weight = 1 - std::max(intWeight / 4294967296.0, std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
+  weight = intWeight / 4294967296.0; // number on [0,1)-real-interval
   return Continue;
 }
 
@@ -234,7 +234,7 @@ TargetedSearcher::tryGetPostTargetWeight(ExecutionState *es, double &weight) {
     return Miss;
 
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = 1 - std::max(1.0 / 2.0 + weight / 2.0, std::numeric_limits<double>::epsilon()); // number on [0.5,1)-real-interval
+  weight = 1 - std::max(1.0 / 2.0 + weight / 2.0, std::numeric_limits<double>::epsilon()); // number on (0,0.5)-real-interval
   return res == Done ? Continue : res;
 }
 
@@ -242,7 +242,7 @@ TargetedSearcher::WeightResult
 TargetedSearcher::tryGetTargetWeight(ExecutionState *es, double &weight) {
   std::vector<KBlock *> localTargets = {target};
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = 1.0 - std::max(weight / 2.0, std::numeric_limits<double>::epsilon()) ; // number on [0,0.5)-real-interval
+  weight = 1.0 - std::max(weight / 2.0, std::numeric_limits<double>::epsilon()) ; // number on [0.5, 1)-real-interval
   return res;
 }
 
