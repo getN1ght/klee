@@ -29,6 +29,7 @@ namespace klee {
     void update(T item, weight_type newWeight);
     void remove(T item);
     bool inTree(T item);
+    void printTree() const;
     weight_type getWeight(T item);
 
     /* pick a tree element according to its

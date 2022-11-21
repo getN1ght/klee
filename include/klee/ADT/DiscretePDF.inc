@@ -8,6 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
+#include "llvm/Support/raw_ostream.h"
+
 namespace klee {
 
 template <class T, class Comparator>
@@ -196,6 +198,25 @@ bool DiscretePDF<T, Comparator>::inTree(T item) {
   Node *n = *lookup(item, 0);
 
   return !!n;
+}
+
+template <class T, class Comparator>
+void DiscretePDF<T, Comparator>::printTree() const {
+  std::function<void(Node *)> dfs = [&](Node *n) {
+    if (n->left) {
+      dfs(n->left);
+    }
+    llvm::errs() << "AT " << n->key->prevPC->info->assemblyLine << " TO "
+                 << (n->key->target
+                         ? std::to_string(n->key->target->instructions[0]
+                                              ->info->assemblyLine)
+                         : std::string("NOTHING"))
+                 << " " << n->weight << "\n";
+    if (n->right) {
+      dfs(n->right);
+    }
+  };
+  dfs(m_root);
 }
 
 template <class T, class Comparator>

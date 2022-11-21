@@ -153,6 +153,7 @@ TargetedSearcher::TargetedSearcher(RNG &rng, KBlock *targetBB)
           target->parent->parent->getBackwardDistance(target->parent)) {}
 
 ExecutionState &TargetedSearcher::selectState() { 
+  states->printTree();
   return *states->choose(rng.getDoubleL());
 }
 
@@ -160,6 +161,13 @@ bool TargetedSearcher::distanceInCallGraph(KFunction *kf, KBlock *kb,
                                            unsigned int &distance) {
   distance = UINT_MAX;
   std::map<KBlock *, unsigned> &dist = kf->getDistance(kb);
+
+
+  llvm::errs() << kb->instructions[0]->info->assemblyLine << "\n";
+  for (auto it: dist) {
+    llvm::errs() << it.first->instructions[0]->info->assemblyLine << " " << it.second << "\n";
+  }
+  llvm::errs() << '\n';
 
   if (kf == target->parent && dist.find(target) != dist.end()) {
     distance = 0;
@@ -201,7 +209,7 @@ TargetedSearcher::tryGetLocalWeight(ExecutionState *es, double &weight,
     return Done;
 
   intWeight += localWeight;
-  weight = intWeight / static_cast<double>(UINT_MAX); // number on [0,1)-real-interval
+  weight = 1 - std::max(intWeight / static_cast<double>(UINT_MAX), std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
   return Continue;
 }
 
@@ -221,7 +229,7 @@ TargetedSearcher::tryGetPreTargetWeight(ExecutionState *es, double &weight) {
     return Miss;
 
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = 1 - std::max(1.0 / 2.0 + weight / 2.0, std::numeric_limits<double>::epsilon()); // number on (0,0.5)-real-interval
+  weight /= 2.0; // number on (0,0.5)-real-interval
   return res == Done ? Continue : res;
 }
 
@@ -234,7 +242,7 @@ TargetedSearcher::tryGetPostTargetWeight(ExecutionState *es, double &weight) {
     return Miss;
 
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = 1 - std::max(1.0 / 2.0 + weight / 2.0, std::numeric_limits<double>::epsilon()); // number on (0,0.5)-real-interval
+  weight /= 2.0; // number on (0,0.5)-real-interval
   return res == Done ? Continue : res;
 }
 
@@ -242,7 +250,7 @@ TargetedSearcher::WeightResult
 TargetedSearcher::tryGetTargetWeight(ExecutionState *es, double &weight) {
   std::vector<KBlock *> localTargets = {target};
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = 1.0 - std::max(weight / 2.0, std::numeric_limits<double>::epsilon()) ; // number on [0.5, 1)-real-interval
+  weight = 1.0 / 2.0 + weight / 2.0; // number on [0.5, 1)-real-interval
   return res;
 }
 
@@ -257,6 +265,9 @@ TargetedSearcher::tryGetWeight(ExecutionState *es, double &weight) {
     if (distanceInCallGraph(sfi->kf, kb, callWeight)) {
       callWeight *= 2;
       callWeight += sfNum;
+
+      llvm::errs() << kb->instructions[0]->info->assemblyLine << " "
+                   << sfi->kf->getName() << " " << callWeight << "\n";
       if (callWeight < minCallWeight) {
         minCallWeight = callWeight;
         minSfNum = sfNum;
@@ -280,6 +291,8 @@ TargetedSearcher::tryGetWeight(ExecutionState *es, double &weight) {
     res = tryGetPreTargetWeight(es, weight);
   else if (minSfNum != UINT_MAX)
     res = tryGetPostTargetWeight(es, weight);
+  llvm::errs() << "WEIGHT IS " << weight << "\n";
+  llvm::errs() << "RES IS " << (int) res << '\n';
   return res;
 }
 

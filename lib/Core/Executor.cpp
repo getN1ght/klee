@@ -4075,13 +4075,13 @@ KBlock *Executor::calculateTarget(ExecutionState &state) {
         if ((sfNum > 0 || distance > 0) && distance < minDistance) {
           if (history[target->basicBlock].size() != 0) {
             std::vector<BasicBlock *> diff;
-            if (!newCov) {
-              std::set<BasicBlock *> left(state.level.begin(), state.level.end());
-              std::set<BasicBlock *> right(history[target->basicBlock].begin(),
-                                           history[target->basicBlock].end());
-              std::set_difference(left.begin(), left.end(), right.begin(),
-                                  right.end(), std::inserter(diff, diff.begin()));
-            }
+            // if (!newCov) {
+            //   std::set<BasicBlock *> left(state.level.begin(), state.level.end());
+            //   std::set<BasicBlock *> right(history[target->basicBlock].begin(),
+            //                                history[target->basicBlock].end());
+            //   std::set_difference(left.begin(), left.end(), right.begin(),
+            //                       right.end(), std::inserter(diff, diff.begin()));
+            // }
             if (diff.empty()) {
               continue;
             }
@@ -4123,11 +4123,16 @@ void Executor::guidedRun(ExecutionState &initialState) {
   while (!states.empty() && !haltExecution) {
     while (!searcher->empty() && !haltExecution) {
       ExecutionState &state = searcher->selectState();
-      if (state.target)
+      if (state.target) {
+        llvm::errs() << "GUIDING " << state.prevPC->info->assemblyLine << " TO "
+                     << state.target->instructions[0]->info->assemblyLine
+                     << "\n";
         executeStep(state);
+      }
       else if (!tryBoundedExecuteStep(state, MaxCycles - 1)) {
         KBlock *target = calculateTarget(state);
         if (target) {
+          llvm::errs() << target->instructions[0]->info->assemblyLine << " HAS CHOSE AS TARGET\n";
           state.target = target;
           unpauseState(state);
         }
