@@ -203,13 +203,16 @@ TargetedSearcher::tryGetLocalWeight(ExecutionState *es, double &weight,
     }
   }
 
+  intWeight += localWeight;
+  // weight = 1 - std::max(intWeight / static_cast<double>(UINT_MAX), std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
+  weight = 1 - std::max(intWeight / 10000.0, std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
+
+
   if (localWeight == UINT_MAX)
     return Miss;
   if (localWeight == 0)
     return Done;
 
-  intWeight += localWeight;
-  weight = 1 - std::max(intWeight / static_cast<double>(UINT_MAX), std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
   return Continue;
 }
 
@@ -229,7 +232,7 @@ TargetedSearcher::tryGetPreTargetWeight(ExecutionState *es, double &weight) {
     return Miss;
 
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight /= 2.0; // number on (0,0.5)-real-interval
+  weight /= 10.0; // number on (0,0.5)-real-interval
   return res == Done ? Continue : res;
 }
 
@@ -242,7 +245,7 @@ TargetedSearcher::tryGetPostTargetWeight(ExecutionState *es, double &weight) {
     return Miss;
 
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight /= 2.0; // number on (0,0.5)-real-interval
+  weight /= 10.0; // number on (0,0.5)-real-interval
   return res == Done ? Continue : res;
 }
 
@@ -267,7 +270,7 @@ TargetedSearcher::tryGetWeight(ExecutionState *es, double &weight) {
       callWeight += sfNum;
 
       llvm::errs() << kb->instructions[0]->info->assemblyLine << " "
-                   << sfi->kf->getName() << " " << callWeight << "\n";
+                   << sfi->kf->getName() << " " << callWeight << " | sfNum = " << sfNum << "\n";
       if (callWeight < minCallWeight) {
         minCallWeight = callWeight;
         minSfNum = sfNum;
@@ -291,8 +294,12 @@ TargetedSearcher::tryGetWeight(ExecutionState *es, double &weight) {
     res = tryGetPreTargetWeight(es, weight);
   else if (minSfNum != UINT_MAX)
     res = tryGetPostTargetWeight(es, weight);
-  llvm::errs() << "WEIGHT IS " << weight << "\n";
-  llvm::errs() << "RES IS " << (int) res << '\n';
+  
+  if (res == WeightResult::Continue) {
+    llvm::errs() << "CONTINUE WITH WEIGHT " << weight << "\n";
+  } else {
+    llvm::errs() << (res == Miss ? "Miss" : "Done") << '\n';
+  }
   return res;
 }
 

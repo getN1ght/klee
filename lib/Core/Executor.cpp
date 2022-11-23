@@ -4132,10 +4132,12 @@ void Executor::guidedRun(ExecutionState &initialState) {
       else if (!tryBoundedExecuteStep(state, MaxCycles - 1)) {
         KBlock *target = calculateTarget(state);
         if (target) {
-          llvm::errs() << target->instructions[0]->info->assemblyLine << " HAS CHOSE AS TARGET\n";
+          llvm::errs() << "FROM " << state.prevPC->info->assemblyLine << " | " << target->instructions[0]->info->assemblyLine << " HAS CHOSEN AS TARGET\n";
           state.target = target;
           unpauseState(state);
         }
+      } else {
+        llvm::errs() << "EXECUTED " << state.prevPC->info->assemblyLine << "\n";
       }
     }
 
