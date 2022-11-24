@@ -709,19 +709,46 @@ KFunction::~KFunction() {
 
 void KFunction::calculateDistance(KBlock *bb) {
   std::map<KBlock *, unsigned int> &dist = distance[bb];
-  std::deque<KBlock *> nodes;
-  nodes.push_back(bb);
   dist[bb] = 0;
-  while (!nodes.empty()) {
-    KBlock *currBB = nodes.front();
+
+  std::set<std::pair<int64_t, KBlock *>> localDist;
+  localDist.emplace(0, bb);
+
+  // Dijkstra 
+  bool wasUpdated = true;
+  while (wasUpdated) {
+    wasUpdated = false;
+    KBlock *currBB = localDist.begin()->second;
+    localDist.erase(localDist.begin());
+
     for (auto const &succ : successors(currBB->basicBlock)) {
-      if (dist.find(blockMap[succ]) == dist.end()) {
-        dist[blockMap[succ]] = dist[currBB] + 1;
-        nodes.push_back(blockMap[succ]);
+      KBlock *ksucc = blockMap[succ];
+      if (dist.count(ksucc) == 0) {
+        dist[ksucc] = dist[currBB] + currBB->numInstructions;
+        localDist.emplace(dist[ksucc], ksucc);
+        wasUpdated = true;
+      } else if (dist[ksucc] > dist[currBB] + currBB->numInstructions) {
+        localDist.erase(std::pair<uint64_t, KBlock *>(dist[ksucc], ksucc));
+        dist[ksucc] = dist[currBB] + currBB->numInstructions;
+        localDist.emplace(dist[ksucc], ksucc);
+        wasUpdated = true;
       }
     }
-    nodes.pop_front();
   }
+
+  // std::deque<KBlock *> nodes;
+  // nodes.push_back(bb);
+
+  // while (!nodes.empty()) {
+  //   KBlock *currBB = nodes.front();
+  //   for (auto const &succ : successors(currBB->basicBlock)) {
+  //     if (dist.find(blockMap[succ]) == dist.end()) {
+  //       dist[blockMap[succ]] = dist[currBB] + currBB->numInstructions;
+  //       nodes.push_back(blockMap[succ]);
+  //     }
+  //   }
+  //   nodes.pop_front();
+  // }
 }
 
 void KFunction::calculateBackwardDistance(KBlock *bb) {

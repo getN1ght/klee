@@ -191,7 +191,7 @@ bool TargetedSearcher::distanceInCallGraph(KFunction *kf, KBlock *kb,
 TargetedSearcher::WeightResult
 TargetedSearcher::tryGetLocalWeight(ExecutionState *es, double &weight,
                                     const std::vector<KBlock *> &localTargets) {
-  unsigned int intWeight = es->steppedMemoryInstructions;
+  unsigned int intWeight = 0; //es->steppedMemoryInstructions;
   KFunction *currentKF = es->stack.back().kf;
   KBlock *currentKB = currentKF->blockMap[es->getPCBlock()];
   std::map<KBlock *, unsigned> &dist = currentKF->getDistance(currentKB);
@@ -203,9 +203,12 @@ TargetedSearcher::tryGetLocalWeight(ExecutionState *es, double &weight,
     }
   }
 
+  llvm::errs() << "STEPPED MI " << intWeight << "\n";
   intWeight += localWeight;
+  llvm::errs() << "FINAL WEIGHT " << intWeight << "\n";
+
   // weight = 1 - std::max(intWeight / static_cast<double>(UINT_MAX), std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
-  weight = 1 - std::max(intWeight / 10000.0, std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
+  weight = 1 - std::max(intWeight / 100.0, std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
 
 
   if (localWeight == UINT_MAX)

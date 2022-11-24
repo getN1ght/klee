@@ -642,7 +642,10 @@ public:
                          const std::string &name);
   void executeStep(ExecutionState &state);
   bool tryBoundedExecuteStep(ExecutionState &state, unsigned bound);
+  
   KBlock *calculateTarget(ExecutionState &state);
+  std::unordered_set<KBlock *> reachedTargets;
+
   bool isGEPExpr(ref<Expr> expr);
 };
   

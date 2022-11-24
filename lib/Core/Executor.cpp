@@ -4072,7 +4072,8 @@ KBlock *Executor::calculateTarget(ExecutionState &state) {
       for (auto &kbd : kf->getDistance(kb)) {
         KBlock *target = kbd.first;
         unsigned distance = kbd.second;
-        if ((sfNum > 0 || distance > 0) && distance < minDistance) {
+        if (!reachedTargets.count(target) && (sfNum > 0 || distance > 0) &&
+            distance < minDistance) {
           if (history[target->basicBlock].size() != 0) {
             std::vector<BasicBlock *> diff;
             // if (!newCov) {
@@ -4124,10 +4125,14 @@ void Executor::guidedRun(ExecutionState &initialState) {
     while (!searcher->empty() && !haltExecution) {
       ExecutionState &state = searcher->selectState();
       if (state.target) {
+        KBlock *previousTarget = state.target;
         llvm::errs() << "GUIDING " << state.prevPC->info->assemblyLine << " TO "
                      << state.target->instructions[0]->info->assemblyLine
                      << "\n";
         executeStep(state);
+        if (previousTarget->instructions[0] == state.prevPC) {
+          reachedTargets.insert(previousTarget);
+        }
       }
       else if (!tryBoundedExecuteStep(state, MaxCycles - 1)) {
         KBlock *target = calculateTarget(state);
