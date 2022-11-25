@@ -202,14 +202,13 @@ TargetedSearcher::tryGetLocalWeight(ExecutionState *es, double &weight,
       localWeight = std::min(w, localWeight);
     }
   }
-
-  llvm::errs() << "STEPPED MI " << intWeight << "\n";
+  
+  llvm::errs() << "STEPPED MI " << es->depth << "\n";
   intWeight += localWeight;
   llvm::errs() << "FINAL WEIGHT " << intWeight << "\n";
 
   // weight = 1 - std::max(intWeight / static_cast<double>(UINT_MAX), std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
-  weight = 1 - std::max(intWeight / 100.0, std::numeric_limits<double>::epsilon()); // number on [0,1)-real-interval
-
+  weight = std::min(intWeight, (unsigned) 1000); // number on [0,1)-real-interval
 
   if (localWeight == UINT_MAX)
     return Miss;
@@ -235,7 +234,7 @@ TargetedSearcher::tryGetPreTargetWeight(ExecutionState *es, double &weight) {
     return Miss;
 
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight /= 10.0; // number on (0,0.5)-real-interval
+  weight = std::exp(-std::sqrt(weight * es->depth)); // number on (0,0.5)-real-interval
   return res == Done ? Continue : res;
 }
 
@@ -248,7 +247,7 @@ TargetedSearcher::tryGetPostTargetWeight(ExecutionState *es, double &weight) {
     return Miss;
 
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight /= 10.0; // number on (0,0.5)-real-interval
+  weight = std::exp(-std::sqrt(weight * es->depth)); // number on (0,0.5)-real-interval
   return res == Done ? Continue : res;
 }
 
@@ -256,7 +255,7 @@ TargetedSearcher::WeightResult
 TargetedSearcher::tryGetTargetWeight(ExecutionState *es, double &weight) {
   std::vector<KBlock *> localTargets = {target};
   WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = 1.0 / 2.0 + weight / 2.0; // number on [0.5, 1)-real-interval
+  weight = std::exp(-std::sqrt(weight * es->depth)); // number on [0.5, 1)-real-interval
   return res;
 }
 
