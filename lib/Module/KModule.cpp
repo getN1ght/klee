@@ -721,12 +721,17 @@ void KFunction::calculateDistance(KBlock *bb) {
 
     for (auto const &succ : successors(currBB->basicBlock)) {
       KBlock *ksucc = blockMap[succ];
+      uint64_t instCount = currBB->numInstructions;
+      if (KCallBlock *kCallSucc = dynamic_cast<KCallBlock *>(currBB)) {
+        instCount = kCallSucc->calledFunction->getInstructionCount();
+      }
+
       if (dist.count(ksucc) == 0) {
-        dist[ksucc] = dist[currBB] + currBB->numInstructions;
+        dist[ksucc] = dist[currBB] + instCount;
         localDist.emplace(dist[ksucc], ksucc);
-      } else if (dist[ksucc] > dist[currBB] + currBB->numInstructions) {
+      } else if (dist[ksucc] > dist[currBB] + instCount) {
         localDist.erase(std::pair<uint64_t, KBlock *>(dist[ksucc], ksucc));
-        dist[ksucc] = dist[currBB] + currBB->numInstructions;
+        dist[ksucc] = dist[currBB] + instCount;
         localDist.emplace(dist[ksucc], ksucc);
       }
     }
@@ -758,15 +763,20 @@ void KFunction::calculateBackwardDistance(KBlock *bb) {
   while (localDist.size()) {
     KBlock *currBB = localDist.begin()->second;
     localDist.erase(localDist.begin());
-
+    
     for (auto const &pred : predecessors(currBB->basicBlock)) {
       KBlock *kpred = blockMap[pred];
+      uint64_t instCount = currBB->numInstructions;
+      if (KCallBlock *kCallPred = dynamic_cast<KCallBlock *>(currBB)) {
+        instCount = kCallPred->calledFunction->getInstructionCount();
+      }
+
       if (bdist.count(kpred) == 0) {
-        bdist[kpred] = bdist[currBB] + currBB->numInstructions;
+        bdist[kpred] = bdist[currBB] + instCount;
         localDist.emplace(bdist[kpred], kpred);
-      } else if (bdist[kpred] > bdist[currBB] + currBB->numInstructions) {
+      } else if (bdist[kpred] > bdist[currBB] + instCount) {
         localDist.erase(std::pair<uint64_t, KBlock *>(bdist[kpred], kpred));
-        bdist[kpred] = bdist[currBB] + currBB->numInstructions;
+        bdist[kpred] = bdist[currBB] + instCount;
         localDist.emplace(bdist[kpred], kpred);
       }
     }
