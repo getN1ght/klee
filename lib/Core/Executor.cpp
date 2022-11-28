@@ -4072,7 +4072,7 @@ KBlock *Executor::calculateTarget(ExecutionState &state) {
       for (auto &kbd : kf->getDistance(kb)) {
         KBlock *target = kbd.first;
         unsigned distance = kbd.second;
-        if (!reachedTargets.count(target) && (sfNum > 0 && distance > 0) &&
+        if (!reachedTargets.count(target) && (sfNum > 0 || distance > 0) &&
             distance < minDistance) {
           if (history[target->basicBlock].size() != 0) {
             std::vector<BasicBlock *> diff;

@@ -715,9 +715,7 @@ void KFunction::calculateDistance(KBlock *bb) {
   localDist.emplace(0, bb);
 
   // Dijkstra 
-  bool wasUpdated = true;
-  while (wasUpdated) {
-    wasUpdated = false;
+  while (localDist.size()) {
     KBlock *currBB = localDist.begin()->second;
     localDist.erase(localDist.begin());
 
@@ -726,12 +724,10 @@ void KFunction::calculateDistance(KBlock *bb) {
       if (dist.count(ksucc) == 0) {
         dist[ksucc] = dist[currBB] + currBB->numInstructions;
         localDist.emplace(dist[ksucc], ksucc);
-        wasUpdated = true;
       } else if (dist[ksucc] > dist[currBB] + currBB->numInstructions) {
         localDist.erase(std::pair<uint64_t, KBlock *>(dist[ksucc], ksucc));
         dist[ksucc] = dist[currBB] + currBB->numInstructions;
         localDist.emplace(dist[ksucc], ksucc);
-        wasUpdated = true;
       }
     }
   }
@@ -759,9 +755,7 @@ void KFunction::calculateBackwardDistance(KBlock *bb) {
   localDist.emplace(0, bb);
 
   // Dijkstra 
-  bool wasUpdated = true;
-  while (wasUpdated) {
-    wasUpdated = false;
+  while (localDist.size()) {
     KBlock *currBB = localDist.begin()->second;
     localDist.erase(localDist.begin());
 
@@ -770,12 +764,10 @@ void KFunction::calculateBackwardDistance(KBlock *bb) {
       if (bdist.count(kpred) == 0) {
         bdist[kpred] = bdist[currBB] + currBB->numInstructions;
         localDist.emplace(bdist[kpred], kpred);
-        wasUpdated = true;
       } else if (bdist[kpred] > bdist[currBB] + currBB->numInstructions) {
         localDist.erase(std::pair<uint64_t, KBlock *>(bdist[kpred], kpred));
         bdist[kpred] = bdist[currBB] + currBB->numInstructions;
         localDist.emplace(bdist[kpred], kpred);
-        wasUpdated = true;
       }
     }
   }
