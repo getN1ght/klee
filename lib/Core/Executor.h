@@ -24,9 +24,12 @@
 #include "klee/Core/TerminationTypes.h"
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
+#include "klee/Expr/SourceBuilder.h"
+#include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
+#include "klee/Solver/ConcretizationManager.h"
 #include "klee/System/Time.h"
 
 #include "llvm/ADT/Twine.h"
@@ -120,6 +123,8 @@ private:
   TreeStreamWriter *pathWriter, *symPathWriter;
   SpecialFunctionHandler *specialFunctionHandler;
   TimerGroup timers;
+  SourceBuilder sourceBuilder;
+  ConcretizationManager *cm;
   std::unique_ptr<PTree> processTree;
   std::unique_ptr<CodeGraphDistance> codeGraphDistance;
   TargetCalculator *targetCalculator;

@@ -13,7 +13,9 @@
 #include "Context.h"
 #include "TimingSolver.h"
 
+#include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/SourceBuilder.h"
 
 #include "llvm/ADT/StringExtras.h"
 
@@ -298,6 +300,7 @@ private:
   void setKnownSymbolic(unsigned offset, Expr *value);
 
   ArrayCache *getArrayCache() const;
+  SourceBuilder *getSourceBuilder() const;
 };
   
 } // End klee namespace

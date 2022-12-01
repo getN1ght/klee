@@ -12,6 +12,7 @@
 
 #include "klee/Expr/Expr.h"
 
+#include "klee/Expr/SourceBuilder.h"
 #include <cstddef>
 #include <set>
 #include <cstdint>
@@ -29,13 +30,14 @@ private:
   typedef std::set<MemoryObject *> objects_ty;
   objects_ty objects;
   ArrayCache *const arrayCache;
+  SourceBuilder *const sourceBuilder;
 
   char *deterministicSpace;
   char *nextFreeSlot;
   size_t spaceSize;
 
 public:
-  MemoryManager(ArrayCache *arrayCache);
+  MemoryManager(ArrayCache *arrayCache, SourceBuilder *sourceBuilder);
   ~MemoryManager();
 
   /**
@@ -51,6 +53,7 @@ public:
   void deallocate(const MemoryObject *mo);
   void markFreed(MemoryObject *mo);
   ArrayCache *getArrayCache() const { return arrayCache; }
+  SourceBuilder *getSourceBuilder() const { return sourceBuilder; }
 
   /*
    * Returns the size used by deterministic allocation in bytes

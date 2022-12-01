@@ -13,6 +13,7 @@
 #include "Memory.h"
 
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/SourceBuilder.h"
 #include "klee/Support/ErrorHandling.h"
 
 #include "llvm/Support/CommandLine.h"
@@ -59,8 +60,10 @@ llvm::cl::opt<unsigned long long> DeterministicStartAddress(
 } // namespace
 
 /***/
-MemoryManager::MemoryManager(ArrayCache *_arrayCache)
-    : arrayCache(_arrayCache), deterministicSpace(0), nextFreeSlot(0),
+MemoryManager::MemoryManager(ArrayCache *_arrayCache,
+                             SourceBuilder *_sourceBuilder)
+    : arrayCache(_arrayCache), sourceBuilder(_sourceBuilder),
+      deterministicSpace(0), nextFreeSlot(0),
       spaceSize(DeterministicAllocationSize.getValue() * 1024 * 1024) {
   if (DeterministicAllocation) {
     // Page boundary

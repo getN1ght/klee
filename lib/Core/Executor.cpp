@@ -31,16 +31,20 @@
 #include "klee/Core/Interpreter.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/Assignment.h"
+#include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprPPrinter.h"
 #include "klee/Expr/ExprSMTLIBPrinter.h"
 #include "klee/Expr/ExprUtil.h"
+#include "klee/Expr/IndependentSet.h"
+#include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/CodeGraphDistance.h"
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Solver/Common.h"
+#include "klee/Solver/ConcretizationManager.h"
 #include "klee/Solver/SolverCmdLine.h"
 #include "klee/Solver/SolverStats.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
@@ -57,6 +61,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
+#include <llvm/Support/Casting.h>
 #if LLVM_VERSION_CODE < LLVM_VERSION(8, 0)
 #include "llvm/IR/CallSite.h"
 #endif
@@ -449,11 +454,13 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(0),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
-      pathWriter(0), symPathWriter(0), specialFunctionHandler(0), timers{time::Span(TimerInterval)},
-      codeGraphDistance(new CodeGraphDistance()), replayKTest(0), replayPath(0), usingSeeds(0),
-      atMemoryLimit(false), inhibitForking(false), haltExecution(false),
-      ivcEnabled(false), debugLogBuffer(debugBufferString) {
-
+      pathWriter(0), symPathWriter(0),
+      specialFunctionHandler(0), timers{time::Span(TimerInterval)},
+      cm(new ConcretizationManager()),
+      codeGraphDistance(new CodeGraphDistance()), replayKTest(0), replayPath(0),
+      usingSeeds(0), atMemoryLimit(false), inhibitForking(false),
+      haltExecution(false), ivcEnabled(false),
+      debugLogBuffer(debugBufferString) {
 
   const time::Span maxTime{MaxTime};
   if (maxTime) timers.add(
@@ -469,15 +476,22 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
     klee_error("Failed to create core solver\n");
   }
 
+  ConcretizationManager *cmSolver = nullptr;
+  if (true) { // Add flag for symcretes
+    cmSolver = cm;
+  }
+
   Solver *solver = constructSolverChain(
       coreSolver,
       interpreterHandler->getOutputFilename(ALL_QUERIES_SMT2_FILE_NAME),
       interpreterHandler->getOutputFilename(SOLVER_QUERIES_SMT2_FILE_NAME),
       interpreterHandler->getOutputFilename(ALL_QUERIES_KQUERY_FILE_NAME),
-      interpreterHandler->getOutputFilename(SOLVER_QUERIES_KQUERY_FILE_NAME));
+      interpreterHandler->getOutputFilename(SOLVER_QUERIES_KQUERY_FILE_NAME),
+      cmSolver);
 
   this->solver = new TimingSolver(solver, EqualitySubstitution);
-  memory = new MemoryManager(&arrayCache);
+
+  memory = new MemoryManager(&arrayCache, &sourceBuilder);
 
   initializeSearchOptions();
 
@@ -3992,9 +4006,9 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   // and return it.
   
   static unsigned id;
-  const Array *array =
-      arrayCache.CreateArray("rrws_arr" + llvm::utostr(++id),
-                             Expr::getMinBytesForWidth(e->getWidth()));
+  const Array *array = arrayCache.CreateArray(
+      "rrws_arr" + llvm::utostr(++id), Expr::getMinBytesForWidth(e->getWidth()),
+      sourceBuilder.makeSymbolic());
   ref<Expr> res = Expr::createTempRead(array, e->getWidth());
   ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, res));
   llvm::errs() << "Making symbolic: " << eq << "\n";
@@ -4459,7 +4473,8 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
     while (!state.arrayNames.insert(uniqueName).second) {
       uniqueName = name + "_" + llvm::utostr(++id);
     }
-    const Array *array = arrayCache.CreateArray(uniqueName, mo->size);
+    const Array *array = arrayCache.CreateArray(uniqueName, mo->size,
+                                                sourceBuilder.makeSymbolic());
     bindObjectInState(state, mo, false, array);
     state.addSymbolic(mo, array);
     
@@ -4620,7 +4635,7 @@ void Executor::runFunctionAsMain(Function *f,
 
   // hack to clear memory objects
   delete memory;
-  memory = new MemoryManager(NULL);
+  memory = new MemoryManager(NULL, NULL);
 
   globalObjects.clear();
   globalAddresses.clear();
