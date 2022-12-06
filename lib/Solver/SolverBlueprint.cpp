@@ -86,10 +86,18 @@ char *SolverBlueprint::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 
+// TODO: REMOVE
+#include "klee/Expr/SymbolicSource.h"
+
 bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
   auto arrays = query.gatherArrays();
 
-  if (true) { // Проверить есть ли симкреты
+  bool exists = false;
+  for (auto it: arrays) {
+    exists |= (it->source->getKind() == SymbolicSource::Kind::SymbolicAddress);
+  }
+
+  if (!exists) { // Проверить есть ли симкреты
     return solver->impl->computeTruth(query, isValid);
   } else {
     auto assign = cm->get(query.constraints);
@@ -101,13 +109,9 @@ bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
     if (!solver->mayBeTrue(concretizedQuery, result)) {
       return false;
     }
-    if (result) {
-      isValid = false;
-      cm->add(query.negateExpr(), assign);
-      return true;
-    } else {
-      return false;
-    }
+    isValid = !result;
+    cm->add(query.negateExpr(), assign);
+    return true;
   }
 }
 

@@ -18,6 +18,7 @@ public:
   enum class Kind {
     Constant,
     MakeSymbolic,
+    SymbolicAddress
   };
 
 public:
@@ -42,6 +43,15 @@ public:
     return S->getKind() == Kind::MakeSymbolic;
   }
   static bool classof(const MakeSymbolicSource *) { return true; }
+};
+
+class SymbolicAddressSource: public SymbolicSource {
+public:
+  Kind getKind() const { return Kind::SymbolicAddress; }
+  static bool classof(const SymbolicSource *S) {
+    return S->getKind() == Kind::SymbolicAddress;
+  }
+  static bool classof(const SymbolicAddressSource *) { return true; }
 };
 
 }  // End klee namespace

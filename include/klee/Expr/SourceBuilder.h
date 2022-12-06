@@ -10,12 +10,14 @@ class SourceBuilder {
 private:
   ref<SymbolicSource> constantSource;
   ref<SymbolicSource> makeSymbolicSource;
+  ref<SymbolicAddressSource> symbolicAddressSource;
 
 public:
   SourceBuilder();
 
-  SymbolicSource *constant();
-  SymbolicSource *makeSymbolic();
+  SymbolicSource *constant() const;
+  SymbolicSource *makeSymbolic() const;
+  SymbolicSource *symbolicAddress() const;
 };
 
 };

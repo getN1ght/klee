@@ -82,6 +82,7 @@ public:
     : id(counter++),
       timestamp(time++),
       address(_address),
+      addressExpr(nullptr),
       lazyInitializationSource(nullptr),
       size(0),
       isFixed(true),
@@ -94,11 +95,13 @@ public:
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
                ref<Expr> _addressExpr = nullptr,
+               ref<Expr> _lazyInitializationSource = nullptr,
                unsigned _timestamp = 0 /* unused if _lazyInstantiatedSource is null*/)
     : id(counter++),
       timestamp(_timestamp),
       address(_address),
       addressExpr(_addressExpr),
+      lazyInitializationSource(_lazyInitializationSource),
       size(_size),
       name("unnamed"),
       isLocal(_isLocal),
@@ -134,11 +137,10 @@ public:
     return ConstantExpr::create(address, Context::get().getPointerWidth());
   }
   ref<Expr> getBaseExpr() const {
-    if (!lazyInitializationSource) {
-      return getBaseConstantExpr();
-    } else {
-      return lazyInitializationSource;
+    if (addressExpr) {
+      return addressExpr;
     }
+    return getBaseConstantExpr();
   }
   ref<ConstantExpr> getSizeExpr() const { 
     return ConstantExpr::create(size, Context::get().getPointerWidth());

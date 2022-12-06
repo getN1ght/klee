@@ -784,7 +784,7 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
     if (!mo)
       klee_error("out of memory");
     globalObjects.emplace(&v, mo);
-    globalAddresses.emplace(&v, mo->getBaseExpr());
+    globalAddresses.emplace(&v, mo->getBaseConstantExpr());
   }
 }
 
@@ -4322,7 +4322,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   
   // XXX there is some query wasteage here. who cares?
   ExecutionState *unbound = &state;
-  
+
+  ref<Expr> checkOutOfBounds = ConstantExpr::create(1, Expr::Bool);
+
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = i->first;
     const ObjectState *os = i->second;
@@ -4334,11 +4336,22 @@ void Executor::executeMemoryOperation(ExecutionState &state,
           AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, size));
     }
 
-    StatePair branches = fork(*unbound, inBounds, true, BranchType::MemOp);
-    ExecutionState *bound = branches.first;
+    bool mayBeInBounds;
+    solver->setTimeout(coreSolverTimeout);
+    bool success = solver->mayBeTrue(unbound->constraints, inBounds,
+                                     mayBeInBounds, unbound->queryMetaData);
+    solver->setTimeout(time::Span());
+    if (!success) {
+      terminateStateOnSolverError(*unbound, "Query timed out (resolve)");
+      return;
+    }
 
-    // bound can be 0 on failure or overlapped 
-    if (bound) {
+    if (mayBeInBounds) {
+      ExecutionState *bound = unbound->branch();
+      addedStates.push_back(bound);
+      processTree->attach(unbound->ptreeNode, bound, unbound, BranchType::MemOp);
+      addConstraint(*bound, inBounds);
+
       bound->addPointerResolution(base, address, mo);
 
       if (isWrite) {
@@ -4353,53 +4366,28 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
         bindLocal(target, *bound, result);
       }
-    }
 
-    unbound = branches.second;
-
-    if (unbound && isReadFromSymbolicArray(base)) {
-      if (base == mo->getBaseExpr()) {
-        terminateStateOnError(*unbound, "memory error: out of bound pointer",
-                              StateTerminationType::Ptr,
-                              getAddressInfo(*unbound, address, mo));
-        unbound = nullptr;
-      } else {
-        ref<Expr> baseInObject = mo->getBoundsCheckPointer(base, 1);
-        if (unbound->isGEPExpr(address)) {
-          baseInObject = OrExpr::create(baseInObject,
-                                        mo->getBoundsCheckPointer(base, size));
-        }
-        branches = fork(*unbound, baseInObject, true, BranchType::MemOp);
-        bound = branches.first;
-        if (bound) {
-          // the resolved object size was unsuitable, base cannot resolve to this object
-          terminateStateEarly(*bound, "", StateTerminationType::SilentExit);
-        }
-        unbound = branches.second;
-      }
-    }
-
-    if (!unbound) {
-      break;
+      checkOutOfBounds = AndExpr::create(NotExpr::create(inBounds), checkOutOfBounds);
     }
   }
   
-  if (unbound) {
-    StatePair branches =
-        fork(*unbound, Expr::createIsZero(base), true, BranchType::MemOp);
-    ExecutionState *bound = branches.first;
-    if (bound) {
-      terminateStateOnError(*bound, "memory error: null pointer exception",
-                            StateTerminationType::Ptr);
-    }
-    unbound = branches.second;
+  StatePair branches =
+      fork(*unbound, Expr::createIsZero(base), true, BranchType::MemOp);
+  ExecutionState *bound = branches.first;
+  if (bound) {
+    terminateStateOnError(*bound, "memory error: null pointer exception",
+                          StateTerminationType::Ptr);
   }
+  unbound = branches.second;
 
   // XXX should we distinguish out of bounds and overlapped cases?
   if (unbound) {
+    Assignment symcreteSolution = cm->get(unbound->constraints);
+
     if (incomplete) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
-    } else if (LazyInitialization && isReadFromSymbolicArray(base) &&
+    } else if (LazyInitialization &&
+               isReadFromSymbolicArray(symcreteSolution.evaluate(base)) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 state.isGEPExpr(address))) {
       ObjectPair p = lazyInitializeObject(*unbound, base, target, size);
@@ -4459,19 +4447,22 @@ ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
 
   const Array *addressArray = arrayCache.CreateArray(
       symcreteAddressName, Context::get().getPointerWidth() / CHAR_BIT,
-      nullptr);
+      sourceBuilder.symbolicAddress());
   ref<Expr> addressExpr =
       Expr::createTempRead(addressArray, Context::get().getPointerWidth());
 
-  MemoryObject *mo =
-      memory->allocate(size, false, /*isGlobal=*/false, allocSite,
-                       /*allocationAlignment=*/8, addressExpr, timestamp);
+  MemoryObject *mo = memory->allocate(
+      size, false, /*isGlobal=*/false, allocSite,
+      /*allocationAlignment=*/8, addressExpr, address, timestamp);
 
   Assignment addressEquality(true);
-  addressEquality.bindings[addressArray] = std::vector<unsigned char>(&mo->address, &mo->address + 1);
+  unsigned char *bytesBegin = reinterpret_cast<unsigned char*>(&mo->address);
+  addressEquality.bindings[addressArray] = std::vector<unsigned char>(bytesBegin, bytesBegin + sizeof(mo->address));
+  
+  ref<Expr> addressEqualityExpr = EqExpr::create(addressExpr, address);
 
-  addConstraint(state, EqExpr::create(addressExpr, address));
-  cm->add(Query(ConstraintSet(), addressExpr), addressEquality);
+  cm->add(Query(state.constraints, addressEqualityExpr), addressEquality);
+  addConstraint(state, addressEqualityExpr);
 
   executeMakeSymbolic(state, mo, name, false);
   ObjectPair op;

@@ -104,6 +104,7 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
                                       const llvm::Value *allocSite,
                                       size_t alignment,
                                       ref<Expr> addressExpr,
+                                      ref<Expr> lazyInitializationSource,
                                       unsigned timestamp) {
   if (size > 10 * 1024 * 1024)
     klee_warning_once(0, "Large alloc: %" PRIu64
@@ -153,7 +154,7 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
   ++stats::allocations;
   MemoryObject *res =
       new MemoryObject(address, size, isLocal, isGlobal, false, allocSite, this,
-                       addressExpr, timestamp);
+                       addressExpr, lazyInitializationSource, timestamp);
   objects.insert(res);
   return res;
 }

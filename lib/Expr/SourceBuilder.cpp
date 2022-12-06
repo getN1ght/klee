@@ -7,12 +7,17 @@ using namespace klee;
 SourceBuilder::SourceBuilder() {
   constantSource = ref<SymbolicSource>(new ConstantSource());
   makeSymbolicSource = ref<SymbolicSource>(new MakeSymbolicSource());
+  symbolicAddressSource = ref<SymbolicAddressSource>(new SymbolicAddressSource());
 }
 
-SymbolicSource *SourceBuilder::constant() {
+SymbolicSource *SourceBuilder::constant() const{
   return constantSource.get();
 }
 
-SymbolicSource *SourceBuilder::makeSymbolic() {
+SymbolicSource *SourceBuilder::makeSymbolic() const{
   return makeSymbolicSource.get();
+}
+
+SymbolicSource *SourceBuilder::symbolicAddress() const {
+  return symbolicAddressSource.get();
 }
