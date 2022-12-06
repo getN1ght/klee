@@ -47,7 +47,7 @@ class SMTLIBLoggingSolver : public QueryLoggingSolver
                         std::string path,
                         time::Span queryTimeToLog,
                         bool logTimedOut)
-		: QueryLoggingSolver(_solver, path, ";", queryTimeToLog, logTimedOut)
+		: QueryLoggingSolver(_solver, path, ";", queryTimeToLog, logTimedOut), printer()
 		{
 		  //Setup the printer
 		  printer.setOutput(logBuffer);

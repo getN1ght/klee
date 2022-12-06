@@ -10,6 +10,7 @@
 #include "ExecutionState.h"
 
 #include "Memory.h"
+#include "MemoryManager.h"
 
 #include "klee/Expr/ArrayExprVisitor.h"
 #include "klee/Expr/Expr.h"
@@ -106,6 +107,7 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     symPathOS(state.symPathOS),
     coveredLines(state.coveredLines),
     symbolics(state.symbolics),
+    symbolicSizes(state.symbolicSizes),
     resolvedPointers(state.resolvedPointers),
     cexPreferences(state.cexPreferences),
     arrayNames(state.arrayNames),
@@ -151,7 +153,9 @@ void ExecutionState::pushFrame(KInstIterator caller, KFunction *kf) {
 
 void ExecutionState::popFrame() {
   const StackFrame &sf = stack.back();
-  for (const auto * memoryObject : sf.allocas) {
+  for (const auto id : sf.allocas) {
+    const MemoryObject *memoryObject = addressSpace.findObject(id).first;
+    assert(memoryObject);
     removePointerResolutions(memoryObject);
     addressSpace.unbindObject(memoryObject);
   }
@@ -218,7 +222,7 @@ bool ExecutionState::getBase(ref<Expr> expr,
 void ExecutionState::removePointerResolutions(const MemoryObject *mo) {
   for (auto i = resolvedPointers.begin(), last = resolvedPointers.end();
        i != last;) {
-    if (i->second.first == mo) {
+    if (i->second.first == mo->id) {
       i = resolvedPointers.erase(i);
     } else {
       ++i;
@@ -230,10 +234,10 @@ void ExecutionState::removePointerResolutions(const MemoryObject *mo) {
 void ExecutionState::addPointerResolution(ref<Expr> address, ref<Expr> base,
                                           const MemoryObject *mo) {
   if (!isa<ConstantExpr>(address)) {
-    resolvedPointers[address] = std::make_pair(mo, mo->getOffsetExpr(address));
+    resolvedPointers[address] = std::make_pair(mo->id, mo->getOffsetExpr(address));
   }
   if (base != address && !isa<ConstantExpr>(base)) {
-    resolvedPointers[base] = std::make_pair(mo, mo->getOffsetExpr(base));
+    resolvedPointers[base] = std::make_pair(mo->id, mo->getOffsetExpr(base));
   }
 }
 

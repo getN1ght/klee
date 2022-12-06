@@ -36,3 +36,4 @@ void ConcretizationManager::add(const Query &query, const Assignment &assign) {
   CacheEntry ce(query.constraints, query.expr);
   concretizations.insert(std::make_pair(ce, assign));
 }
+
