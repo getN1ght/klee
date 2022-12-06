@@ -51,6 +51,7 @@ public:
   unsigned id;
   unsigned timestamp;
   uint64_t address;
+  ref<Expr> addressExpr;
   ref<Expr> lazyInitializationSource;
 
   /// size in bytes
@@ -92,12 +93,12 @@ public:
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
-               ref<Expr> _lazyInitializationSource = nullptr,
+               ref<Expr> _addressExpr = nullptr,
                unsigned _timestamp = 0 /* unused if _lazyInstantiatedSource is null*/)
     : id(counter++),
       timestamp(_timestamp),
       address(_address),
-      lazyInitializationSource(_lazyInitializationSource),
+      addressExpr(_addressExpr),
       size(_size),
       name("unnamed"),
       isLocal(_isLocal),

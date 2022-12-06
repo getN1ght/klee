@@ -4451,10 +4451,29 @@ ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
   if (state.getBase(address, moBasePair)) {
     timestamp = moBasePair.first->timestamp;
   }
+
+  static int id = 0;
+
+  std::string name = "lazy_initialization";
+  std::string symcreteAddressName = name + "_address" + llvm::utostr(id++);
+
+  const Array *addressArray = arrayCache.CreateArray(
+      symcreteAddressName, Context::get().getPointerWidth() / CHAR_BIT,
+      nullptr);
+  ref<Expr> addressExpr =
+      Expr::createTempRead(addressArray, Context::get().getPointerWidth());
+
   MemoryObject *mo =
       memory->allocate(size, false, /*isGlobal=*/false, allocSite,
-                       /*allocationAlignment=*/8, address, timestamp);
-  executeMakeSymbolic(state, mo, "lazy_initialization", false);
+                       /*allocationAlignment=*/8, addressExpr, timestamp);
+
+  Assignment addressEquality(true);
+  addressEquality.bindings[addressArray] = std::vector<unsigned char>(&mo->address, &mo->address + 1);
+
+  addConstraint(state, EqExpr::create(addressExpr, address));
+  cm->add(Query(ConstraintSet(), addressExpr), addressEquality);
+
+  executeMakeSymbolic(state, mo, name, false);
   ObjectPair op;
   state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), op);
   return op;
