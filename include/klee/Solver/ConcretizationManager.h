@@ -51,6 +51,7 @@ public:
   Assignment get(const ConstraintSet &set, ref<Expr> query);
   bool contains(const ConstraintSet &set, ref<Expr> query);
   void add(const Query &q, const Assignment &assign);
+  ref<Expr> simplifyExprWithSymcretes(const ConstraintSet &cs, ref<Expr> e);
 };
 
 }; // end klee namespace

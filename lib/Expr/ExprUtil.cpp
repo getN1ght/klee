@@ -41,7 +41,12 @@ void klee::findReads(ref<Expr> e,
       if (!isa<ConstantExpr>(re->index) &&
           visited.insert(re->index).second)
         stack.push_back(re->index);
-      
+
+      if (re->updates.root->getSize() &&
+          visited.insert(re->updates.root->getSize()).second) {
+        stack.push_back(re->updates.root->getSize());
+      }
+
       if (visitUpdates) {
         // XXX this is probably suboptimal. We want to avoid a potential
         // explosion traversing update lists which can be quite
@@ -83,7 +88,8 @@ protected:
 
   Action visitRead(const ReadExpr &re) {
     const UpdateList &ul = re.updates;
-
+    
+    visit(ul.root->getSize());
     // XXX should we memo better than what ExprVisitor is doing for us?
     for (const auto *un = ul.head.get(); un; un = un->next.get()) {
       visit(un->index);
@@ -115,6 +121,7 @@ public:
 ExprVisitor::Action ConstantArrayFinder::visitRead(const ReadExpr &re) {
   const UpdateList &ul = re.updates;
 
+  visit(ul.root->getSize());
   // FIXME should we memo better than what ExprVisitor is doing for us?
   for (const auto *un = ul.head.get(); un; un = un->next.get()) {
     visit(un->index);

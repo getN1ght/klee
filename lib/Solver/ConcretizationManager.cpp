@@ -36,3 +36,15 @@ void ConcretizationManager::add(const Query &query, const Assignment &assign) {
   CacheEntry ce(query.constraints, query.expr);
   concretizations.insert(std::make_pair(ce, assign));
 }
+
+ref<Expr>
+ConcretizationManager::simplifyExprWithSymcretes(const ConstraintSet &cs,
+                                                 ref<Expr> e) {
+  const Assignment &assign = cs.getConcretization();
+  ConstraintSet newCS = assign.createConstraintsFromAssignment();
+  ConstraintManager cm(newCS);
+  for (ref<Expr> constraint : cs) {
+    cm.addConstraint(assign.evaluate(constraint));
+  }
+  return ConstraintManager::simplifyExpr(newCS, e);
+}

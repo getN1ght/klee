@@ -44,10 +44,11 @@ class SMTLIBLoggingSolver : public QueryLoggingSolver
         
 	public:
 		SMTLIBLoggingSolver(Solver *_solver,
+                        ConcretizationManager *cm,
                         std::string path,
                         time::Span queryTimeToLog,
                         bool logTimedOut)
-		: QueryLoggingSolver(_solver, path, ";", queryTimeToLog, logTimedOut)
+		: QueryLoggingSolver(_solver, path, ";", queryTimeToLog, logTimedOut), printer(cm)
 		{
 		  //Setup the printer
 		  printer.setOutput(logBuffer);
@@ -55,8 +56,8 @@ class SMTLIBLoggingSolver : public QueryLoggingSolver
 };
 
 
-Solver* klee::createSMTLIBLoggingSolver(Solver *_solver, std::string path,
+Solver* klee::createSMTLIBLoggingSolver(Solver *_solver, ConcretizationManager *cm, std::string path,
                                         time::Span minQueryTimeToLog, bool logTimedOut)
 {
-  return new Solver(new SMTLIBLoggingSolver(_solver, path, minQueryTimeToLog, logTimedOut));
+  return new Solver(new SMTLIBLoggingSolver(_solver, cm, path, minQueryTimeToLog, logTimedOut));
 }

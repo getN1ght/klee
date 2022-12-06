@@ -41,8 +41,10 @@ public:
 
   void push_back(const ref<Expr> &e);
   void updateConcretization(const Assignment &symcretes);
+  ConstraintSet withExpr(ref<Expr> e) const;
 
   std::vector<const Array *> gatherArrays() const;
+  std::vector<const Array *> gatherSymcreteArrays() const;
 
   std::set<ref<Expr>> asSet() const;
   const Assignment &getConcretization() const;

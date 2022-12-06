@@ -95,18 +95,18 @@ public:
 
   bool computeInitialValues(const Query &query,
                             const std::vector<const Array *> &objects,
-                            std::vector<std::vector<unsigned char> > &values,
+                            std::vector<SparseStorage<unsigned char> > &values,
                             bool &hasSolution);
 
   SolverImpl::SolverRunStatus
   runAndGetCex(const Query &query, const std::vector<const Array *> &objects,
-               std::vector<std::vector<unsigned char> > &values,
+               std::vector<SparseStorage<unsigned char> > &values,
                bool &hasSolution);
 
   SolverImpl::SolverRunStatus
   runAndGetCexForked(const Query &query,
                      const std::vector<const Array *> &objects,
-                     std::vector<std::vector<unsigned char> > &values,
+                     std::vector<SparseStorage<unsigned char> > &values,
                      bool &hasSolution, time::Span timeout);
 
   SolverRunStatus getOperationStatusCode();
@@ -187,7 +187,7 @@ bool MetaSMTSolverImpl<SolverContext>::computeValue(const Query &query,
 template <typename SolverContext>
 bool MetaSMTSolverImpl<SolverContext>::computeInitialValues(
     const Query &query, const std::vector<const Array *> &objects,
-    std::vector<std::vector<unsigned char> > &values, bool &hasSolution) {
+    std::vector<SparseStorage<unsigned char> > &values, bool &hasSolution) {
 
   _runStatusCode = SOLVER_RUN_STATUS_FAILURE;
 
@@ -222,7 +222,7 @@ bool MetaSMTSolverImpl<SolverContext>::computeInitialValues(
 template <typename SolverContext>
 SolverImpl::SolverRunStatus MetaSMTSolverImpl<SolverContext>::runAndGetCex(
     const Query &query, const std::vector<const Array *> &objects,
-    std::vector<std::vector<unsigned char> > &values, bool &hasSolution) {
+    std::vector<SparseStorage<unsigned char> > &values, bool &hasSolution) {
 
   // assume the constraints of the query
   for (auto &constraint : query.constraints)
@@ -271,7 +271,7 @@ template <typename SolverContext>
 SolverImpl::SolverRunStatus
 MetaSMTSolverImpl<SolverContext>::runAndGetCexForked(
     const Query &query, const std::vector<const Array *> &objects,
-    std::vector<std::vector<unsigned char> > &values, bool &hasSolution,
+    std::vector<SparseStorage<unsigned char> > &values, bool &hasSolution,
     time::Span timeout) {
   unsigned char *pos = shared_memory_ptr;
   unsigned sum = 0;

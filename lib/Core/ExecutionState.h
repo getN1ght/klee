@@ -50,7 +50,7 @@ struct StackFrame {
   KFunction *kf;
   CallPathNode *callPathNode;
 
-  std::vector<const MemoryObject *> allocas;
+  std::vector<IDType> allocas;
   Cell *locals;
 
   /// Minimum distance to an uncovered instruction once the function
@@ -240,8 +240,11 @@ public:
   // FIXME: Move to a shared list structure (not critical).
   std::vector<Symbolic> symbolics;
 
+  /// @brief Ordered listof symbolic sizes: used to generate test cases.
+  std::vector<const Array *> symbolicSizes;
+
   /// @brief map from memory accesses to accessed objects and access offsets.
-  ExprHashMap<std::pair<ref<const MemoryObject>, ref<Expr>>> resolvedPointers;
+  ExprHashMap<std::pair<IDType, ref<Expr>>> resolvedPointers;
 
   /// @brief A set of boolean expressions
   /// the user has requested be true of a counterexample.

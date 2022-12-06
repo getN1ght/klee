@@ -8,12 +8,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Expr/ExprSMTLIBPrinter.h"
+
+#include "klee/Solver/ConcretizationManager.h"
 #include "klee/Support/Casting.h"
+#include "klee/Support/ErrorHandling.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 
 #include <stack>
+#include <string>
 
 namespace ExprSMTLIBOptions {
 // Command line options
@@ -53,9 +57,9 @@ llvm::cl::opt<klee::ExprSMTLIBPrinter::AbbreviationMode> abbreviationMode(
 
 namespace klee {
 
-ExprSMTLIBPrinter::ExprSMTLIBPrinter()
-    : usedArrays(), o(NULL), query(NULL), p(NULL), haveConstantArray(false),
-      logicToUse(QF_AUFBV),
+ExprSMTLIBPrinter::ExprSMTLIBPrinter(ConcretizationManager *concretizationManager)
+    : usedArrays(), o(NULL), query(NULL), concretizationManager(concretizationManager), p(NULL),
+      haveConstantArray(false), logicToUse(QF_AUFBV),
       humanReadable(ExprSMTLIBOptions::humanReadableSMTLIB),
       smtlibBoolOptions(), arraysToCallGetValueOn(NULL) {
   setConstantDisplayMode(ExprSMTLIBOptions::argConstantDisplayMode);
@@ -681,7 +685,20 @@ void ExprSMTLIBPrinter::printAction() {
          it != arraysToCallGetValueOn->end(); it++) {
       theArray = *it;
       // Loop over the array indices
-      for (unsigned int index = 0; index < theArray->size; ++index) {
+      ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(
+          concretizationManager
+              ? concretizationManager->simplifyExprWithSymcretes(
+                    query->constraints, theArray->size)
+              : ConstraintManager::simplifyExpr(query->constraints,
+                                                theArray->size));
+      if (!arrayConstantSize) {
+        klee_warning("Query for %s can not be printed as it has non-conretized "
+                     "symbolic size!",
+                     theArray->getName().c_str());
+        continue;
+      }
+      for (unsigned int index = 0; index < arrayConstantSize->getZExtValue();
+           ++index) {
         *o << "(get-value ( (select " << (**it).name << " (_ bv" << index << " "
            << theArray->getDomain() << ") ) ) )\n";
       }

@@ -60,7 +60,8 @@ namespace llvm {
   class Value;
 }
 
-namespace klee {  
+namespace klee {
+  class AddressManager;  
   class Array;
   struct Cell;
   class CodeGraphDistance;
@@ -118,6 +119,7 @@ private:
 
   ExternalDispatcher *externalDispatcher;
   TimingSolver *solver;
+  AddressManager *addressManager;
   MemoryManager *memory;
   TypeManager *typeSystemManager;
 
@@ -276,6 +278,12 @@ private:
                     ExactResolutionList &results,
                     const std::string &name);
 
+  MemoryObject *allocate(ExecutionState &state, ref<Expr> size, bool isLocal,
+                         bool isGlobal, const llvm::Value *allocSite,
+                         size_t allocationAlignment,
+                         ref<Expr> lazyInitializationSource = ref<Expr>(),
+                         unsigned timestamp = 0);
+
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.
   ///
@@ -334,11 +342,13 @@ private:
                               KInstruction *target /* undef if write */);
 
   IDType lazyInitializeObject(ExecutionState &state, ref<Expr> address,
-                              KInstruction *target, KType *targetType, uint64_t size);
+                              KInstruction *target, KType *targetType,
+                              ref<Expr> size);
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
-                           KType *type,
-                           const std::string &name,
+                           KType *type, const std::string &name,
                            const ref<SymbolicSource> source, bool isLocal);
+  void updateStateWithSymcretes(ExecutionState &state,
+                                const Assignment &assignment);
 
   /// Create a new state where each input condition has been added as
   /// a constraint and return the results. The input state is included
@@ -361,6 +371,8 @@ private:
   /// function is a wrapper around the state's addConstraint function
   /// which also manages propagation of implied values,
   /// validity checks, and seed patching.
+  /// @return true if constraint was successfully added, and false if state
+  /// were terminated and constraint was not added.
   void addConstraint(ExecutionState &state, ref<Expr> condition);
 
   // Called on [for now] concrete reads, replaces constant with a symbolic
@@ -400,11 +412,6 @@ private:
   /// not applicable/unavailable.
   ref<klee::ConstantExpr> evalConstant(const llvm::Constant *c,
 				       const KInstruction *ki = NULL);
-
-  /// Return a unique constant value for the given expression in the
-  /// given state, if it has one (i.e. it provably only has a single
-  /// value). Otherwise return the original expression.
-  ref<Expr> toUnique(const ExecutionState &state, ref<Expr> &e);
 
   /// Return a constant value for the given expression, forcing it to
   /// be constant in the given state by adding a constraint if
@@ -473,8 +480,9 @@ private:
   /// bindModuleConstants - Initialize the module constant table.
   void bindModuleConstants();
 
-  const Array *makeArray(ExecutionState &state, uint64_t size,
-                         const std::string &name, const ref<SymbolicSource> source);
+  const Array *makeArray(ExecutionState &state, ref<Expr> size,
+                         const std::string &name,
+                         const ref<SymbolicSource> source);
 
   template <typename SqType, typename TypeIt>
   void computeOffsetsSeqTy(KGEPInstruction *kgepi,

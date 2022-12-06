@@ -12,6 +12,7 @@
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/ExprVisitor.h"
+#include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/KModule.h"
 #include "klee/Support/OptionCategories.h"
 
@@ -238,6 +239,21 @@ void ConstraintSet::updateConcretization(const Assignment &c) {
   concretization = c;
 }
 
+/**
+ * @brief Copies the current constraint set and adds expression e.
+ *
+ * Ideally, this function should accept variadic arguments pack
+ * and unpack them with fold expressions, but this feature availible only
+ * from C++17.
+ *
+ * @return copied and modified constraint set.
+ */
+ConstraintSet ConstraintSet::withExpr(ref<Expr> e) const {
+  ConstraintSet newConstraintSet = *this;
+  newConstraintSet.push_back(e);
+  return newConstraintSet;
+}
+
 void ConstraintSet::dump() const {
   llvm::errs() << "Constraints [\n";
   for (const auto &constraint : constraints)
@@ -250,6 +266,13 @@ std::vector<const Array *> ConstraintSet::gatherArrays() const {
   std::vector<const Array *> arrays;
   findObjects(constraints.begin(), constraints.end(), arrays);
   return arrays;
+}
+
+std::vector<const Array *> ConstraintSet::gatherSymcreteArrays() const {
+  std::unordered_set<const Array *> arrays;
+  llvm::copy_if(gatherArrays(), std::inserter(arrays, arrays.begin()),
+                [](const Array *array) { return array->source->isSymcrete(); });
+  return std::vector<const Array *>(arrays.begin(), arrays.end());
 }
 
 std::set<ref<Expr>> ConstraintSet::asSet() const {
