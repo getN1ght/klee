@@ -4391,6 +4391,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 state.isGEPExpr(address))) {
       ObjectPair p = lazyInitializeObject(*unbound, base, target, size);
+      if (!p.first || !p.second) {
+        return;
+      }
       assert(p.first && p.second);
 
       const MemoryObject *mo = p.first;
@@ -4458,6 +4461,22 @@ ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
   addressEquality.bindings[addressArray] = std::vector<unsigned char>(bytesBegin, bytesBegin + sizeof(mo->address));
   
   ref<Expr> addressEqualityExpr = EqExpr::create(addressExpr, address);
+
+  bool mayBeLazyInitialized = false;
+  solver->setTimeout(coreSolverTimeout);
+  bool success = solver->mayBeTrue(state.constraints, addressEqualityExpr,
+                                   mayBeLazyInitialized, state.queryMetaData);
+  solver->setTimeout(time::Span());
+  if (!success) {
+    terminateStateOnSolverError(state,
+                                "Query timed out (Lazy initialization).");
+    return ObjectPair(nullptr, nullptr);
+  }
+
+  if (!mayBeLazyInitialized) {
+    terminateStateEarly(state, "", StateTerminationType::SilentExit);
+    return ObjectPair(nullptr, nullptr);
+  }
 
   cm->add(Query(state.constraints, addressEqualityExpr), addressEquality);
   addConstraint(state, addressEqualityExpr);
