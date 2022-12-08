@@ -81,6 +81,7 @@ namespace klee {
   class SeedInfo;
   class SpecialFunctionHandler;
   struct StackFrame;
+  class SymbolicSource;
   class TargetCalculator;
   class StatsTracker;
   class TimingSolver;
@@ -467,6 +468,9 @@ private:
 
   /// bindModuleConstants - Initialize the module constant table.
   void bindModuleConstants();
+
+  const Array *makeArray(ExecutionState &state, uint64_t size,
+                         const std::string &name, SymbolicSource *source);
 
   template <typename SqType, typename TypeIt>
   void computeOffsetsSeqTy(KGEPInstruction *kgepi,

@@ -4440,14 +4440,12 @@ ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
     timestamp = moBasePair.first->timestamp;
   }
 
-  static int id = 0;
-
   std::string name = "lazy_initialization";
-  std::string symcreteAddressName = name + "_address" + llvm::utostr(id++);
+  std::string symcreteAddressName = name + "_address";
 
-  const Array *addressArray = arrayCache.CreateArray(
-      symcreteAddressName, Context::get().getPointerWidth() / CHAR_BIT,
-      sourceBuilder.symbolicAddress());
+  const Array *addressArray =
+      makeArray(state, Context::get().getPointerWidth() / CHAR_BIT,
+                symcreteAddressName, sourceBuilder.symbolicAddress());
   ref<Expr> addressExpr =
       Expr::createTempRead(addressArray, Context::get().getPointerWidth());
 
@@ -4470,21 +4468,26 @@ ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
   return op;
 }
 
+const Array *Executor::makeArray(ExecutionState &state, uint64_t size,
+                                 const std::string &name, SymbolicSource *source) {
+  static uint64_t id = 0;
+  std::string uniqueName = name;
+  while (!state.arrayNames.insert(uniqueName).second) {
+    uniqueName = name + "_" + llvm::utostr(++id);
+  }
+  const Array *array = arrayCache.CreateArray(uniqueName, size, source);
+
+  return array;
+}
+
 void Executor::executeMakeSymbolic(ExecutionState &state, 
                                    const MemoryObject *mo,
                                    const std::string &name,
                                    bool isLocal) {
   // Create a new object state for the memory object (instead of a copy).
   if (!replayKTest) {
-    // Find a unique name for this array.  First try the original name,
-    // or if that fails try adding a unique identifier.
-    unsigned id = 0;
-    std::string uniqueName = name;
-    while (!state.arrayNames.insert(uniqueName).second) {
-      uniqueName = name + "_" + llvm::utostr(++id);
-    }
-    const Array *array = arrayCache.CreateArray(uniqueName, mo->size,
-                                                sourceBuilder.makeSymbolic());
+    const Array *array =
+        makeArray(state, mo->size, name, sourceBuilder.makeSymbolic());
     bindObjectInState(state, mo, false, array);
     state.addSymbolic(mo, array);
     
