@@ -11,7 +11,6 @@ Assignment ConcretizationManager::get(ConstraintSet set) {
   Assignment assign(true);
   auto independent = getAllIndependentConstraintsSets(
       Query(set, ConstantExpr::alloc(0, Expr::Bool)));
-
   for (auto i : *independent) {
     if (auto a = concretizations.lookup(ConstraintSet(i.exprs).asSet())) {
       for (auto i : a->bindings) {
@@ -24,7 +23,7 @@ Assignment ConcretizationManager::get(ConstraintSet set) {
 }
 
 void ConcretizationManager::add(ConstraintSet oldCS, ConstraintSet newCS,
-                                Assignment assign) {
+                                const Assignment &assign) {
   Assignment newAssign(true);
   ref<Expr> newExpr = ConstantExpr::alloc(1, Expr::Bool);
   for (auto i : newCS) {
@@ -61,7 +60,7 @@ void ConcretizationManager::add(ConstraintSet oldCS, ConstraintSet newCS,
   concretizations.insert(dependentWithNew, newAssign);
 }
 
-void ConcretizationManager::add(const Query &q, Assignment assign) {
+void ConcretizationManager::add(const Query &q, const Assignment &assign) {
   std::vector<ref<Expr>> dependent;
   auto dependency = getIndependentConstraints(q, dependent);
   ConstraintSet newCS(dependent);

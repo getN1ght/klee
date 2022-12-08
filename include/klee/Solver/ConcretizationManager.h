@@ -15,8 +15,8 @@ private:
 
 public:
   Assignment get(ConstraintSet set);
-  void add(ConstraintSet oldCS, ConstraintSet newCS, Assignment assign);
-  void add(const Query &q, Assignment assign);
+  void add(ConstraintSet oldCS, ConstraintSet newCS, const Assignment &assign);
+  void add(const Query &q, const Assignment &assign);
 };
 
 }; // end klee namespace
