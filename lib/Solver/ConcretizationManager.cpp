@@ -7,7 +7,7 @@
 
 using namespace klee;
 
-Assignment ConcretizationManager::get(ConstraintSet set) {
+Assignment ConcretizationManager::get(const ConstraintSet &set) {
   Assignment assign(true);
   auto independent = getAllIndependentConstraintsSets(
       Query(set, ConstantExpr::alloc(0, Expr::Bool)));
@@ -22,7 +22,8 @@ Assignment ConcretizationManager::get(ConstraintSet set) {
   return assign;
 }
 
-void ConcretizationManager::add(ConstraintSet oldCS, ConstraintSet newCS,
+void ConcretizationManager::add(const ConstraintSet &oldCS,
+                                const ConstraintSet &newCS,
                                 const Assignment &assign) {
   Assignment newAssign(true);
   ref<Expr> newExpr = ConstantExpr::alloc(1, Expr::Bool);
@@ -62,7 +63,7 @@ void ConcretizationManager::add(ConstraintSet oldCS, ConstraintSet newCS,
 
 void ConcretizationManager::add(const Query &q, const Assignment &assign) {
   std::vector<ref<Expr>> dependent;
-  auto dependency = getIndependentConstraints(q, dependent);
+  getIndependentConstraints(q, dependent);
   ConstraintSet newCS(dependent);
   newCS.push_back(q.expr);
   add({}, newCS, assign);

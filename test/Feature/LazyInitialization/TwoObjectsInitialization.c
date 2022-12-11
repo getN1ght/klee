@@ -37,8 +37,8 @@ int main() {
     // CHECK-NOT: TwoObjectsInitialization.c:[[@LINE+1]]: ASSERTION FAIL
     assert(*y == 20);
   } else {
-    // CHECK-NOT: TwoObjectsInitialization.c:[[@LINE+1]]: ASSERTION FAIL
-    assert(0 && "Unreachable!");
+    // CHECK: TwoObjectsInitialization.c:[[@LINE+1]]: ASSERTION FAIL
+    assert(0 && "x points to itself!");
   }
   return 0;
 }

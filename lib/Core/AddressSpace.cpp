@@ -207,7 +207,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   }
   if (SkipNotSymbolicObjects) {
     predicate = [&state, predicate](const MemoryObject *mo) {
-      return predicate(mo) && state.inSymbolics(mo) && mo->isLazyInitialized();
+      return predicate(mo) && state.inSymbolics(mo);
     };
   }
 
@@ -361,7 +361,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
   }
   if (SkipNotSymbolicObjects) {
     predicate = [&state, predicate](const MemoryObject *mo) {
-      return predicate(mo) && state.inSymbolics(mo) && mo->isLazyInitialized();
+      return predicate(mo) && state.inSymbolics(mo);
     };
   }
 

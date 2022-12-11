@@ -3,7 +3,6 @@
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/IndependentSet.h"
-#include "klee/Expr/SymbolicSource.h"
 #include "klee/Solver/ConcretizationManager.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverImpl.h"
@@ -40,7 +39,6 @@ public:
 
 private:
   Query constructConcretizedQuery(const Query &, const Assignment &);
-  bool containSymcretes(const std::vector<const Array *> &arrays) const;
 };
 
 Query SolverBlueprint::constructConcretizedQuery(const Query &query,
@@ -57,62 +55,51 @@ Query SolverBlueprint::constructConcretizedQuery(const Query &query,
   return Query(constraints, expr);
 }
 
-bool SolverBlueprint::containSymcretes(
-    const std::vector<const Array *> &arrays) const {
-  for (const auto array: arrays) {
-    if (array->source->getKind() == SymbolicSource::Kind::SymbolicAddress) {
-      return true;
-    }
-  }
-  return false;
-}
-
 bool SolverBlueprint::computeValidity(const Query &query,
                                     Solver::Validity &result) {
-  if (!containSymcretes(query.gatherArrays())) { // Проверить есть ли симкреты
+  if (!query.containsSymcretes()) {
     return solver->impl->computeValidity(query, result);
-  } else {
-    auto assign = cm->get(query.constraints);
-    if (false) { // Проверка на адекватность
-      assert(0 && "Assignment does not contain array with extCall source");
-    }
-    auto concretizedQuery = constructConcretizedQuery(query, assign);
-    ref<SolverResponse> trueResponse, falseResponse;
-
-    if (!solver->impl->computeValidity(concretizedQuery, trueResponse,
-                                       falseResponse)) {
-      return false;
-    }
-
-
-    Assignment trueResponseAssignment(true), falseResponseAssignment(true);
-    
-    bool trueInvalid = trueResponse->getInitialValues(trueResponseAssignment.bindings);
-    bool falseInvalid = falseResponse->getInitialValues(falseResponseAssignment.bindings);
-
-    // *No more than one* of trueResponse and falseResponse is possible,
-    // i.e. `mustBeTrue` with values from `assign`.
-    // Take one which is `mustBeTrue` with symcretes from `assign`
-    // and try to relax them to `mayBeFalse`. This solution should be
-    // appropriate for the remain branch.
-    
-    // TODO: relax model.
-    // TODO: add to the required one relaxed constraints
-
-    // cm->add(query, trueResponseAssignment);
-    // cm->add(query.negateExpr(), falseResponseAssignment);
-    
-    // FIXME: temporary solution
-    cm->add(query, assign);
-    cm->add(query.negateExpr(), assign);
-    
-    // result = (Solver::Validity) (falseInvalid - trueInvalid);
-    if (!solver->impl->computeValidity(concretizedQuery, result)) {
-      return false;
-    }
-
-    return true;
   }
+  auto assign = cm->get(query.constraints);
+  if (false) { // Проверка на адекватность
+    assert(0 && "Assignment does not contain array with extCall source");
+  }
+  auto concretizedQuery = constructConcretizedQuery(query, assign);
+  ref<SolverResponse> trueResponse, falseResponse;
+
+  if (!solver->impl->computeValidity(concretizedQuery, trueResponse,
+                                      falseResponse)) {
+    return false;
+  }
+
+
+  Assignment trueResponseAssignment(true), falseResponseAssignment(true);
+  
+  bool trueInvalid = trueResponse->getInitialValues(trueResponseAssignment.bindings);
+  bool falseInvalid = falseResponse->getInitialValues(falseResponseAssignment.bindings);
+
+  // *No more than one* of trueResponse and falseResponse is possible,
+  // i.e. `mustBeTrue` with values from `assign`.
+  // Take one which is `mustBeTrue` with symcretes from `assign`
+  // and try to relax them to `mayBeFalse`. This solution should be
+  // appropriate for the remain branch.
+  
+  // TODO: relax model.
+  // TODO: add to the required one relaxed constraints
+
+  // cm->add(query, trueResponseAssignment);
+  // cm->add(query.negateExpr(), falseResponseAssignment);
+  
+  // FIXME: temporary solution
+  cm->add(query, assign);
+  cm->add(query.negateExpr(), assign);
+  
+  // result = (Solver::Validity) (falseInvalid - trueInvalid);
+  if (!solver->impl->computeValidity(concretizedQuery, result)) {
+    return false;
+  }
+
+  return true;
 }
 
 char *SolverBlueprint::getConstraintLog(const Query &query) {
@@ -121,39 +108,39 @@ char *SolverBlueprint::getConstraintLog(const Query &query) {
 
 
 bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
-  if (!containSymcretes(query.gatherArrays())) { // Проверить есть ли симкреты
+  if (!query.containsSymcretes()) {
     return solver->impl->computeTruth(query, isValid);
-  } else {
-    auto assign = cm->get(query.constraints);
-    if (false) { // Проверка на адекватность
-      assert(0 && "Assignment does not contain array with extCall source");
-    }
-
-    auto concretizedQuery = constructConcretizedQuery(query, assign);
-    ValidityCore validityCore; 
-
-    if (!solver->impl->computeValidityCore(concretizedQuery, validityCore, isValid)) {
-      return false;
-    }
-
-    // If constraints always evaluate to `mustBeTrue`, then relax
-    // symcretes until remove all of them or query starts to evaluate
-    // to `mayBeFalse`.
-
-    if (isValid) {
-      cm->add(query, assign);
-      // TODO: relax model.
-      // TODO: somehow save the solution.
-    }
-
-    cm->add(query.negateExpr(), assign);
-    return true;
   }
+
+  auto assign = cm->get(query.constraints);
+  if (false) { // Проверка на адекватность
+    assert(0 && "Assignment does not contain array with extCall source");
+  }
+
+  auto concretizedQuery = constructConcretizedQuery(query, assign);
+  ValidityCore validityCore;
+
+  if (!solver->impl->computeValidityCore(concretizedQuery, validityCore,
+                                          isValid)) {
+    return false;
+  }
+
+  // If constraints always evaluate to `mustBeTrue`, then relax
+  // symcretes until remove all of them or query starts to evaluate
+  // to `mayBeFalse`.
+
+  if (isValid) {
+    cm->add(query, assign);
+    // TODO: relax model.
+    // TODO: somehow save the solution.
+  }
+
+  cm->add(query.negateExpr(), assign);
+  return true;
 }
 
 bool SolverBlueprint::computeValue(const Query &query, ref<Expr> &result) {
-  auto arrays = query.gatherArrays();
-  if (true) { // Проверить есть ли симкреты
+  if (!query.containsSymcretes()) {
     return solver->impl->computeValue(query, result);
   }
 
@@ -164,7 +151,9 @@ bool SolverBlueprint::computeValue(const Query &query, ref<Expr> &result) {
   }
 
   auto concretizedQuery = constructConcretizedQuery(query, assign);
-  if (auto expr = dyn_cast<ConstantExpr>(concretizedQuery.expr)) {
+  if (ref<ConstantExpr> expr =
+          dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
+              concretizedQuery.constraints, concretizedQuery.expr))) {
     result = expr;
     return true;
   }
@@ -174,8 +163,7 @@ bool SolverBlueprint::computeValue(const Query &query, ref<Expr> &result) {
 bool SolverBlueprint::computeInitialValues(
     const Query &query, const std::vector<const Array *> &objects,
     std::vector<std::vector<unsigned char>> &values, bool &hasSolution) {
-  auto arrays = query.gatherArrays();
-  if (true) { // Проверить есть ли симкреты
+  if (!query.containsSymcretes()) {
     return solver->impl->computeInitialValues(query, objects, values,
                                               hasSolution);
   }
