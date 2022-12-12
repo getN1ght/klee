@@ -2009,9 +2009,9 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
             ConstantExpr *CE = dyn_cast<ConstantExpr>(arguments[k]);
             assert(CE); // byval argument needs to be a concrete pointer
 
-            ObjectPair op;
-            state.addressSpace.resolveOne(CE, op);
-            const ObjectState *osarg = op.second;
+            IDType idObject;
+            state.addressSpace.resolveOne(CE, idObject);
+            const ObjectState *osarg = state.addressSpace.findObject(idObject).second;
             assert(osarg);
             for (unsigned i = 0; i < osarg->size; i++)
               os->write(offsets[k] + i, osarg->read8(i));
@@ -3892,11 +3892,12 @@ void Executor::callExternalFunction(ExecutionState &state,
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
       ce->toMemory(&args[wordIndex]);
-      ObjectPair op;
+      IDType result;
       // Checking to see if the argument is a pointer to something
       if (ce->getWidth() == Context::get().getPointerWidth() &&
-          state.addressSpace.resolveOne(ce, op)) {
-        op.second->flushToConcreteStore(solver, state);
+          state.addressSpace.resolveOne(ce, result)) {
+        state.addressSpace.findObject(result).second->flushToConcreteStore(
+            solver, state);
       }
       wordIndex += (ce->getWidth()+63)/64;
     } else {
@@ -3923,12 +3924,14 @@ void Executor::callExternalFunction(ExecutionState &state,
 #ifndef WINDOWS
   // Update external errno state with local state value
   int *errno_addr = getErrnoLocation(state);
-  ObjectPair result;
+  IDType idResult;
   bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), result);
+      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), idResult);
   if (!resolved)
     klee_error("Could not resolve memory object for errno");
-  ref<Expr> errValueExpr = result.second->read(0, sizeof(*errno_addr) * 8);
+  ObjectPair result = state.addressSpace.findObject(idResult);
+  ref<Expr> errValueExpr = result.second->read(
+      0, sizeof(*errno_addr) * 8);
   ConstantExpr *errnoValue = dyn_cast<ConstantExpr>(errValueExpr);
   if (!errnoValue) {
     terminateStateOnExecError(state,
@@ -4171,7 +4174,9 @@ void Executor::executeFree(ExecutionState &state,
     
     for (Executor::ExactResolutionList::iterator it = rl.begin(), 
            ie = rl.end(); it != ie; ++it) {
-      const MemoryObject *mo = it->first.first;
+      const MemoryObject *mo =
+          zeroPointer.second->addressSpace.findObject(it->first).first;
+
       if (mo->isLocal) {
         terminateStateOnError(*it->second, "free of alloca",
                               StateTerminationType::Free,
@@ -4202,7 +4207,8 @@ void Executor::resolveExact(ExecutionState &state,
   ExecutionState *unbound = &state;
   for (ResolutionList::iterator it = rl.begin(), ie = rl.end(); 
        it != ie; ++it) {
-    ref<Expr> inBounds = EqExpr::create(p, it->first->getBaseExpr());
+    const MemoryObject *mo = unbound->addressSpace.findObject(*it).first;
+    ref<Expr> inBounds = EqExpr::create(p, mo->getBaseExpr());
 
     StatePair branches =
         fork(*unbound, inBounds, true, BranchType::ResolvePointer);
@@ -4245,25 +4251,26 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   address = optimizer.optimizeExpr(address, true);
 
   // fast path: single in-bounds resolution
-  ObjectPair op;
+  IDType idFastResult;
   bool success;
 
   if (state.resolvedPointers.count(address)) {
     success = true;
     const MemoryObject* mo = state.resolvedPointers[address].first;
-    op = std::make_pair(mo, state.addressSpace.findObject(mo));
+    idFastResult = mo->id;
   } else {
     solver->setTimeout(coreSolverTimeout);
 
-    if (!state.addressSpace.resolveOne(state, solver, address, op, success)) {
+    if (!state.addressSpace.resolveOne(state, solver, address, idFastResult, success)) {
       address = toConstant(state, address, "resolveOne failure");
-      success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
+      success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), idFastResult);
     }
 
     solver->setTimeout(time::Span());
   }
 
   if (success) {
+    ObjectPair op = state.addressSpace.findObject(idFastResult);
     const MemoryObject *mo = op.first;
 
     if (MaxSymArraySize && mo->size >= MaxSymArraySize) {
@@ -4326,8 +4333,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   ref<Expr> checkOutOfBounds = ConstantExpr::create(1, Expr::Bool);
 
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
-    const MemoryObject *mo = i->first;
-    const ObjectState *os = i->second;
+    ObjectPair op = unbound->addressSpace.findObject(*i);
+    const MemoryObject *mo = op.first;
+    const ObjectState *os = op.second;
     ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
     
     if (unbound->isGEPExpr(address)) {
@@ -4401,10 +4409,12 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                    ConstraintManager::simplifyExpr(constraints, base)) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 state.isGEPExpr(address))) {
-      ObjectPair p = lazyInitializeObject(*unbound, base, target, size);
-      if (!p.first || !p.second) {
+      IDType idLazyInitialization = lazyInitializeObject(*unbound, base, target, size);
+      // Lazy initialization might fail if we've got unappropriate address
+      if (!idLazyInitialization) {
         return;
       }
+      ObjectPair p = unbound->addressSpace.findObject(idLazyInitialization);
       assert(p.first && p.second);
 
       const MemoryObject *mo = p.first;
@@ -4459,7 +4469,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   }
 }
 
-ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
+IDType Executor::lazyInitializeObject(ExecutionState &state,
                                              ref<Expr> address,
                                              KInstruction *target,
                                              uint64_t size) {
@@ -4498,12 +4508,12 @@ ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
   if (!success) {
     terminateStateOnSolverError(state,
                                 "Query timed out (Lazy initialization).");
-    return ObjectPair(nullptr, nullptr);
+    return 0;
   }
 
   if (!mayBeLazyInitialized) {
     terminateStateEarly(state, "", StateTerminationType::SilentExit);
-    return ObjectPair(nullptr, nullptr);
+    return 0;
   }
 
   Assignment addressEqualityAssignment(true);
@@ -4516,9 +4526,9 @@ ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
   addConstraint(state, addressEqualityExpr);
 
   executeMakeSymbolic(state, mo, name, false);
-  ObjectPair op;
-  state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), op);
-  return op;
+  IDType LazyInstantiatedObjectID;
+  state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), LazyInstantiatedObjectID);
+  return LazyInstantiatedObjectID;
 }
 
 const Array *Executor::makeArray(ExecutionState &state, uint64_t size,
@@ -4947,7 +4957,7 @@ void Executor::doImpliedValueConcretization(ExecutionState &state,
       // FIXME: This is the sole remaining usage of the Array object
       // variable. Kill me.
       const MemoryObject *mo = 0; //re->updates.root->object;
-      const ObjectState *os = state.addressSpace.findObject(mo);
+      const ObjectState *os = state.addressSpace.findObject(mo).second;
 
       if (!os) {
         // object has been free'd, no need to concretize (although as

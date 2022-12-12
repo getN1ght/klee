@@ -265,8 +265,7 @@ private:
   /// \param results[out] A list of ((MemoryObject,ObjectState),
   /// state) pairs for each object the given address can point to the
   /// beginning of.
-  typedef std::vector< std::pair<std::pair<const MemoryObject*, const ObjectState*>, 
-                                 ExecutionState*> > ExactResolutionList;
+  typedef std::vector<std::pair<IDType, ExecutionState *>> ExactResolutionList;
   void resolveExact(ExecutionState &state,
                     ref<Expr> p,
                     ExactResolutionList &results,
@@ -331,8 +330,8 @@ private:
                               ref<Expr> value /* undef if read */,
                               KInstruction *target /* undef if write */);
 
-  ObjectPair lazyInitializeObject(ExecutionState &state, ref<Expr> address,
-                                    KInstruction *target, uint64_t size);
+  IDType lazyInitializeObject(ExecutionState &state, ref<Expr> address,
+                              KInstruction *target, uint64_t size);
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
                            const std::string &name, bool isLocal);
 
