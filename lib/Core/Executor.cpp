@@ -4328,17 +4328,16 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   solver->setTimeout(time::Span());
   
   // XXX there is some query wasteage here. who cares?
-  ExecutionState *unbound = &state;
 
   ref<Expr> checkOutOfBounds = ConstantExpr::create(1, Expr::Bool);
+  
+  std::vector<ref<Expr>> resolveConditions;
 
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
-    ObjectPair op = unbound->addressSpace.findObject(*i);
-    const MemoryObject *mo = op.first;
-    const ObjectState *os = op.second;
+    const MemoryObject *mo = state.addressSpace.findObject(*i).first;
     ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
-    
-    if (unbound->isGEPExpr(address)) {
+
+    if (state.isGEPExpr(address)) {
       inBounds = AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, 1));
       inBounds =
           AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, size));
@@ -4346,39 +4345,50 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
     bool mayBeInBounds;
     solver->setTimeout(coreSolverTimeout);
-    bool success = solver->mayBeTrue(unbound->constraints, inBounds,
-                                     mayBeInBounds, unbound->queryMetaData);
+    bool success = solver->mayBeTrue(state.constraints, inBounds, mayBeInBounds,
+                                     state.queryMetaData);
     solver->setTimeout(time::Span());
     if (!success) {
-      terminateStateOnSolverError(*unbound, "Query timed out (resolve)");
+      terminateStateOnSolverError(state, "Query timed out (resolve)");
       return;
     }
 
     if (mayBeInBounds) {
-      ExecutionState *bound = unbound->branch();
-      addedStates.push_back(bound);
-      processTree->attach(unbound->ptreeNode, bound, unbound, BranchType::MemOp);
-      addConstraint(*bound, inBounds);
+      resolveConditions.push_back(inBounds);
+    }
+    checkOutOfBounds =
+        AndExpr::create(NotExpr::create(inBounds), checkOutOfBounds);
+  }
 
-      bound->addPointerResolution(base, address, mo);
+  // Fictive condition just to keep state for unbound case.
+  resolveConditions.push_back(ConstantExpr::create(1, Expr::Bool));
 
-      if (isWrite) {
-        if (os->readOnly) {
-          terminateStateOnError(*bound, "memory error: object read only",
-                                StateTerminationType::ReadOnly);
-        } else {
-          ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
-          wos->write(mo->getOffsetExpr(address), value);
-        }
+  std::vector<ExecutionState *> statesForMemoryOperation;
+  branch(state, resolveConditions, statesForMemoryOperation, BranchType::MemOp);
+  
+  for (unsigned int i = 0; i < rl.size(); ++i) {
+    ExecutionState *bound = statesForMemoryOperation[i];
+    ObjectPair op = bound->addressSpace.findObject(rl[i]);
+    const MemoryObject *mo = op.first;
+    const ObjectState *os = op.second;
+
+    bound->addPointerResolution(base, address, mo);
+
+    if (isWrite) {
+      if (os->readOnly) {
+        terminateStateOnError(*bound, "memory error: object read only",
+                              StateTerminationType::ReadOnly);
       } else {
-        ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
-        bindLocal(target, *bound, result);
+        ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
+        wos->write(mo->getOffsetExpr(address), value);
       }
-
-      checkOutOfBounds = AndExpr::create(NotExpr::create(inBounds), checkOutOfBounds);
+    } else {
+      ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
+      bindLocal(target, *bound, result);
     }
   }
-  
+
+  ExecutionState *unbound = statesForMemoryOperation.back();
   StatePair branches =
       fork(*unbound, Expr::createIsZero(base), true, BranchType::MemOp);
   ExecutionState *bound = branches.first;
