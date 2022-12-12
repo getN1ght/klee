@@ -862,7 +862,8 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
     assert(success && "FIXME: Unhandled solver failure");
     
     if (res) {
-      executor.executeMakeSymbolic(*s, mo, name, false);
+      executor.executeMakeSymbolic(
+          *s, mo, name, executor.sourceBuilder.makeSymbolic(), false);
     } else {      
       executor.terminateStateOnUserError(*s, "Wrong size given to klee_make_symbolic");
     }

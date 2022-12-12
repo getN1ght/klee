@@ -333,7 +333,8 @@ private:
   IDType lazyInitializeObject(ExecutionState &state, ref<Expr> address,
                               KInstruction *target, uint64_t size);
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
-                           const std::string &name, bool isLocal);
+                           const std::string &name,
+                           const SymbolicSource *source, bool isLocal);
 
   /// Create a new state where each input condition has been added as
   /// a constraint and return the results. The input state is included
@@ -469,7 +470,7 @@ private:
   void bindModuleConstants();
 
   const Array *makeArray(ExecutionState &state, uint64_t size,
-                         const std::string &name, SymbolicSource *source);
+                         const std::string &name, const SymbolicSource *source);
 
   template <typename SqType, typename TypeIt>
   void computeOffsetsSeqTy(KGEPInstruction *kgepi,

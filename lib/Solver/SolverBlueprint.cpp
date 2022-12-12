@@ -132,10 +132,13 @@ bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
   if (isValid) {
     cm->add(query, assign);
     // TODO: relax model.
-    // TODO: somehow save the solution.
+    // TODO: somehow save the solution, try to make isValid = false
   }
 
-  cm->add(query.negateExpr(), assign);
+  if (!isValid) {
+    cm->add(query.negateExpr(), assign);
+  }
+
   return true;
 }
 

@@ -4402,21 +4402,11 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   if (unbound) {
     Assignment symcreteSolution = cm->get(unbound->constraints);
     
-    ConstraintSet constraints;
-    ConstraintManager cm(constraints);
-    for (const auto &concreteConstraint: unbound->constraints) {
-      cm.addConstraint(symcreteSolution.evaluate(concreteConstraint));
-    }
-    for (const auto &concreteConstraint: symcreteSolution.createConstraintsFromAssignment()) {
-      cm.addConstraint(concreteConstraint);
-    }
-    
 
     if (incomplete) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
     } else if (LazyInitialization &&
-               isReadFromSymbolicArray(
-                   ConstraintManager::simplifyExpr(constraints, base)) &&
+               isReadFromSymbolicArray(toUnique(*unbound, base)) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 state.isGEPExpr(address))) {
       IDType idLazyInitialization = lazyInitializeObject(*unbound, base, target, size);
@@ -4491,12 +4481,11 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
     timestamp = moBasePair.first->timestamp;
   }
 
-  std::string name = "lazy_initialization";
-  std::string symcreteAddressName = name + "_address";
+  std::string name = "address";
 
   const Array *addressArray =
       makeArray(state, Context::get().getPointerWidth() / CHAR_BIT,
-                symcreteAddressName, sourceBuilder.symbolicAddress());
+                name, sourceBuilder.symbolicAddress());
   ref<Expr> addressExpr =
       Expr::createTempRead(addressArray, Context::get().getPointerWidth());
 
@@ -4535,19 +4524,30 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
   cm->add(Query(state.constraints, addressEqualityExpr), addressEqualityAssignment);
   addConstraint(state, addressEqualityExpr);
 
-  executeMakeSymbolic(state, mo, name, false);
+  executeMakeSymbolic(state, mo, name,
+                      sourceBuilder.lazyInitializationMakeSymbolic(), false);
   IDType LazyInstantiatedObjectID;
   state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), LazyInstantiatedObjectID);
   return LazyInstantiatedObjectID;
 }
 
 const Array *Executor::makeArray(ExecutionState &state, uint64_t size,
-                                 const std::string &name, SymbolicSource *source) {
+                                 const std::string &name, const SymbolicSource *source) {
   static uint64_t id = 0;
-  std::string uniqueName = name;
-  while (!state.arrayNames.insert(uniqueName).second) {
-    uniqueName = name + "_" + llvm::utostr(++id);
+  std::string uniqueName;
+  if (source->getKind() != SymbolicSource::Kind::Constant &&
+      source->getKind() != SymbolicSource::Kind::MakeSymbolic) {
+    uniqueName = source->getName() + "[" + name + "]";
+    while (!state.arrayNames.insert(uniqueName).second) {
+      uniqueName = source->getName() + "[" + name + llvm::utostr(++id) + "]";
+    }
+  } else {
+    uniqueName = name;
+    while (!state.arrayNames.insert(uniqueName).second) {
+      uniqueName = name + llvm::utostr(++id);
+    }
   }
+
   const Array *array = arrayCache.CreateArray(uniqueName, size, source);
 
   return array;
@@ -4556,11 +4556,12 @@ const Array *Executor::makeArray(ExecutionState &state, uint64_t size,
 void Executor::executeMakeSymbolic(ExecutionState &state, 
                                    const MemoryObject *mo,
                                    const std::string &name,
+                                   const SymbolicSource *source,
                                    bool isLocal) {
   // Create a new object state for the memory object (instead of a copy).
   if (!replayKTest) {
     const Array *array =
-        makeArray(state, mo->size, name, sourceBuilder.makeSymbolic());
+        makeArray(state, mo->size, name, source);
     bindObjectInState(state, mo, false, array);
     state.addSymbolic(mo, array);
     
