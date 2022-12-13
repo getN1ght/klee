@@ -79,7 +79,8 @@ StackFrame::~StackFrame() {
 /***/
 
 ExecutionState::ExecutionState(KFunction *kf)
-    : initPC(kf->instructions), pc(initPC), prevPC(pc) {
+    : initPC(kf->instructions), pc(initPC), prevPC(pc),
+      roundingMode(llvm::APFloat::rmNearestTiesToEven) {
   pushFrame(nullptr, kf);
   setID();
 }
@@ -115,6 +116,7 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     steppedInstructions(state.steppedInstructions),
     steppedMemoryInstructions(state.steppedMemoryInstructions),
     instsSinceCovNew(state.instsSinceCovNew),
+    roundingMode(state.roundingMode),
     unwindingInformation(state.unwindingInformation
                              ? state.unwindingInformation->clone()
                              : nullptr),
