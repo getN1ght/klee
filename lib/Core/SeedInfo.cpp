@@ -130,7 +130,13 @@ void SeedInfo::patchSeed(const ExecutionState &state,
   for (Assignment::bindings_ty::iterator it = assignment.bindings.begin(), 
          ie = assignment.bindings.end(); it != ie; ++it) {
     const Array *array = it->first;
-    for (unsigned i=0; i<array->size; ++i) {
+    
+    ref<ConstantExpr> arrayConstantSize;
+    bool success = solver->getValue(state.constraints, array->size,
+                                    arrayConstantSize, state.queryMetaData);
+    assert(success && "FIXME: Unhandled solver failure");
+
+    for (unsigned i=0; i<arrayConstantSize->getZExtValue(); ++i) {
       ref<Expr> read = ReadExpr::create(UpdateList(array, 0),
                                         ConstantExpr::alloc(i, Expr::Int32));
       ref<Expr> isSeed = EqExpr::create(read, 

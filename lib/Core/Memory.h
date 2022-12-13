@@ -55,12 +55,16 @@ private:
 public:
   const IDType id;
   unsigned timestamp;
+
+  // address in physical memory
   uint64_t address;
   ref<Expr> addressExpr;
   ref<Expr> lazyInitializationSource;
-
+  
   /// size in bytes
   unsigned size;
+  ref<Expr> sizeExpr;
+
   mutable std::string name;
 
   bool isLocal;
@@ -90,6 +94,7 @@ public:
       addressExpr(nullptr),
       lazyInitializationSource(nullptr),
       size(0),
+      sizeExpr(nullptr),
       isFixed(true),
       parent(NULL),
       allocSite(0) {
@@ -100,6 +105,7 @@ public:
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
                ref<Expr> _addressExpr = nullptr,
+               ref<Expr> _sizeExpr = nullptr,
                ref<Expr> _lazyInitializationSource = nullptr,
                unsigned _timestamp = 0 /* unused if _lazyInstantiatedSource is null*/)
     : id(counter++),
@@ -108,6 +114,7 @@ public:
       addressExpr(_addressExpr),
       lazyInitializationSource(_lazyInitializationSource),
       size(_size),
+      sizeExpr(_sizeExpr),
       name("unnamed"),
       isLocal(_isLocal),
       isGlobal(_isGlobal),
@@ -147,8 +154,11 @@ public:
     }
     return getBaseConstantExpr();
   }
-  ref<ConstantExpr> getSizeExpr() const { 
-    return ConstantExpr::create(size, Context::get().getPointerWidth());
+  ref<Expr> getSizeExpr() const {
+    if (sizeExpr) {
+      return sizeExpr;
+    }
+    return Expr::createPointer(size);
   }
   ref<Expr> getOffsetExpr(ref<Expr> pointer) const {
     return SubExpr::create(pointer, getBaseExpr());

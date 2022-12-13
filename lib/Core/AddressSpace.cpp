@@ -425,11 +425,6 @@ bool AddressSpace::copyInConcrete(const MemoryObject *mo, const ObjectState *os,
 /***/
 
 bool MemoryObjectLT::operator()(const MemoryObject *a, const MemoryObject *b) const {
-  bool res = true;
-  if (a->lazyInitializationSource &&
-      b->lazyInitializationSource) {
-    res = a->lazyInitializationSource != b->lazyInitializationSource;
-  }
-  return res ? a->address < b->address : false;
+  return a->address < b->address;
 }
 

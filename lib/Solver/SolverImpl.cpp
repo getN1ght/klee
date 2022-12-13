@@ -53,6 +53,11 @@ bool SolverImpl::computeValidityCore(const Query &query,
   return false;
 }
 
+bool SolverImpl::computeMinimalValue(const Query &query,
+                                     ref<ConstantExpr> &result) {
+  return true;
+}
+
 const char *SolverImpl::getOperationStatusString(SolverRunStatus statusCode) {
   switch (statusCode) {
   case SOLVER_RUN_STATUS_SUCCESS_SOLVABLE:

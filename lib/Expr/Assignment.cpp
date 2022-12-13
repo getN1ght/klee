@@ -30,8 +30,11 @@ ConstraintSet Assignment::createConstraintsFromAssignment() const {
   for (const auto &binding : bindings) {
     const auto &array = binding.first;
     const auto &values = binding.second;
-
-    for (unsigned arrayIndex = 0; arrayIndex < array->size; ++arrayIndex) {
+    ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(array->size);
+    assert(arrayConstantSize &&
+           "Size of symbolic array should be computed in assignment.");
+    for (unsigned arrayIndex = 0;
+         arrayIndex < arrayConstantSize->getZExtValue(); ++arrayIndex) {
       unsigned char value = values[arrayIndex];
       result.push_back(EqExpr::create(
           ReadExpr::create(UpdateList(array, 0),

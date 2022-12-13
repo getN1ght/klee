@@ -47,6 +47,7 @@ public:
   MemoryObject *allocate(uint64_t size, bool isLocal, bool isGlobal,
                          const llvm::Value *allocSite, size_t alignment,
                          ref<Expr> addressExpr = ref<Expr>(),
+                         ref<Expr> sizeExpr = ref<Expr>(),
                          ref<Expr> lazyInitializationSource = ref<Expr>(),
                          unsigned timestamp = 0);
   MemoryObject *allocateFixed(uint64_t address, uint64_t size,

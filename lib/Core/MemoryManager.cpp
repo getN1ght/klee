@@ -104,6 +104,7 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
                                       const llvm::Value *allocSite,
                                       size_t alignment,
                                       ref<Expr> addressExpr,
+                                      ref<Expr> sizeExpr,
                                       ref<Expr> lazyInitializationSource,
                                       unsigned timestamp) {
   if (size > 10 * 1024 * 1024)
@@ -152,9 +153,9 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
     return 0;
 
   ++stats::allocations;
-  MemoryObject *res =
-      new MemoryObject(address, size, isLocal, isGlobal, false, allocSite, this,
-                       addressExpr, lazyInitializationSource, timestamp);
+  MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
+                                       allocSite, this, addressExpr, sizeExpr,
+                                       lazyInitializationSource, timestamp);
   objects.insert(res);
   return res;
 }

@@ -271,6 +271,10 @@ private:
                     ExactResolutionList &results,
                     const std::string &name);
 
+  MemoryObject *allocate(ExecutionState &state, ref<Expr> size, bool isLocal,
+                         const llvm::Value *allocSite,
+                         size_t allocationAlignment);
+
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.
   ///
@@ -469,7 +473,7 @@ private:
   /// bindModuleConstants - Initialize the module constant table.
   void bindModuleConstants();
 
-  const Array *makeArray(ExecutionState &state, uint64_t size,
+  const Array *makeArray(ExecutionState &state, ref<Expr> size,
                          const std::string &name, const SymbolicSource *source);
 
   template <typename SqType, typename TypeIt>

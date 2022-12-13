@@ -40,9 +40,12 @@ TEST(ArrayExprTest, HashCollisions) {
   std::vector<ref<ConstantExpr>> constVals(256,
                                            ConstantExpr::create(5, Expr::Int8));
   const Array *array = ac.CreateArray(
-      "arr0", 256, sb.constant(), constVals.data(),
-      constVals.data() + constVals.size(), Expr::Int32, Expr::Int8);
-  const Array *symArray = ac.CreateArray("symIdx", 4, sb.makeSymbolic());
+      "arr0", ConstantExpr::create(256, sizeof(uint64_t) * CHAR_BIT),
+      sb.constant(), constVals.data(), constVals.data() + constVals.size(),
+      Expr::Int32, Expr::Int8);
+  const Array *symArray = ac.CreateArray(
+      "symIdx", ConstantExpr::create(4, sizeof(uint64_t) * CHAR_BIT),
+      sb.makeSymbolic());
   ref<Expr> symIdx = Expr::createTempRead(symArray, Expr::Int32);
   UpdateList ul(array, 0);
   ul.extend(getConstant(3, Expr::Int32), getConstant(11, Expr::Int8));

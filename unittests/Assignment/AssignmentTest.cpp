@@ -14,8 +14,10 @@ using namespace klee;
 TEST(AssignmentTest, FoldNotOptimized)
 {
   ArrayCache ac;
-  const Array *array = ac.CreateArray("simple_array", /*size=*/1,
-                                      SourceBuilder().makeSymbolic());
+  const Array *array = ac.CreateArray(
+      "simple_array",
+      /*size=*/ConstantExpr::create(1, sizeof(uint64_t) * CHAR_BIT),
+      SourceBuilder().makeSymbolic());
   // Create a simple assignment
   std::vector<const Array*> objects;
   std::vector<unsigned char> value;

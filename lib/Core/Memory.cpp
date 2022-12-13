@@ -89,8 +89,8 @@ ObjectState::ObjectState(const MemoryObject *mo)
   if (!UseConstantArrays) {
     auto sb = this->getSourceBuilder();
     static unsigned id = 0;
-    const Array *array =
-        getArrayCache()->CreateArray("tmp_arr" + llvm::utostr(++id), size, sb->makeSymbolic());
+    const Array *array = getArrayCache()->CreateArray(
+        "tmp_arr" + llvm::utostr(++id), mo->getSizeExpr(), sb->makeSymbolic());
     updates = UpdateList(array, 0);
   }
   memset(concreteStore, 0, size);
@@ -190,8 +190,8 @@ const UpdateList &ObjectState::getUpdates() const {
     static unsigned id = 0;
     auto sb = getSourceBuilder();
     const Array *array = getArrayCache()->CreateArray(
-        "const_arr" + llvm::utostr(++id), size, sb->constant(), &Contents[0],
-        &Contents[0] + Contents.size());
+        "const_arr" + llvm::utostr(++id), object->getSizeExpr(), sb->constant(),
+        &Contents[0], &Contents[0] + Contents.size());
     updates = UpdateList(array, 0);
 
     // Apply the remaining (non-constant) writes.

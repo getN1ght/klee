@@ -189,6 +189,8 @@ bool IndependentSolver::computeInitialValues(const Query& query,
       }
     }
   }
+
+  Assignment solutionAssignment(retMap, true);
   for (std::vector<const Array *>::const_iterator it = objects.begin();
        it != objects.end(); it++){
     const Array * arr = * it;
@@ -196,7 +198,11 @@ bool IndependentSolver::computeInitialValues(const Query& query,
       // this means we have an array that is somehow related to the
       // constraint, but whose values aren't actually required to
       // satisfy the query.
-      std::vector<unsigned char> ret(arr->size);
+      ref<ConstantExpr> arrayConstantSize =
+          dyn_cast<ConstantExpr>(solutionAssignment.evaluate(arr->size));
+      assert(arrayConstantSize &&
+             "Array of symbolic size had not receive value for size!");
+      std::vector<unsigned char> ret(arrayConstantSize->getZExtValue());
       values.push_back(ret);
     } else {
       values.push_back(retMap[arr]);

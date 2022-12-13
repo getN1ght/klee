@@ -490,7 +490,7 @@ public:
   const std::string name;
 
   // FIXME: Not 64-bit clean.
-  const unsigned size;
+  ref<Expr> size;
 
   /// This represents the reason why this array was created as well as some
   /// additional info.
@@ -523,7 +523,7 @@ private:
   /// when printing expressions. When expressions are printed the output will
   /// not parse correctly since two arrays with the same name cannot be
   /// distinguished once printed.
-  Array(const std::string &_name, uint64_t _size,
+  Array(const std::string &_name, ref<Expr> _size,
         const SymbolicSource *source,
         const ref<ConstantExpr> *constantValuesBegin = 0,
         const ref<ConstantExpr> *constantValuesEnd = 0,
@@ -534,7 +534,7 @@ public:
   bool isConstantArray() const { return !isSymbolicArray(); }
 
   const std::string getName() const { return name; }
-  unsigned getSize() const { return size; }
+  ref<Expr> getSize() const { return size; }
   Expr::Width getDomain() const { return domain; }
   Expr::Width getRange() const { return range; }
 

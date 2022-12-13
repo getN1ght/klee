@@ -17,7 +17,7 @@ ArrayCache::~ArrayCache() {
 }
 
 const Array *
-ArrayCache::CreateArray(const std::string &_name, uint64_t _size,
+ArrayCache::CreateArray(const std::string &_name, ref<Expr> _size,
                         const SymbolicSource *_source,
                         const ref<ConstantExpr> *constantValuesBegin,
                         const ref<ConstantExpr> *constantValuesEnd,

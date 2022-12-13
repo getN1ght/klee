@@ -521,7 +521,7 @@ void ExprPPrinter::printQuery(llvm::raw_ostream &os,
         PC << "symbolic";
       } else {
         PC << "[";
-        for (unsigned i = 0, e = A->size; i != e; ++i) {
+        for (unsigned i = 0, e = A->constantValues.size(); i != e; ++i) {
           if (i)
             PC << " ";
           PC << A->constantValues[i];

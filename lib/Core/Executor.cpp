@@ -4009,9 +4009,9 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   // and return it.
   
   static unsigned id;
-  const Array *array = arrayCache.CreateArray(
-      "rrws_arr" + llvm::utostr(++id), Expr::getMinBytesForWidth(e->getWidth()),
-      sourceBuilder.makeSymbolic());
+  const Array *array = makeArray(
+      state, Expr::createPointer(Expr::getMinBytesForWidth(e->getWidth())),
+      "rrws_arr" + llvm::utostr(++id), sourceBuilder.makeSymbolic());
   ref<Expr> res = Expr::createTempRead(array, e->getWidth());
   ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, res));
   llvm::errs() << "Making symbolic: " << eq << "\n";
@@ -4225,6 +4225,12 @@ void Executor::resolveExact(ExecutionState &state,
     terminateStateOnError(*unbound, "memory error: invalid pointer: " + name,
                           StateTerminationType::Ptr, getAddressInfo(*unbound, p));
   }
+}
+
+MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
+                                 bool isLocal, const llvm::Value *allocSite,
+                                 size_t allocationAlignment) {
+  return nullptr;
 }
 
 void Executor::executeMemoryOperation(ExecutionState &state,
@@ -4484,14 +4490,14 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
   std::string name = "address";
 
   const Array *addressArray =
-      makeArray(state, Context::get().getPointerWidth() / CHAR_BIT,
+      makeArray(state, Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
                 name, sourceBuilder.symbolicAddress());
   ref<Expr> addressExpr =
       Expr::createTempRead(addressArray, Context::get().getPointerWidth());
 
   MemoryObject *mo = memory->allocate(
       size, false, /*isGlobal=*/false, allocSite,
-      /*allocationAlignment=*/8, addressExpr, address, timestamp);
+      /*allocationAlignment=*/8, addressExpr, Expr::createPointer(size), address, timestamp);
 
   // Check if address is suitable for LI object.
   ref<Expr> checkAddressForLazyInitializationExpr = EqExpr::create(
@@ -4531,8 +4537,9 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
   return LazyInstantiatedObjectID;
 }
 
-const Array *Executor::makeArray(ExecutionState &state, uint64_t size,
-                                 const std::string &name, const SymbolicSource *source) {
+const Array *Executor::makeArray(ExecutionState &state, ref<Expr> size,
+                                 const std::string &name,
+                                 const SymbolicSource *source) {
   static uint64_t id = 0;
   std::string uniqueName;
   if (source->getKind() != SymbolicSource::Kind::Constant &&
@@ -4560,8 +4567,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
                                    bool isLocal) {
   // Create a new object state for the memory object (instead of a copy).
   if (!replayKTest) {
-    const Array *array =
-        makeArray(state, mo->size, name, source);
+    const Array *array = makeArray(state, mo->getSizeExpr(), name, source);
     bindObjectInState(state, mo, false, array);
     state.addSymbolic(mo, array);
     

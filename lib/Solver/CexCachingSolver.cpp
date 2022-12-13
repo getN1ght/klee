@@ -389,7 +389,10 @@ CexCachingSolver::computeInitialValues(const Query& query,
     Assignment::bindings_ty::iterator it = a->bindings.find(os);
     
     if (it == a->bindings.end()) {
-      values[i] = std::vector<unsigned char>(os->size, 0);
+      ref<ConstantExpr> arrayConstantSize = a->evaluate(os->size);
+      assert(arrayConstantSize &&
+             "Array of symbolic size had not receive value for size!");
+      values[i] = std::vector<unsigned char>(arrayConstantSize->getZExtValue(), 0);
     } else {
       values[i] = it->second;
     }
@@ -419,9 +422,12 @@ bool CexCachingSolver::check(const Query &query, ref<SolverResponse> &result) {
   for (unsigned i = 0; i < objects.size(); ++i) {
     const Array *os = objects[i];
     Assignment::bindings_ty::iterator it = a->bindings.find(os);
-
+    ref<ConstantExpr> arrayConstantSize = a->evaluate(os->size);
+    assert(arrayConstantSize &&
+           "Array of symbolic size had not receive value for size!");
     if (it == a->bindings.end()) {
-      a->bindings[os] = std::vector<unsigned char>(os->size, 0);
+      a->bindings[os] =
+          std::vector<unsigned char>(arrayConstantSize->getZExtValue(), 0);
     }
   }
 

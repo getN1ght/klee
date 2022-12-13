@@ -258,14 +258,18 @@ static bool EvaluateInputAST(const char *Filename,
                 Query(ConstraintSet(QC->Constraints), QC->Query), QC->Objects,
                 result)) {
           llvm::outs() << "INVALID\n";
-
+          Assignment solutionAssugnment(QC->Objects, result);
           for (unsigned i = 0, e = result.size(); i != e; ++i) {
             llvm::outs() << "\tArray " << i << ":\t"
                        << QC->Objects[i]->name
                        << "[";
-            for (unsigned j = 0; j != QC->Objects[i]->size; ++j) {
+            ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(
+                solutionAssugnment.evaluate(QC->Objects[i]->size));
+            assert(arrayConstantSize &&
+             "Array of symbolic size had not receive value for size!");
+            for (unsigned j = 0; j != arrayConstantSize->getZExtValue(); ++j) {
               llvm::outs() << (unsigned) result[i][j];
-              if (j + 1 != QC->Objects[i]->size)
+              if (j + 1 != arrayConstantSize->getZExtValue())
                 llvm::outs() << ", ";
             }
             llvm::outs() << "]";

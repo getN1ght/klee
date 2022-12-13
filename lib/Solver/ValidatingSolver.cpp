@@ -97,10 +97,17 @@ bool ValidatingSolver::computeInitialValues(
     // Assert the bindings as constraints, and verify that the
     // conjunction of the actual constraints is satisfiable.
     ConstraintSet bindings;
+    Assignment solutionAssignment(objects, values, true);
+
     for (unsigned i = 0; i != values.size(); ++i) {
       const Array *array = objects[i];
       assert(array);
-      for (unsigned j = 0; j < array->size; j++) {
+      ref<ConstantExpr> arrayConstantSize =
+          dyn_cast<ConstantExpr>(solutionAssignment.evaluate(array->size));
+      assert(arrayConstantSize &&
+             "Array of symbolic size had not receive value for size!");
+
+      for (unsigned j = 0; j < arrayConstantSize->getZExtValue(); j++) {
         unsigned char value = values[i][j];
         bindings.push_back(EqExpr::create(
             ReadExpr::create(UpdateList(array, 0),

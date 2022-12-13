@@ -9,11 +9,13 @@
 
 #include "klee/Expr/ExprSMTLIBPrinter.h"
 #include "klee/Support/Casting.h"
+#include "klee/Support/ErrorHandling.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 
 #include <stack>
+#include <string>
 
 namespace ExprSMTLIBOptions {
 // Command line options
@@ -681,9 +683,13 @@ void ExprSMTLIBPrinter::printAction() {
          it != arraysToCallGetValueOn->end(); it++) {
       theArray = *it;
       // Loop over the array indices
-      for (unsigned int index = 0; index < theArray->size; ++index) {
-        *o << "(get-value ( (select " << (**it).name << " (_ bv" << index << " "
-           << theArray->getDomain() << ") ) ) )\n";
+      if (ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(theArray->size)) {
+        for (unsigned int index = 0; index < arrayConstantSize->getZExtValue(); ++index) {
+          *o << "(get-value ( (select " << (**it).name << " (_ bv" << index << " "
+            << theArray->getDomain() << ") ) ) )\n";
+        }
+      } else {
+        klee_warning("Cannot print %s as it has symbolic size\n", (**it).name.c_str());
       }
     }
   }

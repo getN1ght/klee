@@ -181,17 +181,21 @@ bool QueryLoggingSolver::computeInitialValues(
       std::vector<std::vector<unsigned char> >::iterator values_it =
           values.begin();
 
+      Assignment solutionAssignment(objects, values, true);
       for (std::vector<const Array *>::const_iterator i = objects.begin(),
                                                       e = objects.end();
            i != e; ++i, ++values_it) {
         const Array *array = *i;
         std::vector<unsigned char> &data = *values_it;
         logBuffer << queryCommentSign << "     " << array->name << " = [";
+        ref<ConstantExpr> arrayConstantSize =
+            dyn_cast<ConstantExpr>(solutionAssignment.evaluate(array->size));
+        assert(arrayConstantSize && "Array of symbolic size had not receive value for size!");
 
-        for (unsigned j = 0; j < array->size; j++) {
+        for (unsigned j = 0; j < arrayConstantSize->getZExtValue(); j++) {
           logBuffer << (int)data[j];
 
-          if (j + 1 < array->size) {
+          if (j + 1 < arrayConstantSize->getZExtValue()) {
             logBuffer << ",";
           }
         }
@@ -221,6 +225,7 @@ bool QueryLoggingSolver::check(const Query &query, ref<SolverResponse> &result) 
     if (hasSolution) {
       std::map<const Array *, std::vector<unsigned char>> initialValues;
       result->getInitialValues(initialValues);
+      Assignment solutionAssignment(initialValues, true);
 
       for (std::map<const Array *, std::vector<unsigned char>>::const_iterator
                i = initialValues.begin(),
@@ -229,11 +234,13 @@ bool QueryLoggingSolver::check(const Query &query, ref<SolverResponse> &result) 
         const Array *array = i->first;
         const std::vector<unsigned char> &data = i->second;
         logBuffer << queryCommentSign << "     " << array->name << " = [";
-
-        for (unsigned j = 0; j < array->size; j++) {
+        ref<ConstantExpr> arrayConstantSize =
+            dyn_cast<ConstantExpr>(solutionAssignment.evaluate(array->size));
+        assert(arrayConstantSize && "Array of symbolic size had not receive value for size!");
+        for (unsigned j = 0; j < arrayConstantSize->getZExtValue(); j++) {
           logBuffer << (int)data[j];
 
-          if (j + 1 < array->size) {
+          if (j + 1 < arrayConstantSize->getZExtValue()) {
             logBuffer << ",";
           }
         }
