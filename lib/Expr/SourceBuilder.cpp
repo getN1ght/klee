@@ -8,6 +8,7 @@ SourceBuilder::SourceBuilder() {
   constantSource = ref<SymbolicSource>(new ConstantSource());
   makeSymbolicSource = ref<SymbolicSource>(new MakeSymbolicSource());
   symbolicAddressSource = ref<SymbolicSource>(new SymbolicAddressSource());
+  symbolicSizeSource = ref<SymbolicSource>(new SymbolicSizeSource());
   lazyInitializationSymbolicSource = ref<SymbolicSource>(new LazyInitializationSymbolicSource());
 }
 
@@ -21,6 +22,10 @@ SymbolicSource *SourceBuilder::makeSymbolic() const{
 
 SymbolicSource *SourceBuilder::symbolicAddress() const {
   return symbolicAddressSource.get();
+}
+
+SymbolicSource *SourceBuilder::symbolicSize() const {
+  return symbolicSizeSource.get();
 }
 
 SymbolicSource *SourceBuilder::lazyInitializationMakeSymbolic() const {

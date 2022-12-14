@@ -15,7 +15,9 @@ private:
 
 public:
   Assignment get(const ConstraintSet &set);
-  void add(const ConstraintSet &oldCS, const ConstraintSet &newCS, const Assignment &assign);
+
+  void add(const ConstraintSet &oldCS, const ConstraintSet &newCS,
+           const Assignment &assign);
   void add(const Query &q, const Assignment &assign);
 };
 

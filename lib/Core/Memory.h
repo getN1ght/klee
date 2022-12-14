@@ -171,21 +171,23 @@ public:
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
-    if (size==0) {
-      return EqExpr::create(offset, 
-                            ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-    } else {
-      return UltExpr::create(offset, getSizeExpr());
-    }
+    ref<Expr> isZeroSizeExpr =
+        EqExpr::create(Expr::createPointer(0), getSizeExpr());
+    ref<Expr> isZeroOffsetExpr = EqExpr::create(Expr::createPointer(0), offset);
+    /* Check for zero size with zero offset. Useful for free of malloc(0) */
+    ref<Expr> andZeroExpr = AndExpr::create(isZeroSizeExpr, isZeroOffsetExpr);
+    return OrExpr::create(UltExpr::create(offset, getSizeExpr()), andZeroExpr);
   }
+
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
-    if (bytes<=size) {
-      return UltExpr::create(offset, 
-                             ConstantExpr::alloc(size - bytes + 1, 
-                                                 Context::get().getPointerWidth()));
-    } else {
-      return ConstantExpr::alloc(0, Expr::Bool);
-    }
+    ref<Expr> offsetSizeCheck = UleExpr::create(
+        ConstantExpr::alloc(bytes, Context::get().getPointerWidth()),
+        getSizeExpr());
+    ref<Expr> writeInSizeCheck = UleExpr::create(
+        offset, SubExpr::create(getSizeExpr(),
+                                ConstantExpr::alloc(
+                                    bytes, Context::get().getPointerWidth())));
+    return AndExpr::create(offsetSizeCheck, writeInSizeCheck);
   }
 
   /// Compare this object with memory object b.

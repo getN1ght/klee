@@ -11,6 +11,7 @@ private:
   ref<SymbolicSource> constantSource;
   ref<SymbolicSource> makeSymbolicSource;
   ref<SymbolicSource> symbolicAddressSource;
+  ref<SymbolicSource> symbolicSizeSource;
   ref<SymbolicSource> lazyInitializationSymbolicSource;
 
 public:
@@ -19,6 +20,7 @@ public:
   SymbolicSource *constant() const;
   SymbolicSource *makeSymbolic() const;
   SymbolicSource *symbolicAddress() const;
+  SymbolicSource *symbolicSize() const;
   SymbolicSource *lazyInitializationMakeSymbolic() const;
 };
 

@@ -3,6 +3,7 @@
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/IndependentSet.h"
+#include "klee/Expr/SymbolicSource.h"
 #include "klee/Solver/ConcretizationManager.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverImpl.h"
@@ -38,6 +39,8 @@ public:
   void setCoreSolverTimeout(time::Span timeout);
 
 private:
+  bool relaxSymcreteConstraints(const Query &query, Assignment &assign,
+                                bool &canBeRelaxed);
   Query constructConcretizedQuery(const Query &, const Assignment &);
 };
 
@@ -53,6 +56,103 @@ Query SolverBlueprint::constructConcretizedQuery(const Query &query,
     constraints.push_back(e);
   }
   return Query(constraints, expr);
+}
+
+bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
+                                               Assignment &assignment,
+                                               bool &canBeRelaxed) {
+  // Get initial symcrete solution. We will try to relax
+  // them in order to achieve `mayBeTrue` solution.
+  assignment = cm->get(query.constraints);
+
+  ref<Expr> sizesSumToMinimize = ConstantExpr::create(0, 64);
+  std::vector<const Array *> brokenSymcreteArrays;
+
+  ValidityCore validityCore;
+  
+  while (true) {
+    if (!solver->impl->computeValidityCore(
+            constructConcretizedQuery(query.withValidityCore(),
+                                      assignment),
+            validityCore, canBeRelaxed)) {
+      return false;
+    }
+
+    // No unsat cores were found for the query, so we can try
+    // to find new solution.
+    if (!canBeRelaxed) {
+      canBeRelaxed = true;
+      break;
+    }
+
+    std::vector<const Array *> currentlyBrokenSymcreteArrays =
+        Query(ConstraintSet(validityCore.constraints), validityCore.expr)
+            .gatherArrays();
+
+    // If we could relax constraints before, but constraints from
+    // unsat core do not contain symcrete arrays, then relaxation is impossible.
+    if (currentlyBrokenSymcreteArrays.empty()) {
+      canBeRelaxed = false;
+      return true;
+    }
+
+    for (const Array *brokenArray : currentlyBrokenSymcreteArrays) {
+      if (!assignment.bindings.count(brokenArray)) {
+        continue;
+      }
+
+      // Erase bindings from received concretization 
+      if (brokenArray->source->isSymcrete()) {
+        assignment.bindings.erase(brokenArray);
+      }
+
+      // Add symbolic size to the sum that should be minimized.
+      
+      // TODO: move `Context.h`
+      // TODO: link size with address
+      if (brokenArray->source->getKind() ==
+          SymbolicSource::Kind::SymbolicSize) {
+        sizesSumToMinimize =
+            AddExpr::create(sizesSumToMinimize,
+                            Expr::createTempRead(brokenArray, /*FIXME:*/ 64));
+      }
+    }
+
+    brokenSymcreteArrays.insert(brokenSymcreteArrays.end(),
+                                currentlyBrokenSymcreteArrays.begin(),
+                                currentlyBrokenSymcreteArrays.end());
+  }
+
+  // TODO: Add constraints to bound sizes
+  ConstraintSet queryConstraints =
+      constructConcretizedQuery(query, assignment).constraints;
+  queryConstraints.push_back(query.negateExpr().expr);
+
+  ref<ConstantExpr> minimalValueOfSum;
+  if (!solver->impl->computeMinimalValue(Query(queryConstraints, sizesSumToMinimize), minimalValueOfSum)) {
+    return false;
+  }
+
+  std::vector<std::vector<uint8_t>> brokenSymcretesValues;
+  bool hasSolution = false;
+  if (!solver->impl->computeInitialValues(
+          Query(queryConstraints,
+                EqExpr::create(sizesSumToMinimize, minimalValueOfSum)),
+          brokenSymcreteArrays, brokenSymcretesValues, hasSolution)) {
+    return false;
+  }
+  assert(hasSolution && "Symcrete values should have concretization after "
+                        "computeInitialValues() query.");
+
+  for (unsigned idx = 0; idx < brokenSymcreteArrays.size(); ++idx) {
+    if (brokenSymcreteArrays[idx]->source->getKind() ==
+        SymbolicSource::Kind::SymbolicSize) {
+      assignment.bindings[brokenSymcreteArrays[idx]] =
+          brokenSymcretesValues[idx];
+    }
+  }
+
+  return true;
 }
 
 bool SolverBlueprint::computeValidity(const Query &query,
@@ -83,22 +183,32 @@ bool SolverBlueprint::computeValidity(const Query &query,
   // Take one which is `mustBeTrue` with symcretes from `assign`
   // and try to relax them to `mayBeFalse`. This solution should be
   // appropriate for the remain branch.
-  
-  // TODO: relax model.
-  // TODO: add to the required one relaxed constraints
 
-  // cm->add(query, trueResponseAssignment);
-  // cm->add(query.negateExpr(), falseResponseAssignment);
-  
-  // FIXME: temporary solution
-  cm->add(query, assign);
-  cm->add(query.negateExpr(), assign);
-  
-  // result = (Solver::Validity) (falseInvalid - trueInvalid);
-  if (!solver->impl->computeValidity(concretizedQuery, result)) {
-    return false;
+  if (!trueInvalid) {
+    cm->add(query, trueResponseAssignment);
+    bool canBeRelaxed = false;
+    if (!relaxSymcreteConstraints(query, falseResponseAssignment,
+                                  canBeRelaxed)) {
+      return false;
+    }
+    if (canBeRelaxed) {
+      cm->add(query.negateExpr(), falseResponseAssignment);
+      falseInvalid = false;
+    }
+  } else {
+    cm->add(query.negateExpr(), falseResponseAssignment);
+    bool canBeRelaxed = false;
+    if (!relaxSymcreteConstraints(query.negateExpr(), trueResponseAssignment,
+                                  canBeRelaxed)) {
+      return false;
+    }
+    if (canBeRelaxed) {
+      cm->add(query, trueResponseAssignment);
+      trueInvalid = false;
+    }
   }
 
+  result = (Solver::Validity)((!trueInvalid) - (!falseInvalid));
   return true;
 }
 
@@ -131,8 +241,10 @@ bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
 
   if (isValid) {
     cm->add(query, assign);
-    // TODO: relax model.
-    // TODO: somehow save the solution, try to make isValid = false
+    if (!relaxSymcreteConstraints(query, assign, isValid)) {
+      return false;
+    }
+    isValid = !isValid;
   }
 
   if (!isValid) {
