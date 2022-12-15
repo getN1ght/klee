@@ -80,9 +80,8 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
   
   while (true) {
     if (!solver->impl->computeValidityCore(
-            constructConcretizedQuery(query.withValidityCore(),
-                                      assignment),
-            validityCore, canBeRelaxed)) {
+            constructConcretizedQuery(query, assignment), validityCore,
+            canBeRelaxed)) {
       return false;
     }
     // No unsat cores were found for the query, so we can try
@@ -207,8 +206,8 @@ bool SolverBlueprint::computeValidity(const Query &query,
   auto concretizedQuery = constructConcretizedQuery(query, assign);
   ref<SolverResponse> trueResponse, falseResponse;
 
-  if (!solver->impl->computeValidity(concretizedQuery.withValidityCore(),
-                                     trueResponse, falseResponse)) {
+  if (!solver->impl->computeValidity(concretizedQuery, trueResponse,
+                                     falseResponse)) {
     return false;
   }
 

@@ -260,8 +260,7 @@ bool Z3SolverImpl::computeInitialValues(
   return internalRunSolver(query, &objects, &values, /*validityCore=*/NULL, hasSolution);
 }
 
-bool Z3SolverImpl::check(const Query &query,
-                                      ref<SolverResponse> &result) {
+bool Z3SolverImpl::check(const Query &query, ref<SolverResponse> &result) {
   ExprHashSet expressions;
   expressions.insert(query.constraints.begin(), query.constraints.end());
   expressions.insert(query.expr);
@@ -321,7 +320,7 @@ bool Z3SolverImpl::internalRunSolver(
 
   for (auto const &constraint : query.constraints) {
     Z3ASTHandle z3Constraint = builder->construct(constraint);
-    if (ProduceUnsatCore && query.produceValidityCore) {
+    if (ProduceUnsatCore && validityCore) {
       Z3ASTHandle p = builder->buildFreshBoolConst(constraint->toString().c_str());
       z3_ast_expr_to_klee_expr.insert({p, constraint});
       z3_ast_expr_constraints.push_back(p);
@@ -354,7 +353,7 @@ bool Z3SolverImpl::internalRunSolver(
   // negation of the equivalent i.e.
   // ∃ X Constraints(X) ∧ ¬ query(X)
   Z3ASTHandle z3NotQueryExpr = Z3ASTHandle(Z3_mk_not(builder->ctx, z3QueryExpr), builder->ctx);
-  if (ProduceUnsatCore && query.produceValidityCore) {
+  if (ProduceUnsatCore && validityCore) {
     std::string s = "not " + query.expr->toString();
     Z3ASTHandle p = builder->buildFreshBoolConst(s.c_str());
     Z3_solver_assert_and_track(builder->ctx, theSolver, z3NotQueryExpr, p);
@@ -374,8 +373,8 @@ bool Z3SolverImpl::internalRunSolver(
   ::Z3_lbool satisfiable = Z3_solver_check(builder->ctx, theSolver);
   runStatusCode = handleSolverResponse(theSolver, satisfiable, objects, values,
                                        hasSolution);
-  if (ProduceUnsatCore && query.produceValidityCore && satisfiable == Z3_L_FALSE) {
-    std::vector<ref<Expr>> unsatCore;
+  if (ProduceUnsatCore && validityCore && satisfiable == Z3_L_FALSE) {
+    ExprHashSet unsatCore;
     Z3_ast_vector z3_unsat_core = Z3_solver_get_unsat_core(builder->ctx, theSolver);
     Z3_ast_vector_inc_ref(builder->ctx, z3_unsat_core);
 
@@ -391,7 +390,7 @@ bool Z3SolverImpl::internalRunSolver(
     for (auto &z3_constraint : z3_ast_expr_constraints) {
       if (z3_ast_expr_unsat_core.find(z3_constraint) != z3_ast_expr_unsat_core.end()) {
         ref<Expr> constraint = z3_ast_expr_to_klee_expr[z3_constraint];
-        unsatCore.push_back(constraint);
+        unsatCore.insert(constraint);
       }
     }
     assert(validityCore && "validityCore cannot be nullptr");

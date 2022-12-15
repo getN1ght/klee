@@ -121,7 +121,7 @@ bool ValidatingSolver::computeInitialValues(
       constraints = AndExpr::create(constraints, constraint);
 
     if (!oracle->impl->computeTruth(
-            Query(bindings, constraints, query.produceValidityCore), answer))
+            Query(bindings, constraints), answer))
       return false;
     if (!answer)
       assert(0 && "invalid solver result (computeInitialValues)");
@@ -143,8 +143,50 @@ bool ValidatingSolver::check(const Query &query, ref<SolverResponse> &result) {
   if (!oracle->impl->check(query, answer))
     return false;
 
-  if (result != answer)
+  if (result->getResponseKind() != answer->getResponseKind())
     assert(0 && "invalid solver result (check)");
+
+  bool banswer;
+  if (isa<InvalidResponse>(result)) {
+    // Assert the bindings as constraints, and verify that the
+    // conjunction of the actual constraints is satisfiable.
+    
+    ConstraintSet bindings;
+    std::map<const Array *, std::vector<unsigned char>> initialValues;
+    cast<InvalidResponse>(result)->getInitialValues(initialValues);
+    Assignment solutionAssignment(initialValues);
+    for (auto &arrayValues : initialValues) {
+      const Array *array = arrayValues.first;
+      assert(array);
+      ref<ConstantExpr> arrayConstantSize =
+          dyn_cast<ConstantExpr>(solutionAssignment.evaluate(array->size));
+      assert(arrayConstantSize &&
+             "Array of symbolic size had not receive value for size!");
+
+      for (unsigned j = 0; j < arrayConstantSize->getZExtValue(); j++) {
+        unsigned char value = arrayValues.second[j];
+        bindings.push_back(EqExpr::create(
+            ReadExpr::create(UpdateList(array, 0),
+                             ConstantExpr::alloc(j, array->getDomain())),
+            ConstantExpr::alloc(value, array->getRange())));
+      }
+    }
+    ConstraintManager tmp(bindings);
+    ref<Expr> constraints = Expr::createIsZero(query.expr);
+    for (auto const &constraint : query.constraints)
+      constraints = AndExpr::create(constraints, constraint);
+
+    if (!oracle->impl->computeTruth(
+            Query(bindings, constraints), banswer))
+      return false;
+    if (!banswer)
+      assert(0 && "invalid solver result (computeInitialValues)");
+  } else {
+    if (!oracle->impl->computeTruth(query, banswer))
+      return false;
+    if (!banswer)
+      assert(0 && "invalid solver result (computeInitialValues)");
+  }
 
   return true;
 }

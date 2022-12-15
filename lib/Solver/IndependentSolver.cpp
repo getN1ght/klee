@@ -156,8 +156,7 @@ bool IndependentSolver::computeInitialValues(const Query& query,
     ConstraintSet tmp(it->exprs);
     std::vector<std::vector<unsigned char> > tempValues;
     if (!solver->impl->computeInitialValues(
-            Query(tmp, ConstantExpr::alloc(0, Expr::Bool),
-                  query.produceValidityCore),
+            Query(tmp, ConstantExpr::alloc(0, Expr::Bool)),
             arraysInFactor, tempValues, hasSolution)) {
       values.clear();
       delete factors;
@@ -238,8 +237,7 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
     ConstraintSet tmp(it->exprs);
     ref<SolverResponse> tempResult;
     std::vector<std::vector<unsigned char>> tempValues;
-    if (!solver->impl->check(Query(tmp, ConstantExpr::alloc(0, Expr::Bool),
-                                   query.produceValidityCore),
+    if (!solver->impl->check(Query(tmp, ConstantExpr::alloc(0, Expr::Bool)),
                              tempResult)) {
       delete factors;
       return false;

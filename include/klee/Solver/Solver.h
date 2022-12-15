@@ -12,6 +12,7 @@
 
 #include "klee/Expr/Expr.h"
 #include "klee/Solver/ConcretizationManager.h"
+#include "klee/Expr/ExprHashMap.h"
 #include "klee/System/Time.h"
 #include "klee/Solver/SolverCmdLine.h"
 
@@ -35,16 +36,12 @@ namespace klee {
   public:
     const ConstraintSet constraints;
     ref<Expr> expr;
-    bool produceValidityCore = false;
 
-    Query(const ConstraintSet &_constraints, ref<Expr> _expr,
-          bool _produceValidityCore = false)
-        : constraints(_constraints), expr(_expr),
-          produceValidityCore(_produceValidityCore) {}
+    Query(const ConstraintSet &_constraints, ref<Expr> _expr)
+        : constraints(_constraints), expr(_expr) {}
 
     Query(const Query &query)
-        : constraints(query.constraints), expr(query.expr),
-          produceValidityCore(query.produceValidityCore) {}
+        : constraints(query.constraints), expr(query.expr) {}
 
     /// withExpr - Return a copy of the query with the given expression.
     Query withExpr(ref<Expr> _expr) const {
@@ -61,10 +58,8 @@ namespace klee {
       return withExpr(Expr::createIsZero(expr));
     }
 
-    Query withValidityCore() const { return Query(constraints, expr, true); }
-
     Query withConstraints(const ConstraintSet &_constraints) const {
-      return Query(_constraints, expr, produceValidityCore);
+      return Query(_constraints, expr);
     }
     /// Get all arrays that figure in the query
     std::vector<const Array *> gatherArrays() const;
@@ -83,12 +78,12 @@ namespace klee {
 
   struct ValidityCore {
   public:
-    typedef std::vector<ref<Expr>> constraints_typ;
-    std::vector<ref<Expr>> constraints;
+    typedef ExprHashSet constraints_typ;
+    constraints_typ constraints;
     ref<Expr> expr;
 
     ValidityCore()
-        : constraints(std::vector<ref<Expr>>()),
+        : constraints(constraints_typ()),
           expr(ConstantExpr::alloc(1, Expr::Bool)) {}
 
     ValidityCore(const constraints_typ &_constraints, ref<Expr> _expr)
@@ -113,13 +108,13 @@ namespace klee {
     /// Dump validity core
     void dump() const;
 
-    bool compare(const ValidityCore &b) const {
+    bool equals(const ValidityCore &b) const {
       return constraints == b.constraints && expr == b.expr;
     }
 
-    bool operator==(const ValidityCore &b) const { return compare(b); }
+    bool operator==(const ValidityCore &b) const { return equals(b); }
 
-    bool operator!=(const ValidityCore &b) const { return !compare(b); }
+    bool operator!=(const ValidityCore &b) const { return !equals(b); }
   };
 
   class SolverResponse {
@@ -149,13 +144,13 @@ namespace klee {
 
     virtual bool getValidityCore(ValidityCore &validityCore) { return false; }
 
-    static bool classof(const Query *) { return true; }
+    static bool classof(const SolverResponse *) { return true; }
 
-    virtual bool compare(const SolverResponse &b) const = 0;
+    virtual bool equals(const SolverResponse &b) const = 0;
 
-    bool operator==(const SolverResponse &b) const { return compare(b); }
+    bool operator==(const SolverResponse &b) const { return equals(b); }
 
-    bool operator!=(const SolverResponse &b) const { return !compare(b); }
+    bool operator!=(const SolverResponse &b) const { return !equals(b); }
   };
 
   class ValidResponse : public SolverResponse {
@@ -177,7 +172,7 @@ namespace klee {
     }
     static bool classof(const ValidResponse *) { return true; }
 
-    bool compare(const SolverResponse &b) const {
+    bool equals(const SolverResponse &b) const {
       if (b.getResponseKind() != ResponseKind::Valid)
         return false;
       const ValidResponse &vb = static_cast<const ValidResponse &>(b);
@@ -232,7 +227,7 @@ namespace klee {
     }
     static bool classof(const InvalidResponse *) { return true; }
 
-    bool compare(const SolverResponse &b) const {
+    bool equals(const SolverResponse &b) const {
       if (b.getResponseKind() != ResponseKind::Invalid)
         return false;
       const InvalidResponse &ib = static_cast<const InvalidResponse &>(b);

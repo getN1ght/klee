@@ -38,8 +38,25 @@ bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
   if (simplifyExprs)
     expr = ConstraintManager::simplifyExpr(constraints, expr);
 
-  bool success =
-      solver->evaluate(Query(constraints, expr, produceValidityCore), result);
+  ref<SolverResponse> queryResult;
+  ref<SolverResponse> negatedQueryResult;
+
+  bool success = produceValidityCore
+                     ? solver->evaluate(Query(constraints, expr), queryResult,
+                                        negatedQueryResult)
+                     : solver->evaluate(Query(constraints, expr), result);
+
+  if (success && produceValidityCore) {
+    if (isa<ValidResponse>(queryResult) && isa<InvalidResponse>(negatedQueryResult)) {
+      result = Solver::True;
+    } else if (isa<InvalidResponse>(queryResult) && isa<ValidResponse>(negatedQueryResult)) {
+      result = Solver::False;
+    } else if (isa<InvalidResponse>(queryResult) && isa<InvalidResponse>(negatedQueryResult)) {
+      result = Solver::Unknown;
+    } else {
+      assert(0 && "unreachable");
+    }
+  }
 
   metaData.queryCost += timer.delta();
 
@@ -60,8 +77,11 @@ bool TimingSolver::mustBeTrue(const ConstraintSet &constraints, ref<Expr> expr,
   if (simplifyExprs)
     expr = ConstraintManager::simplifyExpr(constraints, expr);
 
-  bool success =
-      solver->mustBeTrue(Query(constraints, expr, produceValidityCore), result);
+  ValidityCore validityCore;
+
+  bool success = produceValidityCore ?
+      solver->getValidityCore(Query(constraints, expr), validityCore, result) :
+      solver->mustBeTrue(Query(constraints, expr), result);
 
   metaData.queryCost += timer.delta();
 
@@ -148,10 +168,20 @@ bool TimingSolver::getInitialValues(
 
   TimerStatIncrementer timer(stats::solverTime);
 
-  bool success = solver->getInitialValues(
-      Query(constraints, ConstantExpr::alloc(0, Expr::Bool),
-            produceValidityCore),
-      objects, result);
+  ref<SolverResponse> queryResult;
+
+  bool success =
+      produceValidityCore
+          ? solver->check(Query(constraints, ConstantExpr::alloc(0, Expr::Bool)),
+                                queryResult)
+          : solver->getInitialValues(Query(constraints,
+                                           ConstantExpr::alloc(0, Expr::Bool)),
+                                     objects, result);
+
+  if (success && produceValidityCore && isa<InvalidResponse>(queryResult)) {
+    success = cast<InvalidResponse>(queryResult)
+                  ->getInitialValuesFor(objects, result);
+  }
 
   metaData.queryCost += timer.delta();
 
@@ -167,7 +197,7 @@ bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
   if (simplifyExprs)
     expr = ConstraintManager::simplifyExpr(constraints, expr);
 
-  bool success = solver->evaluate(Query(constraints, expr, true), queryResult,
+  bool success = solver->evaluate(Query(constraints, expr), queryResult,
                                   negatedQueryResult);
 
   metaData.queryCost += timer.delta();
@@ -191,7 +221,7 @@ bool TimingSolver::getValidityCore(const ConstraintSet &constraints,
     expr = ConstraintManager::simplifyExpr(constraints, expr);
 
   bool success =
-      solver->getValidityCore(Query(constraints, expr, true), validityCore, result);
+      solver->getValidityCore(Query(constraints, expr), validityCore, result);
 
   metaData.queryCost += timer.delta();
 
