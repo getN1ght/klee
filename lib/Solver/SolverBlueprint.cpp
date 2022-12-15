@@ -269,7 +269,10 @@ bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
 bool SolverBlueprint::computeValidityCore(const Query &query,
                                      ValidityCore &validityCore,
                                      bool &isValid) {
-  return solver->impl->computeValidityCore(query, validityCore, isValid);
+  Query concretizedQuery =
+      constructConcretizedQuery(query, cm->get(query.constraints));
+  return solver->impl->computeValidityCore(concretizedQuery, validityCore,
+                                           isValid);
 }
 
 bool SolverBlueprint::computeValue(const Query &query, ref<Expr> &result) {

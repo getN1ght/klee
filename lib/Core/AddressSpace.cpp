@@ -87,12 +87,17 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
 
   if (const auto res = objects.lookup_previous(&hack)) {
     const auto &mo = res->first;
-    // Check if the provided address is between start and end of the object
-    // [mo->address, mo->address + mo->size) or the object is a 0-sized object.
-    if ((mo->size==0 && address==mo->address) ||
-        (address - mo->address < mo->size)) {
-      result = mo->id;
-      return true;
+    if (ref<ConstantExpr> arrayConstantSize =
+            dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
+      // Check if the provided address is between start and end of the object
+      // [mo->address, mo->address + mo->size) or the object is a 0-sized
+      // object.
+      uint64_t size = arrayConstantSize->getZExtValue();
+      if ((size == 0 && address == mo->address) ||
+          (address - mo->address < size)) {
+        result = mo->id;
+        return true;
+      }
     }
   }
 
@@ -103,93 +108,94 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                               ref<Expr> address, IDType &result,
                               MOPredicate predicate, bool &success) const {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(address)) {
-    success = resolveOne(CE, result);
-    return true;
-  } else {
-    TimerStatIncrementer timer(stats::resolveTime);
-
-    // try cheap search, will succeed for any inbounds pointer
-
-    ref<ConstantExpr> cex;
-    if (!solver->getValue(state.constraints, address, cex, state.queryMetaData))
-      return false;
-    uint64_t example = cex->getZExtValue();
-    MemoryObject hack(example);
-    const auto res = objects.lookup_previous(&hack);
-
-    if (res) {
-      const MemoryObject *mo = res->first;
-      if (example - mo->address < mo->size) {
-        result = mo->id;
-        success = true;
-        return true;
-      }
+    if (resolveOne(CE, result)) {
+      return true;
     }
+  }
 
-    // didn't work, now we have to search
-       
-    MemoryMap::iterator oi = objects.upper_bound(&hack);
-    MemoryMap::iterator begin = objects.begin();
-    MemoryMap::iterator end = objects.end();
+  TimerStatIncrementer timer(stats::resolveTime);
+
+  // try cheap search, will succeed for any inbounds pointer
+
+  ref<ConstantExpr> cex;
+  if (!solver->getValue(state.constraints, address, cex, state.queryMetaData))
+    return false;
+  uint64_t example = cex->getZExtValue();
+  MemoryObject hack(example);
+  const auto res = objects.lookup_previous(&hack);
+
+  if (res) {
+    const MemoryObject *mo = res->first;
+    if (example - mo->address < mo->size) {
+      result = mo->id;
+      success = true;
+      return true;
+    }
+  }
+
+  // didn't work, now we have to search
       
-    MemoryMap::iterator start = oi;
-    while (oi!=begin) {
-      --oi;
-      const auto &mo = oi->first;
-      if (!predicate(mo))
-        continue;
+  MemoryMap::iterator oi = objects.upper_bound(&hack);
+  MemoryMap::iterator begin = objects.begin();
+  MemoryMap::iterator end = objects.end();
+    
+  MemoryMap::iterator start = oi;
+  while (oi!=begin) {
+    --oi;
+    const auto &mo = oi->first;
+    if (!predicate(mo))
+      continue;
 
+    bool mayBeTrue;
+    if (!solver->mayBeTrue(state.constraints,
+                            mo->getBoundsCheckPointer(address), mayBeTrue,
+                            state.queryMetaData))
+      return false;
+    if (mayBeTrue) {
+      result = oi->first->id;
+      success = true;
+      return true;
+    } else {
+      bool mustBeTrue;
+      if (!solver->mustBeTrue(state.constraints,
+                              UgeExpr::create(address, mo->getBaseExpr()),
+                              mustBeTrue, state.queryMetaData))
+        return false;
+      if (mustBeTrue)
+        break;
+    }
+  }
+
+  // search forwards
+  for (oi=start; oi!=end; ++oi) {
+    const auto &mo = oi->first;
+    if (!predicate(mo))
+      continue;
+
+    bool mustBeTrue;
+    if (!solver->mustBeTrue(state.constraints,
+                            UltExpr::create(address, mo->getBaseExpr()),
+                            mustBeTrue, state.queryMetaData))
+      return false;
+    if (mustBeTrue) {
+      break;
+    } else {
       bool mayBeTrue;
+
       if (!solver->mayBeTrue(state.constraints,
-                             mo->getBoundsCheckPointer(address), mayBeTrue,
-                             state.queryMetaData))
+                              mo->getBoundsCheckPointer(address), mayBeTrue,
+                              state.queryMetaData))
         return false;
       if (mayBeTrue) {
         result = oi->first->id;
         success = true;
         return true;
-      } else {
-        bool mustBeTrue;
-        if (!solver->mustBeTrue(state.constraints,
-                                UgeExpr::create(address, mo->getBaseExpr()),
-                                mustBeTrue, state.queryMetaData))
-          return false;
-        if (mustBeTrue)
-          break;
       }
     }
-
-    // search forwards
-    for (oi=start; oi!=end; ++oi) {
-      const auto &mo = oi->first;
-      if (!predicate(mo))
-        continue;
-
-      bool mustBeTrue;
-      if (!solver->mustBeTrue(state.constraints,
-                              UltExpr::create(address, mo->getBaseExpr()),
-                              mustBeTrue, state.queryMetaData))
-        return false;
-      if (mustBeTrue) {
-        break;
-      } else {
-        bool mayBeTrue;
-
-        if (!solver->mayBeTrue(state.constraints,
-                               mo->getBoundsCheckPointer(address), mayBeTrue,
-                               state.queryMetaData))
-          return false;
-        if (mayBeTrue) {
-          result = oi->first->id;
-          success = true;
-          return true;
-        }
-      }
-    }
-
-    success = false;
-    return true;
   }
+
+  success = false;
+  return true;
 }
 
 bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
@@ -260,87 +266,87 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
                            time::Span timeout) const {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(p)) {
     IDType res;
-    if (resolveOne(CE, res))
+    if (resolveOne(CE, res)) {
       rl.push_back(res);
-    return false;
-  } else {
-    TimerStatIncrementer timer(stats::resolveTime);
+      return false;
+    }
+  }
+  TimerStatIncrementer timer(stats::resolveTime);
 
-    // XXX in general this isn't exactly what we want... for
-    // a multiple resolution case (or for example, a \in {b,c,0})
-    // we want to find the first object, find a cex assuming
-    // not the first, find a cex assuming not the second...
-    // etc.
+  // XXX in general this isn't exactly what we want... for
+  // a multiple resolution case (or for example, a \in {b,c,0})
+  // we want to find the first object, find a cex assuming
+  // not the first, find a cex assuming not the second...
+  // etc.
 
-    // XXX how do we smartly amortize the cost of checking to
-    // see if we need to keep searching up/down, in bad cases?
-    // maybe we don't care?
+  // XXX how do we smartly amortize the cost of checking to
+  // see if we need to keep searching up/down, in bad cases?
+  // maybe we don't care?
 
-    // XXX we really just need a smart place to start (although
-    // if its a known solution then the code below is guaranteed
-    // to hit the fast path with exactly 2 queries). we could also
-    // just get this by inspection of the expr.
+  // XXX we really just need a smart place to start (although
+  // if its a known solution then the code below is guaranteed
+  // to hit the fast path with exactly 2 queries). we could also
+  // just get this by inspection of the expr.
 
-    ref<ConstantExpr> cex;
-    if (!solver->getValue(state.constraints, p, cex, state.queryMetaData))
+  ref<ConstantExpr> cex;
+  if (!solver->getValue(state.constraints, p, cex, state.queryMetaData))
+    return true;
+  uint64_t example = cex->getZExtValue();
+  MemoryObject hack(example);
+
+  MemoryMap::iterator oi = objects.upper_bound(&hack);
+  MemoryMap::iterator begin = objects.begin();
+  MemoryMap::iterator end = objects.end();
+
+  MemoryMap::iterator start = oi;
+  // search backwards, start with one minus because this
+  // is the object that p *should* be within, which means we
+  // get write off the end with 4 queries
+  while (oi != begin) {
+    --oi;
+    const MemoryObject *mo = oi->first;
+    if (!predicate(mo))
+      continue;
+    if (timeout && timeout < timer.delta())
       return true;
-    uint64_t example = cex->getZExtValue();
-    MemoryObject hack(example);
 
-    MemoryMap::iterator oi = objects.upper_bound(&hack);
-    MemoryMap::iterator begin = objects.begin();
-    MemoryMap::iterator end = objects.end();
+    auto op = std::make_pair<>(mo, oi->second.get());
 
-    MemoryMap::iterator start = oi;
-    // search backwards, start with one minus because this
-    // is the object that p *should* be within, which means we
-    // get write off the end with 4 queries
-    while (oi != begin) {
-      --oi;
-      const MemoryObject *mo = oi->first;
-      if (!predicate(mo))
-        continue;
-      if (timeout && timeout < timer.delta())
-        return true;
+    int incomplete =
+        checkPointerInObject(state, solver, p, op, rl, maxResolutions);
+    if (incomplete != 2)
+      return incomplete ? true : false;
 
-      auto op = std::make_pair<>(mo, oi->second.get());
+    bool mustBeTrue;
+    if (!solver->mustBeTrue(state.constraints,
+                            UgeExpr::create(p, mo->getBaseExpr()), mustBeTrue,
+                            state.queryMetaData))
+      return true;
+    if (mustBeTrue)
+      break;
+  }
 
-      int incomplete =
-          checkPointerInObject(state, solver, p, op, rl, maxResolutions);
-      if (incomplete != 2)
-        return incomplete ? true : false;
+  // search forwards
+  for (oi = start; oi != end; ++oi) {
+    const MemoryObject *mo = oi->first;
+    if (!predicate(mo))
+      continue;
+    if (timeout && timeout < timer.delta())
+      return true;
 
-      bool mustBeTrue;
-      if (!solver->mustBeTrue(state.constraints,
-                              UgeExpr::create(p, mo->getBaseExpr()), mustBeTrue,
-                              state.queryMetaData))
-        return true;
-      if (mustBeTrue)
-        break;
-    }
+    bool mustBeTrue;
+    if (!solver->mustBeTrue(state.constraints,
+                            UltExpr::create(p, mo->getBaseExpr()), mustBeTrue,
+                            state.queryMetaData))
+      return true;
+    if (mustBeTrue)
+      break;
+    auto op = std::make_pair<>(mo, oi->second.get());
 
-    // search forwards
-    for (oi = start; oi != end; ++oi) {
-      const MemoryObject *mo = oi->first;
-      if (!predicate(mo))
-        continue;
-      if (timeout && timeout < timer.delta())
-        return true;
-
-      bool mustBeTrue;
-      if (!solver->mustBeTrue(state.constraints,
-                              UltExpr::create(p, mo->getBaseExpr()), mustBeTrue,
-                              state.queryMetaData))
-        return true;
-      if (mustBeTrue)
-        break;
-      auto op = std::make_pair<>(mo, oi->second.get());
-
-      int incomplete =
-          checkPointerInObject(state, solver, p, op, rl, maxResolutions);
-      if (incomplete != 2)
-        return incomplete ? true : false;
-    }
+    int incomplete =
+        checkPointerInObject(state, solver, p, op, rl, maxResolutions);
+    if (incomplete != 2)
+      return incomplete ? true : false;
   }
 
   return false;

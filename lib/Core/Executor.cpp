@@ -1224,7 +1224,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   }
 }
 
-void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
+bool Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(condition)) {
     if (!CE->isTrue())
       llvm::report_fatal_error("attempt to add invalid constraint");
@@ -1239,11 +1239,16 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
     for (std::vector<SeedInfo>::iterator siit = it->second.begin(), 
            siie = it->second.end(); siit != siie; ++siit) {
       bool res;
+      solver->setTimeout(coreSolverTimeout);
       bool success = solver->mustBeFalse(state.constraints,
                                          siit->assignment.evaluate(condition),
                                          res, state.queryMetaData);
-      assert(success && "FIXME: Unhandled solver failure");
-      (void) success;
+      solver->setTimeout(time::Span());
+      if (!success) {
+        terminateStateOnSolverError(state, "Query timed out (addConstraint).");
+        return false;
+      }
+
       if (res) {
         siit->patchSeed(state, condition, solver);
         warn = true;
@@ -1252,11 +1257,62 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
     if (warn)
       klee_warning("seeds patched for violating constraint"); 
   }
-
+  Assignment oldAssignment = cm->get(state.constraints);
   state.addConstraint(condition);
+
+  // List of all arrays, that have changed during concretization.
+  // Update memory objects if arrays have affected them.
+  Assignment diffAssignment(true);
+
+  for (auto it : cm->get(state.constraints).bindings) {
+    if (oldAssignment.bindings.count(it.first) == 0 ||
+        oldAssignment.bindings.at(it.first) != it.second) {
+      diffAssignment.bindings.insert(it);
+    }
+  }
+  state.update(diffAssignment);
+
+  Assignment resultingAssignment(true);
+  for (auto it : diffAssignment.bindings) {
+    for (const Array *dependent : it.first->getInderectlyDependentArrays()) {
+      if (dependent->source == sourceBuilder.symbolicAddress()) {
+        IDType idMemoryObject = state.symbolicArrayToObjectsBindings[dependent];
+        const MemoryObject *mo =
+            state.addressSpace.findObject(idMemoryObject).first;
+        const uint8_t *charAddressIterator =
+            reinterpret_cast<const uint8_t *>(&mo->address);
+        resultingAssignment.bindings[dependent] = std::vector<uint8_t>(
+            charAddressIterator, charAddressIterator + sizeof(mo->address));
+      }
+    }
+  }
+
+  // Check if constraints are satisfiable. If not, then
+  // terminate the state.
+  cm->add(state.constraints, {}, resultingAssignment);
+  
+  bool isValid = false;
+  ValidityCore validityCore;
+  solver->setTimeout(coreSolverTimeout);
+  bool success = solver->getValidityCore(
+      state.constraints, ConstantExpr::create(0, Expr::Bool), validityCore,
+      isValid, state.queryMetaData);
+  solver->setTimeout(time::Span());
+
+  if (!success) {
+    terminateStateOnSolverError(state, "Query timed out (addConstraint).");
+    return false;
+  }
+
+  if (!isValid) {
+    terminateStateEarly(state, "", StateTerminationType::SilentExit);
+    return false;
+  }
+
   if (ivcEnabled)
-    doImpliedValueConcretization(state, condition, 
+    doImpliedValueConcretization(state, condition,
                                  ConstantExpr::alloc(1, Expr::Bool));
+  return true;
 }
 
 const Cell& Executor::eval(KInstruction *ki, unsigned index, 
@@ -4406,12 +4462,12 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       ObjectPair p = unbound->addressSpace.findObject(idLazyInitialization);
       assert(p.first && p.second);
 
-      const MemoryObject *mo = p.first;
-      ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
+      ref<Expr> inBounds = p.first->getBoundsCheckPointer(address, bytes);
       if (unbound->isGEPExpr(address)) {
-        inBounds = AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, 1));
         inBounds =
-            AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, size));
+            AndExpr::create(inBounds, p.first->getBoundsCheckPointer(base, 1));
+        inBounds = AndExpr::create(inBounds,
+                                   p.first->getBoundsCheckPointer(base, size));
       }
 
       StatePair sp = fork(*unbound, inBounds, true, BranchType::MemOp);
@@ -4419,13 +4475,15 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       unbound = sp.second;
 
       if (unbound) {
+        p = unbound->addressSpace.findObject(idLazyInitialization);
         terminateStateOnError(*unbound, "memory error: out of bound pointer",
                               StateTerminationType::Ptr,
-                              getAddressInfo(*unbound, address, mo));
+                              getAddressInfo(*unbound, address, p.first));
       }
       if (bound) {
         addConstraint(*bound, inBounds);
-        bound->addPointerResolution(base, address, mo);
+        p = bound->addressSpace.findObject(idLazyInitialization);
+        bound->addPointerResolution(base, address, p.first);
         if (isWrite) {
           ObjectState *wos =
               bound->addressSpace.getWriteable(p.first, p.second);
