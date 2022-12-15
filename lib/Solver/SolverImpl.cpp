@@ -66,7 +66,7 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
   }
 
   if (!mustBeTrue) {
-    result = ConstantExpr::create(query.expr->getWidth(), 0);
+    result = ConstantExpr::create(0, query.expr->getWidth());
     return true;
   }
 

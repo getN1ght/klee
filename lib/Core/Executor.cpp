@@ -4144,7 +4144,9 @@ void Executor::resolveExact(ExecutionState &state,
 MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
                                  bool isLocal, bool isGlobal,
                                  const llvm::Value *allocSite,
-                                 size_t allocationAlignment) {
+                                 size_t allocationAlignment,
+                                 ref<Expr> lazyInitializationSource,
+                                 unsigned timestamp) {
   /// Try to find existing solution
   ref<Expr> optimizedSize = optimizer.optimizeExpr(toUnique(state, size), true);
   ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(optimizedSize);
@@ -4166,7 +4168,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   solver->setTimeout(time::Span());
 
   if (!success) {
-    return 0;
+    return nullptr;
   }
 
   Expr::Width pointerWidth = Context::get().getPointerWidth();
@@ -4185,7 +4187,8 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
 
   MemoryObject *mo = memory->allocate(
       std::max(arrayConstantSize->getZExtValue(), static_cast<size_t>(1)),
-      isLocal, isGlobal, allocSite, allocationAlignment, addressExpr, sizeExpr);
+      isLocal, isGlobal, allocSite, allocationAlignment, addressExpr, sizeExpr,
+      lazyInitializationSource, timestamp);
 
   ref<Expr> sizeEqualityExpr = EqExpr::create(size, sizeExpr);
   Assignment sizeSymcreteAssignment(true);
@@ -4199,6 +4202,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
       charAddressIterator, charAddressIterator + sizeof(mo->address));
 
   cm->add(Query(state.constraints, sizeEqualityExpr), sizeSymcreteAssignment);
+  addConstraint(state, sizeEqualityExpr);
   return mo;
 }
 
@@ -4384,7 +4388,17 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                isReadFromSymbolicArray(toUnique(*unbound, base)) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 state.isGEPExpr(address))) {
-      IDType idLazyInitialization = lazyInitializeObject(*unbound, base, target, size);
+      const Array *lazyInstantiationSize = makeArray(
+          state,
+          Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
+          "lazy_instantiation_size", sourceBuilder.makeSymbolic());
+      ref<Expr> sizeExpr = Expr::createTempRead(lazyInstantiationSize,
+                                                Context::get().getPointerWidth());
+      addConstraint(state,
+                    UgeExpr::create(sizeExpr, Expr::createPointer(size)));
+
+      IDType idLazyInitialization =
+          lazyInitializeObject(*unbound, base, target, sizeExpr);
       // Lazy initialization might fail if we've got unappropriate address
       if (!idLazyInitialization) {
         return;
@@ -4447,7 +4461,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 IDType Executor::lazyInitializeObject(ExecutionState &state,
                                              ref<Expr> address,
                                              KInstruction *target,
-                                             uint64_t size) {
+                                             ref<Expr> size) {
   assert(!isa<ConstantExpr>(address));
   const llvm::Value *allocSite = target ? target->inst : nullptr;
   std::pair<ref<const MemoryObject>, ref<Expr>> moBasePair;
@@ -4457,29 +4471,25 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
   }
 
   std::string name = "address";
-
-  const Array *addressArray =
-      makeArray(state, Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
-                name, sourceBuilder.symbolicAddress());
-  ref<Expr> addressExpr =
-      Expr::createTempRead(addressArray, Context::get().getPointerWidth());
-
-  MemoryObject *mo = memory->allocate(
-      size, false, /*isGlobal=*/false, allocSite,
-      /*allocationAlignment=*/8, addressExpr, Expr::createPointer(size), address, timestamp);
-  state.symbolicArrayToObjectsBindings.emplace(addressArray, mo->id);  
-  // FIXME: bind size
+  MemoryObject *mo = allocate(state, size, false,
+                              /*isGlobal=*/false, allocSite,
+                              /*allocationAlignment=*/8, address, timestamp);
 
   // Check if address is suitable for LI object.
   ref<Expr> checkAddressForLazyInitializationExpr = EqExpr::create(
       address,
       ConstantExpr::create(mo->address, Context::get().getPointerWidth()));
 
-  bool mayBeLazyInitialized = false;
+  bool canNotBeLazyInitialized = false;
+
+  // We do not want to make `mayBeTrue` requests as they can
+  // affect symcrete variables.
+  ValidityCore validityCore;
   solver->setTimeout(coreSolverTimeout);
-  bool success = solver->mayBeTrue(state.constraints,
-                                   checkAddressForLazyInitializationExpr,
-                                   mayBeLazyInitialized, state.queryMetaData);
+  bool success = solver->getValidityCore(
+      state.constraints, NotExpr::create(checkAddressForLazyInitializationExpr),
+      validityCore, canNotBeLazyInitialized, state.queryMetaData);
+
   solver->setTimeout(time::Span());
   if (!success) {
     terminateStateOnSolverError(state,
@@ -4487,20 +4497,12 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
     return 0;
   }
 
-  if (!mayBeLazyInitialized) {
+  if (canNotBeLazyInitialized) {
     terminateStateEarly(state, "", StateTerminationType::SilentExit);
     return 0;
   }
 
-  Assignment addressEqualityAssignment(true);
-  unsigned char *bytesBegin = reinterpret_cast<unsigned char*>(&mo->address);
-  addressEqualityAssignment.bindings[addressArray] = std::vector<unsigned char>(bytesBegin, bytesBegin + sizeof(mo->address));
-
-  ref<Expr> addressEqualityExpr = EqExpr::create(addressExpr, address);
-
-  cm->add(Query(state.constraints, addressEqualityExpr), addressEqualityAssignment);
-  addConstraint(state, addressEqualityExpr);
-
+  addConstraint(state, EqExpr::create(mo->addressExpr, address));
   executeMakeSymbolic(state, mo, name,
                       sourceBuilder.lazyInitializationMakeSymbolic(), false);
   IDType LazyInstantiatedObjectID;

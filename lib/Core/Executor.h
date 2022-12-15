@@ -273,7 +273,9 @@ private:
 
   MemoryObject *allocate(ExecutionState &state, ref<Expr> size, bool isLocal,
                          bool isGlobal, const llvm::Value *allocSite,
-                         size_t allocationAlignment);
+                         size_t allocationAlignment,
+                         ref<Expr> lazyInitializationSource = ref<Expr>(),
+                         unsigned timestamp = 0);
 
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.
@@ -335,7 +337,7 @@ private:
                               KInstruction *target /* undef if write */);
 
   IDType lazyInitializeObject(ExecutionState &state, ref<Expr> address,
-                              KInstruction *target, uint64_t size);
+                              KInstruction *target, ref<Expr> size);
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
                            const std::string &name,
                            const SymbolicSource *source, bool isLocal);

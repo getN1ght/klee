@@ -482,12 +482,12 @@ void ExecutionState::update(const Assignment &assign) {
       continue;
     }
 
-    uint64_t newSize = std::max(2 * static_cast<uint64_t>(mo->size),
+    uint64_t newSize = std::max(2 * static_cast<uint64_t>(oldSize),
                                 arrayConstantSize->getZExtValue());
 
     // Here we chould create full copy of object even including ID.
     MemoryObject *newMO = mo->parent->allocate(
-        newSize, mo->isLocal, /*isGlobal=*/mo->isGlobal, mo->allocSite,
+        newSize, mo->isLocal, mo->isGlobal, mo->allocSite,
         /* FIXME: allocation alignment should be saved in MO */ 8,
         mo->addressExpr, mo->sizeExpr, mo->lazyInitializationSource,
         mo->timestamp);

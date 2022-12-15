@@ -29,6 +29,8 @@ public:
 
   bool computeTruth(const Query &, bool &isValid); 
   bool computeValidity(const Query &, Solver::Validity &result);
+  bool computeValidityCore(const Query &query, ValidityCore &validityCore,
+                           bool &isValid);
   bool computeValue(const Query &, ref<Expr> &result);
   bool computeInitialValues(const Query &query,
                             const std::vector<const Array *> &objects,
@@ -137,7 +139,8 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
   queryConstraints.push_back(query.negateExpr().expr);
 
   ref<ConstantExpr> minimalValueOfSum;
-  if (!solver->impl->computeMinimalUnsignedValue(Query(queryConstraints, sizesSumToMinimize), minimalValueOfSum)) {
+  if (!solver->impl->computeMinimalUnsignedValue(
+          Query(queryConstraints, sizesSumToMinimize), minimalValueOfSum)) {
     return false;
   }
 
@@ -145,7 +148,8 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
   bool hasSolution = false;
   if (!solver->impl->computeInitialValues(
           Query(queryConstraints,
-                EqExpr::create(sizesSumToMinimize, minimalValueOfSum)),
+                EqExpr::create(sizesSumToMinimize, minimalValueOfSum))
+              .negateExpr(),
           brokenSymcreteArrays, brokenSymcretesValues, hasSolution)) {
     return false;
   }
@@ -260,6 +264,12 @@ bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
   }
 
   return true;
+}
+
+bool SolverBlueprint::computeValidityCore(const Query &query,
+                                     ValidityCore &validityCore,
+                                     bool &isValid) {
+  return solver->impl->computeValidityCore(query, validityCore, isValid);
 }
 
 bool SolverBlueprint::computeValue(const Query &query, ref<Expr> &result) {

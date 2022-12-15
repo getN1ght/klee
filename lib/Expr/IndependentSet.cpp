@@ -46,6 +46,12 @@ IndependentElementSet::IndependentElementSet(ref<Expr> e) {
       //   }
       //   wholeObjects.insert(s->call->retval);
       // } else
+
+      for (const Array *dependentArray :
+           array->getInderectlyDependentArrays()) {
+        wholeObjects.insert(dependentArray);
+      }
+
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(re->index)) {
         // if index constant, then add to set of constraints operating
         // on that array (actually, don't add constraint, just set index)
