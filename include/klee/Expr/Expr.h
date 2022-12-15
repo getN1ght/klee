@@ -489,7 +489,6 @@ public:
   // Name of the array
   const std::string name;
 
-  // FIXME: Not 64-bit clean.
   ref<Expr> size;
 
   /// This represents the reason why this array was created as well as some
@@ -529,9 +528,16 @@ private:
         const ref<ConstantExpr> *constantValuesEnd = 0,
         Expr::Width _domain = Expr::Int32, Expr::Width _range = Expr::Int8);
 
+  /// List of all "dependent" arrays. E.g., for objects with symbolic size
+  /// arrays for address and size are dependent.
+  mutable std::vector<const Array *> indirectlyDependentArrays;
+
 public:
   bool isSymbolicArray() const { return constantValues.empty(); }
   bool isConstantArray() const { return !isSymbolicArray(); }
+
+  void addDependence(const Array *array) const;
+  const std::vector<const Array *> &getInderectlyDependentArrays() const;
 
   const std::string getName() const { return name; }
   ref<Expr> getSize() const { return size; }
@@ -549,7 +555,7 @@ class UpdateList {
   friend class ReadExpr; // for default constructor
 
 public:
-  const Array *root;
+  const Array *root = nullptr;
   
   /// pointer to the most recent update node
   ref<UpdateNode> head;

@@ -102,7 +102,7 @@ namespace klee {
     virtual bool computeValidityCore(const Query &query,
                                      ValidityCore &validityCore, bool &isValid);
 
-    virtual bool computeMinimalValue(const Query &query,
+    virtual bool computeMinimalUnsignedValue(const Query &query,
                                      ref<ConstantExpr> &result);
 
     /// getOperationStatusCode - get the status of the last solver operation

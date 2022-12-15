@@ -272,7 +272,7 @@ private:
                     const std::string &name);
 
   MemoryObject *allocate(ExecutionState &state, ref<Expr> size, bool isLocal,
-                         const llvm::Value *allocSite,
+                         bool isGlobal, const llvm::Value *allocSite,
                          size_t allocationAlignment);
 
   /// Allocate and bind a new object in a particular state. NOTE: This

@@ -542,6 +542,14 @@ unsigned Array::computeHash() {
   hashValue = res;
   return hashValue; 
 }
+
+void Array::addDependence(const Array *array) const {
+  indirectlyDependentArrays.push_back(array);
+}
+
+const std::vector<const Array *> &Array::getInderectlyDependentArrays() const {
+  return indirectlyDependentArrays;
+}
 /***/
 
 ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index) {

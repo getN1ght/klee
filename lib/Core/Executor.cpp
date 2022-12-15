@@ -4043,118 +4043,32 @@ void Executor::executeAlloc(ExecutionState &state,
                             bool zeroMemory,
                             const ObjectState *reallocFrom,
                             size_t allocationAlignment) {
-  size = toUnique(state, size);
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) {
-    const llvm::Value *allocSite = state.prevPC->inst;
-    if (allocationAlignment == 0) {
-      allocationAlignment = getAllocationAlignment(allocSite);
-    }
-    MemoryObject *mo =
-        memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false,
-                         allocSite, allocationAlignment);
-    if (!mo) {
-      bindLocal(target, state, 
-                ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-    } else {
-      ObjectState *os = bindObjectInState(state, mo, isLocal);
-      if (zeroMemory) {
-        os->initializeToZero();
-      } else {
-        os->initializeToRandom();
-      }
-      bindLocal(target, state, mo->getBaseExpr());
-      
-      if (reallocFrom) {
-        unsigned count = std::min(reallocFrom->size, os->size);
-        for (unsigned i=0; i<count; i++)
-          os->write(i, reallocFrom->read8(i));
-        state.removePointerResolutions(reallocFrom->getObject());
-        state.addressSpace.unbindObject(reallocFrom->getObject());
-      }
-    }
+  const llvm::Value *allocSite = state.prevPC->inst;
+  if (allocationAlignment == 0) {
+    allocationAlignment = getAllocationAlignment(allocSite);
+  }
+
+  MemoryObject *mo = allocate(state, size, isLocal, /*isGlobal=*/false, allocSite,
+                              allocationAlignment);
+  if (!mo) {
+    bindLocal(target, state, 
+              ConstantExpr::alloc(0, Context::get().getPointerWidth()));
   } else {
-    // XXX For now we just pick a size. Ideally we would support
-    // symbolic sizes fully but even if we don't it would be better to
-    // "smartly" pick a value, for example we could fork and pick the
-    // min and max values and perhaps some intermediate (reasonable
-    // value).
-    // 
-    // It would also be nice to recognize the case when size has
-    // exactly two values and just fork (but we need to get rid of
-    // return argument first). This shows up in pcre when llvm
-    // collapses the size expression with a select.
-
-    size = optimizer.optimizeExpr(size, true);
-
-    ref<ConstantExpr> example;
-    bool success =
-        solver->getValue(state.constraints, size, example, state.queryMetaData);
-    assert(success && "FIXME: Unhandled solver failure");
-    (void) success;
+    ObjectState *os = bindObjectInState(state, mo, isLocal);
+    if (zeroMemory) {
+      os->initializeToZero();
+    } else {
+      os->initializeToRandom();
+    }
+    bindLocal(target, state, mo->getBaseExpr());
     
-    // Try and start with a small example.
-    Expr::Width W = example->getWidth();
-    while (example->Ugt(ConstantExpr::alloc(128, W))->isTrue()) {
-      ref<ConstantExpr> tmp = example->LShr(ConstantExpr::alloc(1, W));
-      bool res;
-      bool success =
-          solver->mayBeTrue(state.constraints, EqExpr::create(tmp, size), res,
-                            state.queryMetaData);
-      assert(success && "FIXME: Unhandled solver failure");      
-      (void) success;
-      if (!res)
-        break;
-      example = tmp;
+    if (reallocFrom) {
+      unsigned count = std::min(reallocFrom->size, os->size);
+      for (unsigned i=0; i<count; i++)
+        os->write(i, reallocFrom->read8(i));
+      state.removePointerResolutions(reallocFrom->getObject());
+      state.addressSpace.unbindObject(reallocFrom->getObject());
     }
-
-    StatePair fixedSize =
-        fork(state, EqExpr::create(example, size), true, BranchType::Alloc);
-
-    if (fixedSize.second) { 
-      // Check for exactly two values
-      ref<ConstantExpr> tmp;
-      bool success = solver->getValue(fixedSize.second->constraints, size, tmp,
-                                      fixedSize.second->queryMetaData);
-      assert(success && "FIXME: Unhandled solver failure");      
-      (void) success;
-      bool res;
-      success = solver->mustBeTrue(fixedSize.second->constraints,
-                                   EqExpr::create(tmp, size), res,
-                                   fixedSize.second->queryMetaData);
-      assert(success && "FIXME: Unhandled solver failure");      
-      (void) success;
-      if (res) {
-        executeAlloc(*fixedSize.second, tmp, isLocal,
-                     target, zeroMemory, reallocFrom);
-      } else {
-        // See if a *really* big value is possible. If so assume
-        // malloc will fail for it, so lets fork and return 0.
-        StatePair hugeSize =
-            fork(*fixedSize.second,
-                 UltExpr::create(ConstantExpr::alloc(1U << 31, W), size), true,
-                 BranchType::Alloc);
-        if (hugeSize.first) {
-          klee_message("NOTE: found huge malloc, returning 0");
-          bindLocal(target, *hugeSize.first, 
-                    ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-        }
-        
-        if (hugeSize.second) {
-
-          std::string Str;
-          llvm::raw_string_ostream info(Str);
-          ExprPPrinter::printOne(info, "  size expr", size);
-          info << "  concretization : " << example << "\n";
-          info << "  unbound example: " << tmp << "\n";
-          terminateStateOnError(*hugeSize.second, "concretized symbolic size",
-                                StateTerminationType::Model, info.str());
-        }
-      }
-    }
-
-    if (fixedSize.first) // can be zero when fork fails
-      executeAlloc(*fixedSize.first, example, isLocal, 
-                   target, zeroMemory, reallocFrom);
   }
 }
 
@@ -4228,9 +4142,64 @@ void Executor::resolveExact(ExecutionState &state,
 }
 
 MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
-                                 bool isLocal, const llvm::Value *allocSite,
+                                 bool isLocal, bool isGlobal,
+                                 const llvm::Value *allocSite,
                                  size_t allocationAlignment) {
-  return nullptr;
+  /// Try to find existing solution
+  ref<Expr> optimizedSize = optimizer.optimizeExpr(toUnique(state, size), true);
+  ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(optimizedSize);
+
+  /// Constant solution exists. Just return it.
+  if (arrayConstantSize) {
+    return memory->allocate(arrayConstantSize->getZExtValue(), isLocal,
+                            isGlobal, allocSite, allocationAlignment);
+  }
+
+  // TODO: hardcoded constant? This should prevent overflows.
+  ref<Expr> upperBoundSizeConstraint =
+      UleExpr::create(size, Expr::createPointer(128));
+  addConstraint(state, upperBoundSizeConstraint);
+
+  solver->setTimeout(coreSolverTimeout);
+  bool success = solver->getMinimalUnsignedValue(
+      state.constraints, size, arrayConstantSize, state.queryMetaData);
+  solver->setTimeout(time::Span());
+
+  if (!success) {
+    return 0;
+  }
+
+  Expr::Width pointerWidth = Context::get().getPointerWidth();
+  const Array *addressArray =
+      makeArray(state, Expr::createPointer(pointerWidth / CHAR_BIT),
+                std::string("symAddress"), sourceBuilder.symbolicAddress());
+  ref<Expr> addressExpr = Expr::createTempRead(addressArray, pointerWidth);
+
+  const Array *sizeArray =
+      makeArray(state, Expr::createPointer(pointerWidth / CHAR_BIT),
+                std::string("symSize"), sourceBuilder.symbolicSize());
+  ref<Expr> sizeExpr = Expr::createTempRead(sizeArray, pointerWidth);
+
+  addressArray->addDependence(sizeArray);
+  sizeArray->addDependence(addressArray);
+
+  MemoryObject *mo = memory->allocate(
+      std::max(arrayConstantSize->getZExtValue(), static_cast<size_t>(1)),
+      isLocal, isGlobal, allocSite, allocationAlignment, addressExpr, sizeExpr);
+
+  ref<Expr> sizeEqualityExpr = EqExpr::create(size, sizeExpr);
+  Assignment sizeSymcreteAssignment(true);
+
+  char *charSizeIterator = reinterpret_cast<char *>(&mo->size);
+  sizeSymcreteAssignment.bindings[sizeArray] = std::vector<uint8_t>(
+      charSizeIterator, charSizeIterator + sizeof(mo->size));
+
+  char *charAddressIterator = reinterpret_cast<char *>(&mo->address);
+  sizeSymcreteAssignment.bindings[addressArray] = std::vector<uint8_t>(
+      charAddressIterator, charAddressIterator + sizeof(mo->address));
+
+  cm->add(Query(state.constraints, sizeEqualityExpr), sizeSymcreteAssignment);
+  return mo;
 }
 
 void Executor::executeMemoryOperation(ExecutionState &state,
@@ -4498,6 +4467,8 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
   MemoryObject *mo = memory->allocate(
       size, false, /*isGlobal=*/false, allocSite,
       /*allocationAlignment=*/8, addressExpr, Expr::createPointer(size), address, timestamp);
+  state.symbolicArrayToObjectsBindings.emplace(addressArray, mo->id);  
+  // FIXME: bind size
 
   // Check if address is suitable for LI object.
   ref<Expr> checkAddressForLazyInitializationExpr = EqExpr::create(
@@ -4568,6 +4539,8 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
   // Create a new object state for the memory object (instead of a copy).
   if (!replayKTest) {
     const Array *array = makeArray(state, mo->getSizeExpr(), name, source);
+    state.symbolicArrayToObjectsBindings.emplace(array, mo->id);
+
     bindObjectInState(state, mo, false, array);
     state.addSymbolic(mo, array);
     

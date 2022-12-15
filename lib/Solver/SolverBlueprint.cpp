@@ -96,6 +96,14 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
       return true;
     }
 
+    for (unsigned idx = 0, initialSize = currentlyBrokenSymcreteArrays.size();
+         idx < initialSize; ++idx) {
+      for (const Array *dependent :
+           currentlyBrokenSymcreteArrays[idx]->getInderectlyDependentArrays()) {
+        currentlyBrokenSymcreteArrays.push_back(dependent);
+      }
+    }
+
     for (const Array *brokenArray : currentlyBrokenSymcreteArrays) {
       if (!assignment.bindings.count(brokenArray)) {
         continue;
@@ -129,7 +137,7 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
   queryConstraints.push_back(query.negateExpr().expr);
 
   ref<ConstantExpr> minimalValueOfSum;
-  if (!solver->impl->computeMinimalValue(Query(queryConstraints, sizesSumToMinimize), minimalValueOfSum)) {
+  if (!solver->impl->computeMinimalUnsignedValue(Query(queryConstraints, sizesSumToMinimize), minimalValueOfSum)) {
     return false;
   }
 

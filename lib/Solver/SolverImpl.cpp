@@ -54,22 +54,35 @@ bool SolverImpl::computeValidityCore(const Query &query,
   return false;
 }
 
-bool SolverImpl::computeMinimalValue(const Query &query,
-                                     ref<ConstantExpr> &result) {
+bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
+                                             ref<ConstantExpr> &result) {
+  bool mustBeTrue;
+
+  // Fast path check
+  if (!computeTruth(
+          query.withExpr(EqExpr::createIsZero(query.expr)).negateExpr(),
+          mustBeTrue)) {
+    return false;
+  }
+
+  if (!mustBeTrue) {
+    result = ConstantExpr::create(query.expr->getWidth(), 0);
+    return true;
+  }
+
   // At least one value must satisfy constraints
-  ref<ConstantExpr> left = ConstantExpr::create(-1, 64);
+  ref<ConstantExpr> left = ConstantExpr::create(0, 64);
   ref<ConstantExpr> right = ConstantExpr::create(0, 64);
 
   // Compute the right border
-  bool mustBeTrue = false;
-  while (!mustBeTrue) {
+  do {
     right = ConstantExpr::create(
         std::max((uint64_t)1, 2 * right->getZExtValue()), 64);
     if (!computeTruth(query.withExpr(SleExpr::create(query.expr, right)),
                       mustBeTrue)) {
       return false;
     }
-  }
+  } while (!mustBeTrue);
 
   // Binary search the least value for expr from the given query
   while (left->getZExtValue() + 1 < right->getZExtValue()) {

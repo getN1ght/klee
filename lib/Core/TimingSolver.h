@@ -71,6 +71,10 @@ public:
   bool getValue(const ConstraintSet &, ref<Expr> expr,
                 ref<ConstantExpr> &result, SolverQueryMetaData &metaData);
 
+  bool getMinimalUnsignedValue(const ConstraintSet &, ref<Expr> expr,
+                               ref<ConstantExpr> &result,
+                               SolverQueryMetaData &metaData);
+
   bool getInitialValues(const ConstraintSet &,
                         const std::vector<const Array *> &objects,
                         std::vector<std::vector<unsigned char>> &result,

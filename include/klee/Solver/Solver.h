@@ -359,6 +359,14 @@ namespace klee {
     /// \return True on success.
     bool getValue(const Query&, ref<ConstantExpr> &result);
 
+    /// getValue - Compute the minimal possible non-negative value for the given expression.
+    ///
+    /// \param [out] result - On success, a value for the expression in some
+    /// satisfying assignment.
+    ///
+    /// \return True on success.
+    bool getMinimalUnsignedValue(const Query&, ref<ConstantExpr> &result);
+
     /// getInitialValues - Compute the initial values for a list of objects.
     ///
     /// \param [out] result - On success, this vector will be filled in with an

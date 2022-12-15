@@ -96,6 +96,17 @@ bool Solver::getValue(const Query& query, ref<ConstantExpr> &result) {
   return true;
 }
 
+bool Solver::getMinimalUnsignedValue(const Query &query,
+                                         ref<ConstantExpr> &result) {
+  // Maintain invariants implementation expect.
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(query.expr)) {
+    result = CE;
+    return true;
+  }
+
+  return impl->computeMinimalUnsignedValue(query, result);
+}
+
 bool Solver::evaluate(const Query &query, ref<SolverResponse> &queryResult,
                       ref<SolverResponse> &negateQueryResult) {
   assert(query.expr->getWidth() == Expr::Bool && "Invalid expression type!");

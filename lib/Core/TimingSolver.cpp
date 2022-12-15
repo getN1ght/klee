@@ -116,6 +116,29 @@ bool TimingSolver::getValue(const ConstraintSet &constraints, ref<Expr> expr,
   return success;
 }
 
+bool TimingSolver::getMinimalUnsignedValue(const ConstraintSet &constraints,
+                                           ref<Expr> expr,
+                                           ref<ConstantExpr> &result,
+                                           SolverQueryMetaData &metaData) {
+  // Fast path, to avoid timer and OS overhead.
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(expr)) {
+    result = CE;
+    return true;
+  }
+
+  TimerStatIncrementer timer(stats::solverTime);
+
+  if (simplifyExprs)
+    expr = ConstraintManager::simplifyExpr(constraints, expr);
+
+  bool success =
+      solver->getMinimalUnsignedValue(Query(constraints, expr), result);
+
+  metaData.queryCost += timer.delta();
+
+  return success;
+}
+
 bool TimingSolver::getInitialValues(
     const ConstraintSet &constraints, const std::vector<const Array *> &objects,
     std::vector<std::vector<unsigned char>> &result,

@@ -53,7 +53,7 @@ private:
   mutable class ReferenceCounter _refCount;
 
 public:
-  const IDType id;
+  IDType id;
   unsigned timestamp;
 
   // address in physical memory
@@ -259,6 +259,8 @@ public:
   ~ObjectState();
 
   const MemoryObject *getObject() const { return object.get(); }
+
+  const Array *getArray() const { return updates.root; }
 
   void setReadOnly(bool ro) { readOnly = ro; }
 
