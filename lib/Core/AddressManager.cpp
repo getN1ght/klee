@@ -19,10 +19,10 @@ void *AddressManager::allocate(const Array *array, uint64_t size) {
     uint64_t newSize =
         1 << (sizeof(size) - __builtin_clz(std::max((uint64_t)1, size)));
     MemoryObject *mo = std::prev(objects.end())->second;
-    newMO = memory->allocate(newSize, mo->isLocal, mo->isGlobal, mo->allocSite,
-                             /*FIXME:*/ 8, mo->addressExpr, mo->sizeExpr,
-                             mo->lazyInitializationSource, mo->timestamp);
-    newMO->id = mo->id;
+    newMO =
+        memory->allocate(newSize, mo->isLocal, mo->isGlobal, mo->allocSite,
+                         /*FIXME:*/ 8, mo->addressExpr, mo->sizeExpr,
+                         mo->lazyInitializationSource, mo->timestamp, mo->id);
   } else {
     newMO = sizeLocation->second;
   }

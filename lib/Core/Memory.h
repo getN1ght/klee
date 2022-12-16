@@ -11,6 +11,7 @@
 #define KLEE_MEMORY_H
 
 #include "Context.h"
+#include "MemoryManager.h"
 #include "TimingSolver.h"
 
 #include "klee/Expr/Assignment.h"
@@ -31,10 +32,8 @@ namespace klee {
 class ArrayCache;
 class BitArray;
 class ExecutionState;
-class MemoryManager;
 class Solver;
 
-typedef uint64_t IDType;
 
 class MemoryObject {
   friend class STPBuilder;

@@ -227,7 +227,7 @@ public:
   std::vector<Symbolic> symbolics;
 
   /// @brief map from memory accesses to accessed objects and access offsets.
-  ExprHashMap<std::pair<const MemoryObject *, ref<Expr>>> resolvedPointers;
+  ExprHashMap<std::pair<IDType, ref<Expr>>> resolvedPointers;
 
   /// @brief A set of boolean expressions
   /// the user has requested be true of a counterexample.

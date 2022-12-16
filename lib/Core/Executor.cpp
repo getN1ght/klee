@@ -482,18 +482,19 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
     cmSolver = cm;
   }
 
+  memory = new MemoryManager(&arrayCache, &sourceBuilder);
+  addressManager = new AddressManager(memory);
+
   Solver *solver = constructSolverChain(
       coreSolver,
       interpreterHandler->getOutputFilename(ALL_QUERIES_SMT2_FILE_NAME),
       interpreterHandler->getOutputFilename(SOLVER_QUERIES_SMT2_FILE_NAME),
       interpreterHandler->getOutputFilename(ALL_QUERIES_KQUERY_FILE_NAME),
       interpreterHandler->getOutputFilename(SOLVER_QUERIES_KQUERY_FILE_NAME),
-      cmSolver);
+      cmSolver, addressManager);
 
   this->solver = new TimingSolver(solver, EqualitySubstitution);
 
-  memory = new MemoryManager(&arrayCache, &sourceBuilder);
-  addressManager = new AddressManager(memory);
 
   initializeSearchOptions();
 
@@ -702,7 +703,7 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
       // We allocate an object to represent each function,
       // its address can be used for function pointers.
       // TODO: Check whether the object is accessed?
-      auto mo = memory->allocate(8, false, true, &f, 8);
+      auto mo = allocate(state, Expr::createPointer(8), false, true, &f, 8);
       addr = Expr::createPointer(mo->address);
       legalFunctions.emplace(mo->address, &f);
     }
@@ -1573,8 +1574,8 @@ MemoryObject *Executor::serializeLandingpad(ExecutionState &state,
     }
   }
 
-  MemoryObject *mo =
-      memory->allocate(serialized.size(), true, false, nullptr, 1);
+  MemoryObject *mo = allocate(state, Expr::createPointer(serialized.size()),
+                              true, false, nullptr, 1);
   ObjectState *os = bindObjectInState(state, mo, false);
   for (unsigned i = 0; i < serialized.size(); i++) {
     os->write8(i, serialized[i]);
@@ -4213,13 +4214,16 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
 
   char *charSizeIterator = reinterpret_cast<char *>(&mo->size);
   sizeSymcreteAssignment.bindings[sizeArray] = std::vector<uint8_t>(
-      charSizeIterator, charSizeIterator + sizeof(mo->size));
+      charSizeIterator,
+      charSizeIterator + Context::get().getPointerWidth() / CHAR_BIT);
 
   char *charAddressIterator = reinterpret_cast<char *>(&mo->address);
   sizeSymcreteAssignment.bindings[addressArray] = std::vector<uint8_t>(
-      charAddressIterator, charAddressIterator + sizeof(mo->address));
+      charAddressIterator,
+      charAddressIterator + Context::get().getPointerWidth() / CHAR_BIT);
 
   cm->add(Query(state.constraints, sizeEqualityExpr), sizeSymcreteAssignment);
+  addressManager->addAllocation(addressArray, mo->id);
   addConstraint(state, sizeEqualityExpr);
   return mo;
 }
@@ -4253,7 +4257,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   if (state.resolvedPointers.count(address)) {
     success = true;
-    const MemoryObject* mo = state.resolvedPointers[address].first;
+    const MemoryObject *mo =
+        state.addressSpace.findObject(state.resolvedPointers[address].first)
+            .first;
     idFastResult = mo->id;
   } else {
     solver->setTimeout(coreSolverTimeout);
@@ -4329,6 +4335,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   ref<Expr> checkOutOfBounds = ConstantExpr::create(1, Expr::Bool);
   
   std::vector<ref<Expr>> resolveConditions;
+  std::vector<IDType> resolvedMemoryObjects;
 
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = state.addressSpace.findObject(*i).first;
@@ -4352,6 +4359,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
     if (mayBeInBounds) {
       resolveConditions.push_back(inBounds);
+      resolvedMemoryObjects.push_back(mo->id);
     }
     checkOutOfBounds =
         AndExpr::create(NotExpr::create(inBounds), checkOutOfBounds);
@@ -4362,10 +4370,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   std::vector<ExecutionState *> statesForMemoryOperation;
   branch(state, resolveConditions, statesForMemoryOperation, BranchType::MemOp);
-  
-  for (unsigned int i = 0; i < rl.size(); ++i) {
+
+  for (unsigned int i = 0; i < resolvedMemoryObjects.size(); ++i) {
     ExecutionState *bound = statesForMemoryOperation[i];
-    ObjectPair op = bound->addressSpace.findObject(rl[i]);
+    ObjectPair op = bound->addressSpace.findObject(resolvedMemoryObjects[i]);
     const MemoryObject *mo = op.first;
     const ObjectState *os = op.second;
 
@@ -4412,7 +4420,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
           "lazy_instantiation_size", sourceBuilder.makeSymbolic());
       ref<Expr> sizeExpr = Expr::createTempRead(lazyInstantiationSize,
                                                 Context::get().getPointerWidth());
-      addConstraint(state,
+      addConstraint(*unbound,
                     UgeExpr::create(sizeExpr, Expr::createPointer(size)));
 
       IDType idLazyInitialization =
@@ -4560,6 +4568,7 @@ void Executor::updateStateWithSymcretes(ExecutionState &state,
           oldArray ? new ObjectState(newMO, oldArray) : new ObjectState(newMO);
 
       // Order of operations critical here.
+      state.addressSpace.unbindObject(oldMO);
       state.addressSpace.bindObject(newMO, newOS);
 
       for (unsigned i = 0; i < oldMO->size; i++) {
@@ -4687,15 +4696,17 @@ void Executor::runFunctionAsMain(Function *f,
   unsigned NumPtrBytes = Context::get().getPointerWidth() / 8;
   KFunction *kf = kmodule->functionMap[f];
   assert(kf);
+  ExecutionState *state = new ExecutionState(kmodule->functionMap[f]);
+
   Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end();
   if (ai!=ae) {
     arguments.push_back(ConstantExpr::alloc(argc, Expr::Int32));
     if (++ai!=ae) {
       Instruction *first = &*(f->begin()->begin());
-      argvMO =
-          memory->allocate((argc + 1 + envc + 1 + 1) * NumPtrBytes,
-                           /*isLocal=*/false, /*isGlobal=*/true,
-                           /*allocSite=*/first, /*alignment=*/8);
+      argvMO = allocate(
+          *state, Expr::createPointer((argc + 1 + envc + 1 + 1) * NumPtrBytes),
+          /*isLocal=*/false, /*isGlobal=*/true,
+          /*allocSite=*/first, /*alignment=*/8);
 
       if (!argvMO)
         klee_error("Could not allocate memory for function arguments");
@@ -4711,8 +4722,6 @@ void Executor::runFunctionAsMain(Function *f,
       }
     }
   }
-
-  ExecutionState *state = new ExecutionState(kmodule->functionMap[f]);
 
   assert(arguments.size() == f->arg_size() && "wrong number of arguments");
   for (unsigned i = 0, e = f->arg_size(); i != e; ++i)
@@ -4730,8 +4739,9 @@ void Executor::runFunctionAsMain(Function *f,
         int j, len = strlen(s);
 
         MemoryObject *arg =
-            memory->allocate(len + 1, /*isLocal=*/false, /*isGlobal=*/true,
-                             /*allocSite=*/state->pc->inst, /*alignment=*/8);
+            allocate(*state, Expr::createPointer(len + 1), /*isLocal=*/false,
+                     /*isGlobal=*/true,
+                     /*allocSite=*/state->pc->inst, /*alignment=*/8);
         if (!arg)
           klee_error("Could not allocate memory for function arguments");
         ObjectState *os = bindObjectInState(*state, arg, false);

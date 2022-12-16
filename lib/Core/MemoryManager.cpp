@@ -106,7 +106,8 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
                                       ref<Expr> addressExpr,
                                       ref<Expr> sizeExpr,
                                       ref<Expr> lazyInitializationSource,
-                                      unsigned timestamp) {
+                                      unsigned timestamp,
+                                      IDType id) {
   if (size > 10 * 1024 * 1024)
     klee_warning_once(0, "Large alloc: %" PRIu64
                          " bytes.  KLEE may run out of memory.",
@@ -156,6 +157,11 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
   MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
                                        allocSite, this, addressExpr, sizeExpr,
                                        lazyInitializationSource, timestamp);
+  if (id) {
+    res->id = id;
+  }
+  allocatedSizes[res->id][size] = res;
+
   objects.insert(res);
   return res;
 }

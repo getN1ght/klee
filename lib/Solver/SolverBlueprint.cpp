@@ -186,7 +186,6 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
     }
   }
 
-  ValidityCore validityCore;
   if (!solver->impl->computeValidityCore(
           constructConcretizedQuery(query, assignment), validityCore,
           canBeRelaxed)) {

@@ -27,6 +27,8 @@ namespace klee {
 class MemoryObject;
 class ArrayCache;
 
+typedef uint64_t IDType;
+
 class MemoryManager {
 private:
   typedef std::set<MemoryObject *> objects_ty;
@@ -53,7 +55,7 @@ public:
                          ref<Expr> addressExpr = ref<Expr>(),
                          ref<Expr> sizeExpr = ref<Expr>(),
                          ref<Expr> lazyInitializationSource = ref<Expr>(),
-                         unsigned timestamp = 0);
+                         unsigned timestamp = 0, IDType id = 0);
   MemoryObject *allocateFixed(uint64_t address, uint64_t size,
                               const llvm::Value *allocSite);
   void deallocate(const MemoryObject *mo);

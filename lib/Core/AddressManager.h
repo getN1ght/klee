@@ -1,15 +1,18 @@
+#ifndef _ADDRESS_MANAGER_H
+#define _ADDRESS_MANAGER_H
+
 #include "Memory.h"
 
 #include "klee/Solver/AddressGenerator.h"
 
-#include <unordered_map>
 #include <map>
+#include <unordered_map>
 
 namespace klee {
 class MemoryManager;
 class Array;
 
-class AddressManager : AddressGenerator {
+class AddressManager : public AddressGenerator {
 private:
   MemoryManager *memory;
   std::unordered_map<const Array *, IDType> bindingsArraysToObjects;
@@ -22,3 +25,5 @@ public:
 };
 
 } // namespace klee
+
+#endif

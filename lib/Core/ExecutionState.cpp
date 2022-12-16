@@ -218,7 +218,7 @@ bool ExecutionState::getBase(ref<Expr> expr,
 void ExecutionState::removePointerResolutions(const MemoryObject *mo) {
   for (auto i = resolvedPointers.begin(), last = resolvedPointers.end();
        i != last;) {
-    if (i->second.first == mo) {
+    if (i->second.first == mo->id) {
       i = resolvedPointers.erase(i);
     } else {
       ++i;
@@ -230,10 +230,10 @@ void ExecutionState::removePointerResolutions(const MemoryObject *mo) {
 void ExecutionState::addPointerResolution(ref<Expr> address, ref<Expr> base,
                                           const MemoryObject *mo) {
   if (!isa<ConstantExpr>(address)) {
-    resolvedPointers[address] = std::make_pair(mo, mo->getOffsetExpr(address));
+    resolvedPointers[address] = std::make_pair(mo->id, mo->getOffsetExpr(address));
   }
   if (base != address && !isa<ConstantExpr>(base)) {
-    resolvedPointers[base] = std::make_pair(mo, mo->getOffsetExpr(base));
+    resolvedPointers[base] = std::make_pair(mo->id, mo->getOffsetExpr(base));
   }
 }
 
