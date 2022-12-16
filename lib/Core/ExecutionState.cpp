@@ -458,55 +458,6 @@ void ExecutionState::addCexPreference(const ref<Expr> &cond) {
   cexPreferences = cexPreferences.insert(cond);
 }
 
-void ExecutionState::update(const Assignment &assign) {
-  // Try to update memory objects in this state with the bindings
-  // from recevied assign.
-
-  // We want to update only objects, whose size were changed.
-  for (const auto &bind : assign.bindings) {
-    ObjectPair op =
-        addressSpace.findObject(symbolicArrayToObjectsBindings.at(bind.first));
-    const MemoryObject *mo = op.first;
-    const ObjectState *os = op.second;
-
-    ref<ConstantExpr> arrayConstantSize =
-        dyn_cast<ConstantExpr>(assign.evaluate(mo->getSizeExpr()));
-    assert(arrayConstantSize &&
-           "Size of symbolic array should be concrete during state update");
-
-    // Update constant size if required: we do not want to call
-    // `realloc` each time resize happen, so doubling
-    // size if required should be enough.
-    uint64_t oldSize = mo->size;
-    if (arrayConstantSize->getZExtValue() <= oldSize) {
-      continue;
-    }
-
-    uint64_t newSize = std::max(2 * static_cast<uint64_t>(oldSize),
-                                arrayConstantSize->getZExtValue());
-
-    // Here we chould create full copy of object even including ID.
-    MemoryObject *newMO = mo->parent->allocate(
-        newSize, mo->isLocal, mo->isGlobal, mo->allocSite,
-        /* FIXME: allocation alignment should be saved in MO */ 8,
-        mo->addressExpr, mo->sizeExpr, mo->lazyInitializationSource,
-        mo->timestamp);
-    newMO->id = mo->id;
-
-    const Array *oldArray = os->getArray();
-    ObjectState *newOS =
-        oldArray ? new ObjectState(newMO, oldArray) : new ObjectState(newMO);
-
-    // Order of operations critical here.
-    addressSpace.unbindObject(mo);
-    addressSpace.bindObject(newMO, newOS);
-
-    for (unsigned i = 0; i < oldSize; i++) {
-      newOS->write(i, os->read8(i));
-    }
-  }
-}
-
 BasicBlock *ExecutionState::getInitPCBlock() const {
   return initPC->inst->getParent();
 }

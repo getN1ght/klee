@@ -60,7 +60,8 @@ namespace llvm {
   class Value;
 }
 
-namespace klee {  
+namespace klee {
+  class AddressManager;  
   class Array;
   struct Cell;
   class CodeGraphDistance;
@@ -81,7 +82,7 @@ namespace klee {
   class SeedInfo;
   class SpecialFunctionHandler;
   struct StackFrame;
-  class SymbolicSource;
+  class ArraySource;
   class TargetCalculator;
   class StatsTracker;
   class TimingSolver;
@@ -117,6 +118,7 @@ private:
 
   ExternalDispatcher *externalDispatcher;
   TimingSolver *solver;
+  AddressManager *addressManager;
   MemoryManager *memory;
   std::set<ExecutionState*, ExecutionStateIDCompare> states;
   std::set<ExecutionState *, ExecutionStateIDCompare> pausedStates;
@@ -339,8 +341,10 @@ private:
   IDType lazyInitializeObject(ExecutionState &state, ref<Expr> address,
                               KInstruction *target, ref<Expr> size);
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
-                           const std::string &name,
-                           const SymbolicSource *source, bool isLocal);
+                           const std::string &name, ref<ArraySource> source,
+                           bool isLocal);
+  void updateStateWithSymcretes(ExecutionState &state,
+                                const Assignment &assignment);
 
   /// Create a new state where each input condition has been added as
   /// a constraint and return the results. The input state is included
@@ -365,7 +369,7 @@ private:
   /// validity checks, and seed patching.
   /// @return true if constraint was successfully added, and false if state
   /// were terminated and constraint was not added.
-  bool addConstraint(ExecutionState &state, ref<Expr> condition);
+  void addConstraint(ExecutionState &state, ref<Expr> condition);
 
   // Called on [for now] concrete reads, replaces constant with a symbolic
   // Used for testing.
@@ -478,7 +482,7 @@ private:
   void bindModuleConstants();
 
   const Array *makeArray(ExecutionState &state, ref<Expr> size,
-                         const std::string &name, const SymbolicSource *source);
+                         const std::string &name, ref<ArraySource> source);
 
   template <typename SqType, typename TypeIt>
   void computeOffsetsSeqTy(KGEPInstruction *kgepi,

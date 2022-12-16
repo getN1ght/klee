@@ -1,5 +1,7 @@
 #include "klee/Expr/ArrayCache.h"
 
+#include "klee/Expr/SymbolicSource.h"
+
 namespace klee {
 
 ArrayCache::~ArrayCache() {
@@ -18,7 +20,7 @@ ArrayCache::~ArrayCache() {
 
 const Array *
 ArrayCache::CreateArray(const std::string &_name, ref<Expr> _size,
-                        const SymbolicSource *_source,
+                        ref<ArraySource> _source,
                         const ref<ConstantExpr> *constantValuesBegin,
                         const ref<ConstantExpr> *constantValuesEnd,
                         Expr::Width _domain, Expr::Width _range) {

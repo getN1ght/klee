@@ -226,9 +226,6 @@ public:
   // FIXME: Move to a shared list structure (not critical).
   std::vector<Symbolic> symbolics;
 
-  /// @brief Map from arrays to memory objects that own those arrays. 
-  std::unordered_map<const Array *, IDType> symbolicArrayToObjectsBindings;
-
   /// @brief map from memory accesses to accessed objects and access offsets.
   ExprHashMap<std::pair<const MemoryObject *, ref<Expr>>> resolvedPointers;
 
@@ -309,8 +306,6 @@ public:
 
   void addConstraint(ref<Expr> e);
   void addCexPreference(const ref<Expr> &cond);
-
-  void update(const Assignment &assign);
 
   bool merge(const ExecutionState &b);
   void dumpStack(llvm::raw_ostream &out) const;

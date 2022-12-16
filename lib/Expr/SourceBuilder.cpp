@@ -1,33 +1,26 @@
 #include "klee/Expr/SourceBuilder.h"
+
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Expr/Expr.h"
 
 using namespace klee;
 
-SourceBuilder::SourceBuilder() {
-  constantSource = ref<SymbolicSource>(new ConstantSource());
-  makeSymbolicSource = ref<SymbolicSource>(new MakeSymbolicSource());
-  symbolicAddressSource = ref<SymbolicSource>(new SymbolicAddressSource());
-  symbolicSizeSource = ref<SymbolicSource>(new SymbolicSizeSource());
-  lazyInitializationSymbolicSource = ref<SymbolicSource>(new LazyInitializationSymbolicSource());
+ref<ArraySource> SourceBuilder::constant() const{
+  return new ConstantSource();
 }
 
-SymbolicSource *SourceBuilder::constant() const{
-  return constantSource.get();
+ref<ArraySource> SourceBuilder::makeSymbolic() const{
+  return new MakeSymbolicSource();
 }
 
-SymbolicSource *SourceBuilder::makeSymbolic() const{
-  return makeSymbolicSource.get();
+ref<ArraySource> SourceBuilder::symbolicAddress() const {
+  return new SymbolicAddressSource();
 }
 
-SymbolicSource *SourceBuilder::symbolicAddress() const {
-  return symbolicAddressSource.get();
+ref<ArraySource> SourceBuilder::symbolicSize() const {
+  return new SymbolicSizeSource();
 }
 
-SymbolicSource *SourceBuilder::symbolicSize() const {
-  return symbolicSizeSource.get();
-}
-
-SymbolicSource *SourceBuilder::lazyInitializationMakeSymbolic() const {
-  return lazyInitializationSymbolicSource.get();
+ref<ArraySource> SourceBuilder::lazyInitializationMakeSymbolic() const {
+  return new LazyInitializationSymbolicSource();
 }

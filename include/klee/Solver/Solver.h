@@ -21,6 +21,7 @@ namespace klee {
   class ConstraintSet;
   class Expr;
   class SolverImpl;
+  class AddressGenerator;
 
   /// Collection of meta data that a solver can have access to. This is
   /// independent of the actual constraints but can be used as a two-way
@@ -472,7 +473,8 @@ namespace klee {
   // Create a solver based on the supplied ``CoreSolverType``.
   Solver *createCoreSolver(CoreSolverType cst);
 
-  Solver *createSolverBlueprint(Solver *s, ConcretizationManager *cm);
+  Solver *createSolverBlueprint(Solver *s, ConcretizationManager *cm,
+                                AddressGenerator *ag);
 }
 
 #endif /* KLEE_SOLVER_H */

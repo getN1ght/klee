@@ -9,6 +9,7 @@
 
 #include "Executor.h"
 
+#include "AddressManager.h"
 #include "Context.h"
 #include "CoreStats.h"
 #include "ExecutionState.h"
@@ -492,6 +493,7 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
   this->solver = new TimingSolver(solver, EqualitySubstitution);
 
   memory = new MemoryManager(&arrayCache, &sourceBuilder);
+  addressManager = new AddressManager(memory);
 
   initializeSearchOptions();
 
@@ -1224,7 +1226,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   }
 }
 
-bool Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
+void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(condition)) {
     if (!CE->isTrue())
       llvm::report_fatal_error("attempt to add invalid constraint");
@@ -1244,10 +1246,8 @@ bool Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
                                          siit->assignment.evaluate(condition),
                                          res, state.queryMetaData);
       solver->setTimeout(time::Span());
-      if (!success) {
-        terminateStateOnSolverError(state, "Query timed out (addConstraint).");
-        return false;
-      }
+      assert(success && "FIXME: Unhandled solver failure");
+      (void) success;
 
       if (res) {
         siit->patchSeed(state, condition, solver);
@@ -1270,49 +1270,11 @@ bool Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
       diffAssignment.bindings.insert(it);
     }
   }
-  state.update(diffAssignment);
-
-  Assignment resultingAssignment(true);
-  for (auto it : diffAssignment.bindings) {
-    for (const Array *dependent : it.first->getInderectlyDependentArrays()) {
-      if (dependent->source == sourceBuilder.symbolicAddress()) {
-        IDType idMemoryObject = state.symbolicArrayToObjectsBindings[dependent];
-        const MemoryObject *mo =
-            state.addressSpace.findObject(idMemoryObject).first;
-        const uint8_t *charAddressIterator =
-            reinterpret_cast<const uint8_t *>(&mo->address);
-        resultingAssignment.bindings[dependent] = std::vector<uint8_t>(
-            charAddressIterator, charAddressIterator + sizeof(mo->address));
-      }
-    }
-  }
-
-  // Check if constraints are satisfiable. If not, then
-  // terminate the state.
-  cm->add(state.constraints, {}, resultingAssignment);
-  
-  bool isValid = false;
-  ValidityCore validityCore;
-  solver->setTimeout(coreSolverTimeout);
-  bool success = solver->getValidityCore(
-      state.constraints, ConstantExpr::create(0, Expr::Bool), validityCore,
-      isValid, state.queryMetaData);
-  solver->setTimeout(time::Span());
-
-  if (!success) {
-    terminateStateOnSolverError(state, "Query timed out (addConstraint).");
-    return false;
-  }
-
-  if (!isValid) {
-    terminateStateEarly(state, "", StateTerminationType::SilentExit);
-    return false;
-  }
+  updateStateWithSymcretes(state, diffAssignment);
 
   if (ivcEnabled)
     doImpliedValueConcretization(state, condition,
                                  ConstantExpr::alloc(1, Expr::Bool));
-  return true;
 }
 
 const Cell& Executor::eval(KInstruction *ki, unsigned index, 
@@ -4238,8 +4200,8 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
                 std::string("symSize"), sourceBuilder.symbolicSize());
   ref<Expr> sizeExpr = Expr::createTempRead(sizeArray, pointerWidth);
 
-  addressArray->addDependence(sizeArray);
-  sizeArray->addDependence(addressArray);
+  cast<SymbolicAllocationSource>(addressArray->source)->linkedArray = sizeArray;
+  cast<SymbolicAllocationSource>(sizeArray->source)->linkedArray = addressArray;
 
   MemoryObject *mo = memory->allocate(
       std::max(arrayConstantSize->getZExtValue(), static_cast<size_t>(1)),
@@ -4568,13 +4530,52 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
   return LazyInstantiatedObjectID;
 }
 
+void Executor::updateStateWithSymcretes(ExecutionState &state,
+                                        const Assignment &assignment) {
+  // Try to update memory objects in this state with the bindings
+  // from recevied assign.
+
+  // We want to update only objects, whose size were changed.
+  for (const auto &bind : assignment.bindings) {
+    if (ref<SymbolicSizeSource> allocSource =
+            dyn_cast_or_null<SymbolicSizeSource>(bind.first->source)) {
+      const Array *dependentAddressArray = allocSource->linkedArray;
+
+      uint64_t newSize =
+          cast<ConstantExpr>(assignment.evaluate(Expr::createTempRead(
+                                 bind.first, Context::get().getPointerWidth())))
+              ->getZExtValue();
+      MemoryObject *newMO =
+          addressManager->allocateMemoryObject(dependentAddressArray, newSize);
+
+      if (state.addressSpace.findObject(newMO).second) {
+        continue;
+      }
+
+      ObjectPair oldOp = state.addressSpace.findObject(newMO->id);
+      const MemoryObject *oldMO = oldOp.first;
+      const ObjectState *oldOS = oldOp.second;
+      const Array *oldArray = oldOS->getArray();
+      ObjectState *newOS =
+          oldArray ? new ObjectState(newMO, oldArray) : new ObjectState(newMO);
+
+      // Order of operations critical here.
+      state.addressSpace.bindObject(newMO, newOS);
+
+      for (unsigned i = 0; i < oldMO->size; i++) {
+        newOS->write(i, oldOS->read8(i));
+      }
+    }
+  }
+}
+
 const Array *Executor::makeArray(ExecutionState &state, ref<Expr> size,
                                  const std::string &name,
-                                 const SymbolicSource *source) {
+                                 ref<ArraySource> source) {
   static uint64_t id = 0;
   std::string uniqueName;
-  if (source->getKind() != SymbolicSource::Kind::Constant &&
-      source->getKind() != SymbolicSource::Kind::MakeSymbolic) {
+  if (source->getKind() != ArraySource::Kind::Constant &&
+      source->getKind() != ArraySource::Kind::MakeSymbolic) {
     uniqueName = source->getName() + "[" + name + "]";
     while (!state.arrayNames.insert(uniqueName).second) {
       uniqueName = source->getName() + "[" + name + llvm::utostr(++id) + "]";
@@ -4594,12 +4595,11 @@ const Array *Executor::makeArray(ExecutionState &state, ref<Expr> size,
 void Executor::executeMakeSymbolic(ExecutionState &state, 
                                    const MemoryObject *mo,
                                    const std::string &name,
-                                   const SymbolicSource *source,
+                                   ref<ArraySource> source,
                                    bool isLocal) {
   // Create a new object state for the memory object (instead of a copy).
   if (!replayKTest) {
     const Array *array = makeArray(state, mo->getSizeExpr(), name, source);
-    state.symbolicArrayToObjectsBindings.emplace(array, mo->id);
 
     bindObjectInState(state, mo, false, array);
     state.addSymbolic(mo, array);

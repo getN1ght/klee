@@ -36,7 +36,7 @@ class Array;
 class ArrayCache;
 class ConstantExpr;
 class ObjectState;
-class SymbolicSource;
+class ArraySource;
 
 template<class T> class ref;
 
@@ -493,7 +493,7 @@ public:
 
   /// This represents the reason why this array was created as well as some
   /// additional info.
-  const SymbolicSource *source;
+  ref<ArraySource> source;
 
   /// Domain is how many bits can be used to access the array [32 bits]
   /// Range is the size (in bits) of the number stored there (array of bytes -> 8)
@@ -523,21 +523,14 @@ private:
   /// not parse correctly since two arrays with the same name cannot be
   /// distinguished once printed.
   Array(const std::string &_name, ref<Expr> _size,
-        const SymbolicSource *source,
+        ref<ArraySource> source,
         const ref<ConstantExpr> *constantValuesBegin = 0,
         const ref<ConstantExpr> *constantValuesEnd = 0,
         Expr::Width _domain = Expr::Int32, Expr::Width _range = Expr::Int8);
 
-  /// List of all "dependent" arrays. E.g., for objects with symbolic size
-  /// arrays for address and size are dependent.
-  mutable std::vector<const Array *> indirectlyDependentArrays;
-
 public:
   bool isSymbolicArray() const { return constantValues.empty(); }
   bool isConstantArray() const { return !isSymbolicArray(); }
-
-  void addDependence(const Array *array) const;
-  const std::vector<const Array *> &getInderectlyDependentArrays() const;
 
   const std::string getName() const { return name; }
   ref<Expr> getSize() const { return size; }

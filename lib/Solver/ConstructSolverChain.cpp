@@ -19,13 +19,18 @@
 
 #include "llvm/Support/raw_ostream.h"
 
+#include <string>
 
 namespace klee {
+class ConcretizationManager;
+class AddressGenerator;
+
 Solver *constructSolverChain(Solver *coreSolver, std::string querySMT2LogPath,
                              std::string baseSolverQuerySMT2LogPath,
                              std::string queryKQueryLogPath,
                              std::string baseSolverQueryKQueryLogPath,
-                             ConcretizationManager *cm) {
+                             ConcretizationManager *cm,
+                             AddressGenerator *ag) {
   Solver *solver = coreSolver;
   const time::Span minQueryTimeToLog(MinQueryTimeToLog);
 
@@ -54,7 +59,7 @@ Solver *constructSolverChain(Solver *coreSolver, std::string querySMT2LogPath,
     solver = createCachingSolver(solver);
 
   if (cm)
-    solver = createSolverBlueprint(solver, cm);
+    solver = createSolverBlueprint(solver, cm, ag);
 
   if (UseIndependentSolver)
     solver = createIndependentSolver(solver);

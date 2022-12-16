@@ -4,11 +4,15 @@
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/IndependentSet.h"
 #include "klee/Expr/SymbolicSource.h"
+
+#include "klee/Solver/AddressGenerator.h"
 #include "klee/Solver/ConcretizationManager.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverImpl.h"
+
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/Casting.h"
+
 #include <algorithm>
 #include <vector>
 
@@ -18,10 +22,12 @@ class SolverBlueprint : public SolverImpl {
 private:
   Solver *solver;
   ConcretizationManager *cm;
+  AddressGenerator *ag;
 
 public:
-  SolverBlueprint(Solver *_solver, ConcretizationManager *_cm)
-      : solver(_solver), cm(_cm) {}
+  SolverBlueprint(Solver *_solver, ConcretizationManager *_cm,
+                  AddressGenerator *_ag)
+      : solver(_solver), cm(_cm), ag(_ag) {}
 
   ~SolverBlueprint() {
     delete solver;
@@ -100,9 +106,10 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
 
     for (unsigned idx = 0, initialSize = currentlyBrokenSymcreteArrays.size();
          idx < initialSize; ++idx) {
-      for (const Array *dependent :
-           currentlyBrokenSymcreteArrays[idx]->getInderectlyDependentArrays()) {
-        currentlyBrokenSymcreteArrays.push_back(dependent);
+      if (ref<SymbolicAllocationSource> allocSource =
+              dyn_cast_or_null<SymbolicAllocationSource>(
+                  currentlyBrokenSymcreteArrays[idx]->source)) {
+        currentlyBrokenSymcreteArrays.push_back(allocSource->linkedArray);
       }
     }
 
@@ -116,12 +123,11 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
         assignment.bindings.erase(brokenArray);
       }
 
-      // Add symbolic size to the sum that should be minimized.
-      
       // TODO: move `Context.h`
-      // TODO: link size with address
+      
+      // Add symbolic size to the sum that should be minimized.
       if (brokenArray->source->getKind() ==
-          SymbolicSource::Kind::SymbolicSize) {
+          ArraySource::Kind::SymbolicSize) {
         sizesSumToMinimize =
             AddExpr::create(sizesSumToMinimize,
                             Expr::createTempRead(brokenArray, /*FIXME:*/ 64));
@@ -133,7 +139,6 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
                                 currentlyBrokenSymcreteArrays.end());
   }
 
-  // TODO: Add constraints to bound sizes
   ConstraintSet queryConstraints =
       constructConcretizedQuery(query, assignment).constraints;
   queryConstraints.push_back(query.negateExpr().expr);
@@ -158,12 +163,37 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
 
   for (unsigned idx = 0; idx < brokenSymcreteArrays.size(); ++idx) {
     if (brokenSymcreteArrays[idx]->source->getKind() ==
-        SymbolicSource::Kind::SymbolicSize) {
+        ArraySource::Kind::SymbolicSize) {      
       assignment.bindings[brokenSymcreteArrays[idx]] =
           brokenSymcretesValues[idx];
+      // Receive address array linked with this size array to request address
+      // concretization.
+      if (ref<SymbolicAllocationSource> allocSource =
+              dyn_cast_or_null<SymbolicAllocationSource>(
+                  brokenSymcreteArrays[idx]->source)) {
+        const Array *dependentAddressArray = allocSource->linkedArray;
+
+        uint64_t newSize =
+            cast<ConstantExpr>(assignment.evaluate(Expr::createTempRead(
+                                   brokenSymcreteArrays[idx], 64)))
+                ->getZExtValue();
+
+        void *address = ag->allocate(dependentAddressArray, newSize);
+        char *charAddressIterator = reinterpret_cast<char *>(&address);
+        assignment.bindings[dependentAddressArray] = std::vector<uint8_t>(
+            charAddressIterator, charAddressIterator + sizeof(address));
+      }
     }
   }
 
+  ValidityCore validityCore;
+  if (!solver->impl->computeValidityCore(
+          constructConcretizedQuery(query, assignment), validityCore,
+          canBeRelaxed)) {
+    return false;
+  }
+
+  canBeRelaxed = !canBeRelaxed;
   return true;
 }
 
@@ -324,7 +354,7 @@ void SolverBlueprint::setCoreSolverTimeout(time::Span timeout) {
   solver->setCoreSolverTimeout(timeout);
 }
 
-Solver *createSolverBlueprint(Solver *s, ConcretizationManager *cm) {
-  return new Solver(new SolverBlueprint(s, cm));
+Solver *createSolverBlueprint(Solver *s, ConcretizationManager *cm, AddressGenerator *ag) {
+  return new Solver(new SolverBlueprint(s, cm, ag));
 }
 }

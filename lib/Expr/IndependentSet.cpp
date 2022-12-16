@@ -47,9 +47,9 @@ IndependentElementSet::IndependentElementSet(ref<Expr> e) {
       //   wholeObjects.insert(s->call->retval);
       // } else
 
-      for (const Array *dependentArray :
-           array->getInderectlyDependentArrays()) {
-        wholeObjects.insert(dependentArray);
+      if (ref<SymbolicAllocationSource> allocSource =
+              dyn_cast_or_null<SymbolicAllocationSource>(array->source)) {
+        wholeObjects.insert(allocSource->linkedArray);
       }
 
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(re->index)) {

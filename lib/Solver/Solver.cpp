@@ -302,7 +302,7 @@ void Query::dump() const {
 
 bool Query::containsSymcretes() const {
   for (const auto array: gatherArrays()) {
-    if (array->source->getKind() == SymbolicSource::Kind::SymbolicAddress) {
+    if (array->source->getKind() == ArraySource::Kind::SymbolicAddress) {
       return true;
     }
   }

@@ -14,8 +14,10 @@
 
 #include "klee/Expr/SourceBuilder.h"
 #include <cstddef>
-#include <set>
 #include <cstdint>
+#include <set>
+#include <unordered_map>
+
 
 namespace llvm {
 class Value;
@@ -29,6 +31,8 @@ class MemoryManager {
 private:
   typedef std::set<MemoryObject *> objects_ty;
   objects_ty objects;
+  std::unordered_map<IDType, std::map<uint64_t, MemoryObject *>> allocatedSizes; 
+
   ArrayCache *const arrayCache;
   SourceBuilder *const sourceBuilder;
 
@@ -55,8 +59,8 @@ public:
   void deallocate(const MemoryObject *mo);
   void markFreed(MemoryObject *mo);
   ArrayCache *getArrayCache() const { return arrayCache; }
+  const std::map<uint64_t, MemoryObject *> &getAllocatedObjects(IDType idObject);
   SourceBuilder *getSourceBuilder() const { return sourceBuilder; }
-
   /*
    * Returns the size used by deterministic allocation in bytes
    */

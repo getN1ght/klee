@@ -54,7 +54,7 @@ public:
   /// the array)
   /// \param _range The size of range (i.e. the bitvector that is indexed to)
   const Array *CreateArray(const std::string &_name, ref<Expr> _size,
-                           const SymbolicSource *source,
+                           ref<ArraySource> source,
                            const ref<ConstantExpr> *constantValuesBegin = 0,
                            const ref<ConstantExpr> *constantValuesEnd = 0,
                            Expr::Width _domain = Expr::Int32,

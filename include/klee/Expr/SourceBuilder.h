@@ -7,21 +7,12 @@
 namespace klee {
 
 class SourceBuilder {
-private:
-  ref<SymbolicSource> constantSource;
-  ref<SymbolicSource> makeSymbolicSource;
-  ref<SymbolicSource> symbolicAddressSource;
-  ref<SymbolicSource> symbolicSizeSource;
-  ref<SymbolicSource> lazyInitializationSymbolicSource;
-
 public:
-  SourceBuilder();
-
-  SymbolicSource *constant() const;
-  SymbolicSource *makeSymbolic() const;
-  SymbolicSource *symbolicAddress() const;
-  SymbolicSource *symbolicSize() const;
-  SymbolicSource *lazyInitializationMakeSymbolic() const;
+  ref<ArraySource> constant() const;
+  ref<ArraySource> makeSymbolic() const;
+  ref<ArraySource> symbolicAddress() const;
+  ref<ArraySource> symbolicSize() const;
+  ref<ArraySource> lazyInitializationMakeSymbolic() const;
 };
 
 };

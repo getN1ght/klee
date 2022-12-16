@@ -188,6 +188,11 @@ void MemoryManager::markFreed(MemoryObject *mo) {
   }
 }
 
+const std::map<uint64_t, MemoryObject *> &
+MemoryManager::getAllocatedObjects(IDType idObject) {
+  return allocatedSizes[idObject];
+}
+
 size_t MemoryManager::getUsedDeterministicSize() {
   return nextFreeSlot - deterministicSpace;
 }
