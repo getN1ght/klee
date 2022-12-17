@@ -4050,7 +4050,7 @@ ObjectState *Executor::bindObjectInState(ExecutionState &state,
   // matter because all we use this list for is to unbind the object
   // on function return.
   if (isLocal)
-    state.stack.back().allocas.push_back(mo);
+    state.stack.back().allocas.push_back(mo->id);
 
   return os;
 }
@@ -4533,9 +4533,7 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
   addConstraint(state, EqExpr::create(mo->addressExpr, address));
   executeMakeSymbolic(state, mo, name,
                       sourceBuilder.lazyInitializationMakeSymbolic(), false);
-  IDType LazyInstantiatedObjectID;
-  state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), LazyInstantiatedObjectID);
-  return LazyInstantiatedObjectID;
+  return mo->id;
 }
 
 void Executor::updateStateWithSymcretes(ExecutionState &state,
@@ -4563,6 +4561,9 @@ void Executor::updateStateWithSymcretes(ExecutionState &state,
       ObjectPair oldOp = state.addressSpace.findObject(newMO->id);
       const MemoryObject *oldMO = oldOp.first;
       const ObjectState *oldOS = oldOp.second;
+      if (!oldOS) {
+        continue;
+      }
       const Array *oldArray = oldOS->getArray();
       ObjectState *newOS =
           oldArray ? new ObjectState(newMO, oldArray) : new ObjectState(newMO);
@@ -4888,7 +4889,7 @@ void Executor::setInitializationGraph(const ExecutionState &state,
           pointerIndex = i;
           pointerFound = true;
         }
-        if (state.symbolics[i].first == pointer.second.first) {
+        if (state.symbolics[i].first->id == pointer.second.first) {
           pointeeIndex = i;
           pointeeFound = true;
         }

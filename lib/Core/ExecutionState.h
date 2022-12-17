@@ -50,7 +50,7 @@ struct StackFrame {
   KFunction *kf;
   CallPathNode *callPathNode;
 
-  std::vector<const MemoryObject *> allocas;
+  std::vector<IDType> allocas;
   Cell *locals;
 
   /// Minimum distance to an uncovered instruction once the function

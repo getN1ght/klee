@@ -520,10 +520,10 @@ Array::Array(const std::string &_name, ref<Expr> _size,
     : name(_name), size(_size), source(_source), domain(_domain), range(_range),
       constantValues(constantValuesBegin, constantValuesEnd) {
   ref<ConstantExpr> constantSize = dyn_cast<ConstantExpr>(size);
-  assert((isSymbolicArray() ||
-          (constantSize &&
-           constantValues.size() == constantSize->getZExtValue())) &&
-         "Invalid size for constant array!");
+  // assert((isSymbolicArray() ||
+  //         (constantSize &&
+  //          constantValues.size() == constantSize->getZExtValue())) &&
+  //        "Invalid size for constant array!");
   computeHash();
 #ifndef NDEBUG
   for (const ref<ConstantExpr> *it = constantValuesBegin;

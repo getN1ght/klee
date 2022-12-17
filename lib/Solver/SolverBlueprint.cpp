@@ -208,11 +208,10 @@ bool SolverBlueprint::computeValidity(const Query &query,
   auto concretizedQuery = constructConcretizedQuery(query, assign);
   ref<SolverResponse> trueResponse, falseResponse;
 
-  if (!solver->impl->computeValidity(concretizedQuery, trueResponse,
-                                      falseResponse)) {
+  if (!solver->impl->computeValidity(concretizedQuery.withValidityCore(),
+                                     trueResponse, falseResponse)) {
     return false;
   }
-
 
   Assignment trueResponseAssignment(true), falseResponseAssignment(true);
   

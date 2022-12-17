@@ -48,7 +48,6 @@ void AddressSpace::bindObject(const MemoryObject *mo, ObjectState *os) {
 }
 
 void AddressSpace::unbindObject(const MemoryObject *mo) {
-  idToObjects = idToObjects.remove(mo->id);
   objects = objects.remove(mo);
 }
 
@@ -58,8 +57,8 @@ ObjectPair AddressSpace::findObject(const MemoryObject *mo) const {
 }
 
 ObjectPair AddressSpace::findObject(IDType id) const {
-  const auto mo = idToObjects.lookup(id)->second;
-  return mo ? findObject(mo) : ObjectPair(nullptr, nullptr);
+  const auto res = idToObjects.lookup(id);
+  return res ? findObject(res->second) : ObjectPair(nullptr, nullptr);
 }
 
 ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
@@ -74,7 +73,6 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
   ref<ObjectState> newObjectState(new ObjectState(*os));
   newObjectState->copyOnWriteOwner = cowKey;
   objects = objects.replace(std::make_pair(mo, newObjectState));
-  idToObjects = idToObjects.replace(std::make_pair(mo->id, mo));
   return newObjectState.get();
 }
 
