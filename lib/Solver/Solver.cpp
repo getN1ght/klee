@@ -301,10 +301,24 @@ void Query::dump() const {
 }
 
 bool Query::containsSymcretes() const {
-  for (const auto array: gatherArrays()) {
-    if (array->source->getKind() == ArraySource::Kind::SymbolicAddress) {
+  for (const auto array : gatherArrays()) {
+    if (array->source->isSymcrete()) {
       return true;
     }
   }
   return false;
+}
+
+std::vector<const Array *> Query::gatherSymcreteArrays() const {
+  std::vector<const Array *> result;
+  for (const auto array : gatherArrays()) {
+    if (array->source->isSymcrete()) {
+      result.push_back(array);
+    }
+  }
+  return result;
+}
+
+void ValidityCore::dump() const {
+  Query(ConstraintSet(constraints), expr).dump();
 }

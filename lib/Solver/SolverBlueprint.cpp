@@ -85,7 +85,6 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
             validityCore, canBeRelaxed)) {
       return false;
     }
-
     // No unsat cores were found for the query, so we can try
     // to find new solution.
     if (!canBeRelaxed) {
@@ -95,7 +94,7 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
 
     std::vector<const Array *> currentlyBrokenSymcreteArrays =
         Query(ConstraintSet(validityCore.constraints), validityCore.expr)
-            .gatherArrays();
+            .gatherSymcreteArrays();
 
     // If we could relax constraints before, but constraints from
     // unsat core do not contain symcrete arrays, then relaxation is impossible.
@@ -213,10 +212,23 @@ bool SolverBlueprint::computeValidity(const Query &query,
     return false;
   }
 
+  std::vector<std::vector<uint8_t>> trueResponseValues, falseResponseValues;
+
+  std::vector<const Array *> objects = query.gatherSymcreteArrays();
+
+  bool trueInvalid =
+      trueResponse->getInitialValuesFor(objects, trueResponseValues);
+  bool falseInvalid =
+      falseResponse->getInitialValuesFor(objects, falseResponseValues);
+  assert(trueInvalid || falseInvalid);
+
   Assignment trueResponseAssignment(true), falseResponseAssignment(true);
-  
-  bool trueInvalid = trueResponse->getInitialValues(trueResponseAssignment.bindings);
-  bool falseInvalid = falseResponse->getInitialValues(falseResponseAssignment.bindings);
+  if (trueInvalid) {
+    trueResponseAssignment = Assignment(objects, trueResponseValues, true);
+  }
+  if (falseInvalid) {
+    falseResponseAssignment = Assignment(objects, falseResponseValues, true);
+  }
 
   // *No more than one* of trueResponse and falseResponse is possible,
   // i.e. `mustBeTrue` with values from `assign`.
@@ -225,25 +237,25 @@ bool SolverBlueprint::computeValidity(const Query &query,
   // appropriate for the remain branch.
 
   if (!trueInvalid) {
-    cm->add(query, trueResponseAssignment);
+    cm->add(query, falseResponseAssignment);
     bool canBeRelaxed = false;
-    if (!relaxSymcreteConstraints(query, falseResponseAssignment,
+    if (!relaxSymcreteConstraints(query, trueResponseAssignment,
                                   canBeRelaxed)) {
       return false;
     }
     if (canBeRelaxed) {
-      cm->add(query.negateExpr(), falseResponseAssignment);
+      cm->add(query.negateExpr(), trueResponseAssignment);
       falseInvalid = false;
     }
   } else {
-    cm->add(query.negateExpr(), falseResponseAssignment);
+    cm->add(query.negateExpr(), trueResponseAssignment);
     bool canBeRelaxed = false;
-    if (!relaxSymcreteConstraints(query.negateExpr(), trueResponseAssignment,
+    if (!relaxSymcreteConstraints(query.negateExpr(), falseResponseAssignment,
                                   canBeRelaxed)) {
       return false;
     }
     if (canBeRelaxed) {
-      cm->add(query, trueResponseAssignment);
+      cm->add(query, falseResponseAssignment);
       trueInvalid = false;
     }
   }

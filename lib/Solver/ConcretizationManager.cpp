@@ -65,6 +65,7 @@ void ConcretizationManager::add(const Query &q, const Assignment &assign) {
   std::vector<ref<Expr>> dependent;
   getIndependentConstraints(q, dependent);
   ConstraintSet newCS(dependent);
+  // q.dump();
   newCS.push_back(q.expr);
   add({}, newCS, assign);
 }

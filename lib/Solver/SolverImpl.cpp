@@ -78,17 +78,17 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
   do {
     right = ConstantExpr::create(
         std::max((uint64_t)1, 2 * right->getZExtValue()), 64);
-    if (!computeTruth(query.withExpr(SleExpr::create(query.expr, right)),
+    if (!computeTruth(query.withExpr(UgtExpr::create(query.expr, right)),
                       mustBeTrue)) {
       return false;
     }
-  } while (!mustBeTrue);
+  } while (mustBeTrue);
 
   // Binary search the least value for expr from the given query
   while (left->getZExtValue() + 1 < right->getZExtValue()) {
     ref<ConstantExpr> mid = ConstantExpr::create(
         (left->getZExtValue() + right->getZExtValue()) / 2, 64);
-    if (!computeTruth(query.withExpr(SgtExpr::create(query.expr, mid)),
+    if (!computeTruth(query.withExpr(UgtExpr::create(query.expr, mid)),
                       mustBeTrue)) {
       return false;
     }

@@ -1273,6 +1273,10 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
   }
   updateStateWithSymcretes(state, diffAssignment);
 
+  if (cm->get(state.constraints).bindings.empty()) {
+    cm->add({}, state.constraints, oldAssignment);
+  }
+
   if (ivcEnabled)
     doImpliedValueConcretization(state, condition,
                                  ConstantExpr::alloc(1, Expr::Bool));
@@ -4212,7 +4216,9 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   ref<Expr> sizeEqualityExpr = EqExpr::create(size, sizeExpr);
   Assignment sizeSymcreteAssignment(true);
 
-  char *charSizeIterator = reinterpret_cast<char *>(&mo->size);
+  uint64_t sizeMemoryObject = static_cast<uint64_t>(mo->size);
+  char *charSizeIterator =
+      reinterpret_cast<char *>(&sizeMemoryObject);
   sizeSymcreteAssignment.bindings[sizeArray] = std::vector<uint8_t>(
       charSizeIterator,
       charSizeIterator + Context::get().getPointerWidth() / CHAR_BIT);
@@ -4222,6 +4228,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
       charAddressIterator,
       charAddressIterator + Context::get().getPointerWidth() / CHAR_BIT);
 
+  state.symbolicSizes.push_back(sizeArray);
   cm->add(Query(state.constraints, sizeEqualityExpr), sizeSymcreteAssignment);
   addressManager->addAllocation(addressArray, mo->id);
   addConstraint(state, sizeEqualityExpr);
@@ -4340,11 +4347,15 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = state.addressSpace.findObject(*i).first;
     ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
-
+    ref<Expr> outOfBound = NotExpr::create(inBounds);
     if (state.isGEPExpr(address)) {
       inBounds = AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, 1));
       inBounds =
           AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, size));
+      outOfBound =
+          AndExpr::create(outOfBound, mo->getBoundsCheckPointer(base, 1));
+      outOfBound =
+          AndExpr::create(outOfBound, mo->getBoundsCheckPointer(base, size));
     }
 
     bool mayBeInBounds;
@@ -4362,7 +4373,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       resolvedMemoryObjects.push_back(mo->id);
     }
     checkOutOfBounds =
-        AndExpr::create(NotExpr::create(inBounds), checkOutOfBounds);
+        AndExpr::create(outOfBound, checkOutOfBounds);
   }
 
   // Fictive condition just to keep state for unbound case.
@@ -4406,12 +4417,17 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   // XXX should we distinguish out of bounds and overlapped cases?
   if (unbound) {
     Assignment symcreteSolution = cm->get(unbound->constraints);
-    
+    ConstraintSet concreteConstraints = symcreteSolution.createConstraintsFromAssignment();
+    ConstraintManager cm(concreteConstraints);
+    for (ref<Expr> constraint : unbound->constraints) {
+      cm.addConstraint(constraint);
+    }
 
     if (incomplete) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
     } else if (LazyInitialization &&
-               isReadFromSymbolicArray(toUnique(*unbound, base)) &&
+               isReadFromSymbolicArray(ConstraintManager::simplifyExpr(
+                   concreteConstraints, base)) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 state.isGEPExpr(address))) {
       const Array *lazyInstantiationSize = makeArray(
@@ -4464,7 +4480,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
           bindLocal(target, *bound, result);
         }
       }
-
     } else {
       bool mayBeOutOfBound = false;
       solver->setTimeout(coreSolverTimeout);
@@ -4476,6 +4491,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         return;
       }
       if (mayBeOutOfBound) {
+        addConstraint(*unbound, checkOutOfBounds);
         terminateStateOnError(*unbound, "memory error: out of bound pointer",
                               StateTerminationType::Ptr,
                               getAddressInfo(*unbound, address));
@@ -4968,6 +4984,8 @@ bool Executor::getSymbolicSolution(const ExecutionState &state,
   std::vector<const Array*> objects;
   for (unsigned i = 0; i != state.symbolics.size(); ++i)
     objects.push_back(state.symbolics[i].second);
+  objects.insert(objects.end(), state.symbolicSizes.begin(),
+                 state.symbolicSizes.end());
   bool success = solver->getInitialValues(extendedConstraints, objects, values,
                                           state.queryMetaData);
   solver->setTimeout(time::Span());

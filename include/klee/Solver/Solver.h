@@ -69,6 +69,8 @@ namespace klee {
     /// Get all arrays that figure in the query
     std::vector<const Array *> gatherArrays() const;
 
+    std::vector<const Array *> gatherSymcreteArrays() const;
+
     bool containsSymcretes() const;
 
     friend bool operator<(const Query &lhs, const Query &rhs) {
@@ -76,7 +78,7 @@ namespace klee {
     }
 
     /// Dump query
-    void dump() const ;
+    void dump() const;
   };
 
   struct ValidityCore {

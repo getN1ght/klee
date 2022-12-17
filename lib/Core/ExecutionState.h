@@ -226,6 +226,9 @@ public:
   // FIXME: Move to a shared list structure (not critical).
   std::vector<Symbolic> symbolics;
 
+  /// @brief Ordered listof symbolic sizes: used to generate test cases.
+  std::vector<const Array *> symbolicSizes;
+
   /// @brief map from memory accesses to accessed objects and access offsets.
   ExprHashMap<std::pair<IDType, ref<Expr>>> resolvedPointers;
 
