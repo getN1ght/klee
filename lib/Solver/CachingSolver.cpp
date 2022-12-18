@@ -349,15 +349,18 @@ bool CachingSolver::check(const Query &query, ref<SolverResponse> &result) {
     if (cacheHit && cachedResult == IncompleteSolver::MustBeTrue) {
       ++stats::queryCacheHits;
       result = new ValidResponse(cachedValidityCore);
-      return true;
     } else if (cachedResult == IncompleteSolver::MustBeTrue) {
       ++stats::queryCacheMisses;
       if (!solver->impl->computeValidityCore(query, cachedValidityCore, tmp))
         return false;
       result = new ValidResponse(cachedValidityCore);
       assert(tmp && "Query must be true!");
-      return true;
+    } else {
+      ++stats::queryCacheMisses;
+      if (!solver->impl->check(query, result))
+        return false;
     }
+    return true;
   }
 
   ++stats::queryCacheMisses;
