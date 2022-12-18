@@ -4038,7 +4038,7 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   ref<Expr> res = Expr::createTempRead(array, e->getWidth());
   ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, res));
   llvm::errs() << "Making symbolic: " << eq << "\n";
-  state.addConstraint(eq);
+  addConstraint(state, eq);
   return res;
 }
 
@@ -4467,7 +4467,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                               getAddressInfo(*unbound, address, p.first));
       }
       if (bound) {
-        addConstraint(*bound, inBounds);
         p = bound->addressSpace.findObject(idLazyInitialization);
         bound->addPointerResolution(base, address, p.first);
         if (isWrite) {

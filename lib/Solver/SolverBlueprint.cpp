@@ -48,27 +48,22 @@ public:
 
 private:
   bool relaxSymcreteConstraints(const Query &query, Assignment &assign,
-                                bool &canBeRelaxed);
+                                bool &isValid);
   Query constructConcretizedQuery(const Query &, const Assignment &);
 };
 
 Query SolverBlueprint::constructConcretizedQuery(const Query &query,
                                                const Assignment &assign) {
-  ConstraintSet constraints;
+  ConstraintSet constraints = assign.createConstraintsFromAssignment();
   for (auto e : query.constraints) {
-    constraints.push_back(assign.evaluate(e));
-  }
-  ref<Expr> expr = assign.evaluate(query.expr);
-  ConstraintSet equalities = assign.createConstraintsFromAssignment();
-  for (auto e : equalities) {
     constraints.push_back(e);
   }
-  return Query(constraints, expr);
+  return Query(constraints, query.expr);
 }
 
 bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
                                                Assignment &assignment,
-                                               bool &canBeRelaxed) {
+                                               bool &isValid) {
   // Get initial symcrete solution. We will try to relax
   // them in order to achieve `mayBeTrue` solution.
   assignment = cm->get(query.constraints);
@@ -78,29 +73,23 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
 
   ValidityCore validityCore;
   
-  while (true) {
+  bool wereConcretizationsRemoved = true;
+  while (wereConcretizationsRemoved) {
+    wereConcretizationsRemoved = false;
     if (!solver->impl->computeValidityCore(
             constructConcretizedQuery(query, assignment), validityCore,
-            canBeRelaxed)) {
+            isValid)) {
       return false;
     }
     // No unsat cores were found for the query, so we can try
     // to find new solution.
-    if (!canBeRelaxed) {
-      canBeRelaxed = true;
+    if (!isValid) {
       break;
     }
 
     std::vector<const Array *> currentlyBrokenSymcreteArrays =
         Query(ConstraintSet(validityCore.constraints), validityCore.expr)
             .gatherSymcreteArrays();
-
-    // If we could relax constraints before, but constraints from
-    // unsat core do not contain symcrete arrays, then relaxation is impossible.
-    if (currentlyBrokenSymcreteArrays.empty()) {
-      canBeRelaxed = false;
-      return true;
-    }
 
     for (unsigned idx = 0, initialSize = currentlyBrokenSymcreteArrays.size();
          idx < initialSize; ++idx) {
@@ -119,9 +108,9 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
       // Erase bindings from received concretization 
       if (brokenArray->source->isSymcrete()) {
         assignment.bindings.erase(brokenArray);
+        brokenSymcreteArrays.push_back(brokenArray);
+        wereConcretizationsRemoved = true;
       }
-
-      // TODO: move `Context.h`
       
       // Add symbolic size to the sum that should be minimized.
       if (brokenArray->source->getKind() ==
@@ -131,10 +120,10 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
                             Expr::createTempRead(brokenArray, /*FIXME:*/ 64));
       }
     }
+  }
 
-    brokenSymcreteArrays.insert(brokenSymcreteArrays.end(),
-                                currentlyBrokenSymcreteArrays.begin(),
-                                currentlyBrokenSymcreteArrays.end());
+  if (isValid) {
+    return true;
   }
 
   ConstraintSet queryConstraints =
@@ -186,11 +175,10 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
 
   if (!solver->impl->computeValidityCore(
           constructConcretizedQuery(query, assignment), validityCore,
-          canBeRelaxed)) {
+          isValid)) {
     return false;
   }
 
-  canBeRelaxed = !canBeRelaxed;
   return true;
 }
 
@@ -237,23 +225,23 @@ bool SolverBlueprint::computeValidity(const Query &query,
 
   if (!trueInvalid) {
     cm->add(query, falseResponseAssignment);
-    bool canBeRelaxed = false;
+    bool isValid = false;
     if (!relaxSymcreteConstraints(query, trueResponseAssignment,
-                                  canBeRelaxed)) {
+                                  isValid)) {
       return false;
     }
-    if (canBeRelaxed) {
+    if (!isValid) {
       cm->add(query.negateExpr(), trueResponseAssignment);
       falseInvalid = false;
     }
   } else {
     cm->add(query.negateExpr(), trueResponseAssignment);
-    bool canBeRelaxed = false;
+    bool isValid = false;
     if (!relaxSymcreteConstraints(query.negateExpr(), falseResponseAssignment,
-                                  canBeRelaxed)) {
+                                  isValid)) {
       return false;
     }
-    if (canBeRelaxed) {
+    if (!isValid) {
       cm->add(query, falseResponseAssignment);
       trueInvalid = false;
     }
@@ -291,11 +279,9 @@ bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
   // to `mayBeFalse`.
 
   if (isValid) {
-    cm->add(query, assign);
     if (!relaxSymcreteConstraints(query, assign, isValid)) {
       return false;
     }
-    isValid = !isValid;
   }
 
   if (!isValid) {

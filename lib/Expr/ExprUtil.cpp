@@ -83,7 +83,8 @@ protected:
 
   Action visitRead(const ReadExpr &re) {
     const UpdateList &ul = re.updates;
-
+    
+    visit(ul.root->getSize());
     // XXX should we memo better than what ExprVisitor is doing for us?
     for (const auto *un = ul.head.get(); un; un = un->next.get()) {
       visit(un->index);
@@ -115,6 +116,7 @@ public:
 ExprVisitor::Action ConstantArrayFinder::visitRead(const ReadExpr &re) {
   const UpdateList &ul = re.updates;
 
+  visit(ul.root->getSize());
   // FIXME should we memo better than what ExprVisitor is doing for us?
   for (const auto *un = ul.head.get(); un; un = un->next.get()) {
     visit(un->index);

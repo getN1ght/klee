@@ -232,7 +232,6 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
   const MemoryObject *mo = op.first;
   ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
   bool mayBeTrue;
-  inBounds->dump();
   if (!solver->mayBeTrue(state.constraints, inBounds, mayBeTrue,
                          state.queryMetaData)) {
     return 1;
