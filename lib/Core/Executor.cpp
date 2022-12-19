@@ -4207,16 +4207,16 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
 
   cast<SymbolicAllocationSource>(addressArray->source)->linkedArray = sizeArray;
   cast<SymbolicAllocationSource>(sizeArray->source)->linkedArray = addressArray;
+  uint64_t sizeMemoryObject = arrayConstantSize->getZExtValue();
 
-  MemoryObject *mo = memory->allocate(
-      std::max(arrayConstantSize->getZExtValue(), static_cast<size_t>(1)),
-      isLocal, isGlobal, allocSite, allocationAlignment, addressExpr, sizeExpr,
-      lazyInitializationSource, timestamp);
+  MemoryObject *mo =
+      memory->allocate(sizeMemoryObject, isLocal, isGlobal,
+                       allocSite, allocationAlignment, addressExpr, sizeExpr,
+                       lazyInitializationSource, timestamp);
 
   ref<Expr> sizeEqualityExpr = EqExpr::create(size, sizeExpr);
   Assignment sizeSymcreteAssignment(true);
 
-  uint64_t sizeMemoryObject = static_cast<uint64_t>(mo->size);
   char *charSizeIterator =
       reinterpret_cast<char *>(&sizeMemoryObject);
   sizeSymcreteAssignment.bindings[sizeArray] = std::vector<uint8_t>(

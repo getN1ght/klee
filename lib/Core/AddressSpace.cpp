@@ -105,8 +105,9 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
 bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                               ref<Expr> address, IDType &result,
                               MOPredicate predicate, bool &success) const {
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(address)) {
+  if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(address)) {
     if (resolveOne(CE, result)) {
+      success = true;
       return true;
     }
   }
@@ -124,10 +125,13 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
 
   if (res) {
     const MemoryObject *mo = res->first;
-    if (example - mo->address < mo->size) {
-      result = mo->id;
-      success = true;
-      return true;
+    if (ref<ConstantExpr> arrayConstantSize =
+            dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
+      if (example - mo->address < arrayConstantSize->getZExtValue()) {
+        result = mo->id;
+        success = true;
+        return true;
+      }
     }
   }
 

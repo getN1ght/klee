@@ -234,7 +234,7 @@ bool SolverBlueprint::computeValidity(const Query &query,
       cm->add(query.negateExpr(), trueResponseAssignment);
       falseInvalid = false;
     }
-  } else {
+  } else if (!falseInvalid) {
     cm->add(query.negateExpr(), trueResponseAssignment);
     bool isValid = false;
     if (!relaxSymcreteConstraints(query.negateExpr(), falseResponseAssignment,
