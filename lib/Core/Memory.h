@@ -180,12 +180,10 @@ public:
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
     ref<Expr> offsetSizeCheck = UleExpr::create(
-        ConstantExpr::alloc(bytes, Context::get().getPointerWidth()),
+        Expr::createPointer(bytes),
         getSizeExpr());
     ref<Expr> writeInSizeCheck = UleExpr::create(
-        offset, SubExpr::create(getSizeExpr(),
-                                ConstantExpr::alloc(
-                                    bytes, Context::get().getPointerWidth())));
+        offset, SubExpr::create(getSizeExpr(), Expr::createPointer(bytes)));
     return AndExpr::create(offsetSizeCheck, writeInSizeCheck);
   }
 

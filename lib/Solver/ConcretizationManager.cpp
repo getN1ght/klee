@@ -34,7 +34,7 @@ void ConcretizationManager::add(const ConstraintSet &oldCS,
   auto dependency = getIndependentConstraints(Query(oldCS, newExpr), dependent);
   auto independent = getAllIndependentConstraintsSets(
       Query(oldCS, ConstantExpr::alloc(0, Expr::Bool)));
-
+  
   for (auto i : *independent) {
     if (i.intersects(dependency)) {
       if (auto a = concretizations.lookup(ConstraintSet(i.exprs).asSet())) {
@@ -55,17 +55,15 @@ void ConcretizationManager::add(const ConstraintSet &oldCS,
   }
 
   for (auto i : assign.bindings) {
-    newAssign.bindings.insert(i);
+    newAssign.bindings[i.first] = i.second;
   }
 
   concretizations.insert(dependentWithNew, newAssign);
 }
 
 void ConcretizationManager::add(const Query &q, const Assignment &assign) {
-  std::vector<ref<Expr>> dependent;
-  getIndependentConstraints(q, dependent);
-  ConstraintSet newCS(dependent);
+  ConstraintSet newCS;
   ConstraintManager cm(newCS);
   cm.addConstraint(q.expr);
-  add({}, newCS, assign);
+  add(q.constraints, newCS, assign);
 }

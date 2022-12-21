@@ -91,30 +91,24 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
         Query(ConstraintSet(validityCore.constraints), validityCore.expr)
             .gatherSymcreteArrays();
 
-    for (unsigned idx = 0, initialSize = currentlyBrokenSymcreteArrays.size();
-         idx < initialSize; ++idx) {
-      if (ref<SymbolicAllocationSource> allocSource =
-              dyn_cast_or_null<SymbolicAllocationSource>(
-                  currentlyBrokenSymcreteArrays[idx]->source)) {
-        currentlyBrokenSymcreteArrays.push_back(allocSource->linkedArray);
-      }
-    }
 
     for (const Array *brokenArray : currentlyBrokenSymcreteArrays) {
       if (!assignment.bindings.count(brokenArray)) {
         continue;
       }
 
-      // Erase bindings from received concretization 
-      if (brokenArray->source->isSymcrete()) {
+      if (ref<SymbolicSizeSource> sizeSource =
+              dyn_cast<SymbolicSizeSource>(brokenArray->source)) {
+        // Remove size concretization
         assignment.bindings.erase(brokenArray);
         brokenSymcreteArrays.push_back(brokenArray);
+
+        // Remove address concretization
+        brokenSymcreteArrays.push_back(sizeSource->linkedArray);
+        assignment.bindings.erase(sizeSource->linkedArray);
+
         wereConcretizationsRemoved = true;
-      }
-      
-      // Add symbolic size to the sum that should be minimized.
-      if (brokenArray->source->getKind() ==
-          ArraySource::Kind::SymbolicSize) {
+        // Add symbolic size to the sum that should be minimized.
         sizesSumToMinimize =
             AddExpr::create(sizesSumToMinimize,
                             Expr::createTempRead(brokenArray, /*FIXME:*/ 64));

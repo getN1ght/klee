@@ -1258,7 +1258,9 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
     if (warn)
       klee_warning("seeds patched for violating constraint"); 
   }
-  Assignment oldAssignment = cm->get(state.constraints);
+
+  ConstraintSet oldConstraints = state.constraints;
+  Assignment oldAssignment = cm->get(oldConstraints);
   state.addConstraint(condition);
 
   // List of all arrays, that have changed during concretization.
@@ -1274,7 +1276,7 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
   updateStateWithSymcretes(state, diffAssignment);
 
   if (cm->get(state.constraints).bindings.empty()) {
-    cm->add({}, state.constraints, oldAssignment);
+    cm->add(Query(oldConstraints, condition), Assignment(true));
   }
 
   if (ivcEnabled)
@@ -4353,9 +4355,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       inBounds =
           AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, size));
       outOfBound =
-          AndExpr::create(outOfBound, mo->getBoundsCheckPointer(base, 1));
-      outOfBound =
-          AndExpr::create(outOfBound, mo->getBoundsCheckPointer(base, size));
+          AndExpr::create(outOfBound, mo->getBoundsCheckPointer(base));
     }
 
     bool mayBeInBounds;
@@ -4433,7 +4433,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       const Array *lazyInstantiationSize = makeArray(
           state,
           Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
-          "lazy_instantiation_size", sourceBuilder.makeSymbolic());
+          "lazy_instantiation_size", sourceBuilder.lazyInitializationMakeSymbolic());
       ref<Expr> sizeExpr = Expr::createTempRead(lazyInstantiationSize,
                                                 Context::get().getPointerWidth());
       addConstraint(*unbound,
@@ -4523,15 +4523,14 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
       address,
       ConstantExpr::create(mo->address, Context::get().getPointerWidth()));
 
-  bool canNotBeLazyInitialized = false;
+  bool canBeLazyInitialized = false;
 
   // We do not want to make `mayBeTrue` requests as they can
   // affect symcrete variables.
-  ValidityCore validityCore;
   solver->setTimeout(coreSolverTimeout);
-  bool success = solver->getValidityCore(
-      state.constraints, NotExpr::create(checkAddressForLazyInitializationExpr),
-      validityCore, canNotBeLazyInitialized, state.queryMetaData);
+  bool success = solver->mayBeTrue(state.constraints,
+                                   checkAddressForLazyInitializationExpr,
+                                   canBeLazyInitialized, state.queryMetaData);
 
   solver->setTimeout(time::Span());
   if (!success) {
@@ -4540,7 +4539,7 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
     return 0;
   }
 
-  if (canNotBeLazyInitialized) {
+  if (!canBeLazyInitialized) {
     terminateStateEarly(state, "", StateTerminationType::SilentExit);
     return 0;
   }

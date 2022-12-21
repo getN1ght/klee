@@ -76,6 +76,7 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
 
   // Compute the right border
   do {
+    left = right;
     right = ConstantExpr::create(
         std::max((uint64_t)1, 2 * right->getZExtValue()), 64);
     if (!computeTruth(query.withExpr(UgtExpr::create(query.expr, right)),
