@@ -4513,7 +4513,7 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
     timestamp = moBasePair.first->timestamp;
   }
 
-  std::string name = "address";
+  std::string name = "lazy_initialization_content";
   MemoryObject *mo = allocate(state, size, false,
                               /*isGlobal=*/false, allocSite,
                               /*allocationAlignment=*/8, address, timestamp);

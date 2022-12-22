@@ -47,6 +47,7 @@ public:
   void setCoreSolverTimeout(time::Span timeout);
 
 private:
+  bool assertConcretization(const Query &query, const Assignment &assign) const;
   bool relaxSymcreteConstraints(const Query &query, Assignment &assign,
                                 bool &isValid);
   Query constructConcretizedQuery(const Query &, const Assignment &);
@@ -59,6 +60,16 @@ Query SolverBlueprint::constructConcretizedQuery(const Query &query,
     constraints.push_back(e);
   }
   return Query(constraints, query.expr);
+}
+
+bool SolverBlueprint::assertConcretization(const Query &query,
+                                           const Assignment &assign) const {
+  for (const Array *symcreteArray : query.gatherSymcreteArrays()) {
+    if (!assign.bindings.count(symcreteArray)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
@@ -182,9 +193,9 @@ bool SolverBlueprint::computeValidity(const Query &query,
     return solver->impl->computeValidity(query, result);
   }
   auto assign = cm->get(query.constraints);
-  if (false) { // Проверка на адекватность
-    assert(0 && "Assignment does not contain array with extCall source");
-  }
+  assert(assertConcretization(query, assign) &&
+         "Assignment does not contain concretization for all symcrete arrays!");
+
   auto concretizedQuery = constructConcretizedQuery(query, assign);
   ref<SolverResponse> trueResponse, falseResponse;
 
@@ -256,9 +267,8 @@ bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
   }
 
   auto assign = cm->get(query.constraints);
-  if (false) { // Проверка на адекватность
-    assert(0 && "Assignment does not contain array with extCall source");
-  }
+  assert(assertConcretization(query, assign) &&
+         "Assignment does not contain concretization for all symcrete arrays!");
 
   auto concretizedQuery = constructConcretizedQuery(query, assign);
   ValidityCore validityCore;
@@ -286,12 +296,30 @@ bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
 }
 
 bool SolverBlueprint::computeValidityCore(const Query &query,
-                                     ValidityCore &validityCore,
-                                     bool &isValid) {
-  Query concretizedQuery =
-      constructConcretizedQuery(query, cm->get(query.constraints));
-  return solver->impl->computeValidityCore(concretizedQuery, validityCore,
-                                           isValid);
+                                          ValidityCore &validityCore,
+                                          bool &isValid) {
+  Assignment assign = cm->get(query.constraints);
+  assert(assertConcretization(query, assign) &&
+         "Assignment does not contain concretization for all symcrete arrays!");
+
+  Query concretizedQuery = constructConcretizedQuery(query, assign);
+  if (!solver->impl->computeValidityCore(concretizedQuery, validityCore,
+                                         isValid)) {
+    return false;
+  }
+
+  if (isValid) {
+    if (!relaxSymcreteConstraints(query, assign, isValid)) {
+      return false;
+    }
+  }
+
+  if (!isValid) {
+    validityCore = ValidityCore();
+    cm->add(query.negateExpr(), assign);
+  }
+
+  return true;
 }
 
 bool SolverBlueprint::computeValue(const Query &query, ref<Expr> &result) {
@@ -300,10 +328,8 @@ bool SolverBlueprint::computeValue(const Query &query, ref<Expr> &result) {
   }
 
   Assignment assign = cm->get(query.constraints);
-
-  if (false) { // Проверка на адекватность
-    assert(0 && "External call array is not in assignment");
-  }
+  assert(assertConcretization(query, assign) &&
+         "Assignment does not contain concretization for all symcrete arrays!");
 
   auto concretizedQuery = constructConcretizedQuery(query, assign);
   if (ref<ConstantExpr> expr =
@@ -324,13 +350,32 @@ bool SolverBlueprint::computeInitialValues(
   }
 
   Assignment assign = cm->get(query.constraints);
-  if (false) { // Проверка на адекватность
-    assert(0 && "External call array is not in assignment");
-  }
+  assert(assertConcretization(query, assign) &&
+         "Assignment does not contain concretization for all symcrete arrays!");
 
   auto concretizedQuery = constructConcretizedQuery(query, assign);
-  return solver->impl->computeInitialValues(concretizedQuery, objects, values,
-                                            hasSolution);
+  if (!solver->impl->computeInitialValues(concretizedQuery, objects, values,
+                                         hasSolution)) {
+    return false;
+  }
+
+  if (!hasSolution) {
+    if (!relaxSymcreteConstraints(query, assign, hasSolution)) {
+      return false;
+    }
+    // Because relaxSymcreteConstraints response is `isValid`,
+    // and `isValid` == false iff solution for negation exists.
+    hasSolution = !hasSolution;
+    if (hasSolution) {
+      cm->add(query.negateExpr(), assign);
+      values = std::vector<std::vector<unsigned char>>();
+      return solver->impl->computeInitialValues(
+          constructConcretizedQuery(query, assign), objects, values,
+          hasSolution);
+    }
+  }
+
+  return true;
 }
 
 // Redo later

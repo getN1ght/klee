@@ -45,25 +45,25 @@ void ConcretizationManager::add(const ConstraintSet &oldCS,
     }
   }
 
-  std::set<ref<Expr>> dependentWithNew;
+  ConstraintSet dependentWithNew;
+  ConstraintManager cm(dependentWithNew);
+  
   for (auto i : dependent) {
-    dependentWithNew.insert(i);
+    cm.addConstraint(i);
   }
 
   for (auto i : newCS) {
-    dependentWithNew.insert(i);
+    cm.addConstraint(i);
   }
 
   for (auto i : assign.bindings) {
     newAssign.bindings[i.first] = i.second;
   }
 
-  concretizations.insert(dependentWithNew, newAssign);
+  concretizations.insert(dependentWithNew.asSet(), newAssign);
 }
 
 void ConcretizationManager::add(const Query &q, const Assignment &assign) {
-  ConstraintSet newCS;
-  ConstraintManager cm(newCS);
-  cm.addConstraint(q.expr);
+  ConstraintSet newCS(std::vector<ref<Expr>>{q.expr});
   add(q.constraints, newCS, assign);
 }
