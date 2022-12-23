@@ -19,6 +19,8 @@ public:
   void add(const ConstraintSet &oldCS, const ConstraintSet &newCS,
            const Assignment &assign);
   void add(const Query &q, const Assignment &assign);
+
+  ref<Expr> simplifyExprWithSymcretes(const ConstraintSet &cs, ref<Expr> e);
 };
 
 }; // end klee namespace

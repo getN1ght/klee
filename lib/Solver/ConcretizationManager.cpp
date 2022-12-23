@@ -67,3 +67,15 @@ void ConcretizationManager::add(const Query &q, const Assignment &assign) {
   ConstraintSet newCS(std::vector<ref<Expr>>{q.expr});
   add(q.constraints, newCS, assign);
 }
+
+ref<Expr>
+ConcretizationManager::simplifyExprWithSymcretes(const ConstraintSet &cs,
+                                                 ref<Expr> e) {
+  Assignment assign = get(cs);
+  ConstraintSet newCS = assign.createConstraintsFromAssignment();
+  ConstraintManager cm(newCS);
+  for (ref<Expr> constraint : cs) {
+    cm.addConstraint(assign.evaluate(constraint));
+  }
+  return ConstraintManager::simplifyExpr(newCS, e);
+}

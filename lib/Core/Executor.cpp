@@ -4266,10 +4266,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   if (state.resolvedPointers.count(address)) {
     success = true;
-    const MemoryObject *mo =
-        state.addressSpace.findObject(state.resolvedPointers[address].first)
-            .first;
-    idFastResult = mo->id;
+    idFastResult = state.resolvedPointers[address].first;
   } else {
     solver->setTimeout(coreSolverTimeout);
 
@@ -4327,7 +4324,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
       return;
     }
-  } 
+  }
 
   // we are on an error path (no resolution, multiple resolution, one
   // resolution with out of bounds)
@@ -4338,7 +4335,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   bool incomplete = state.addressSpace.resolve(state, solver, address, rl,
                                                0, coreSolverTimeout);
   solver->setTimeout(time::Span());
-  
+
   // XXX there is some query wasteage here. who cares?
 
   ref<Expr> checkOutOfBounds = ConstantExpr::create(1, Expr::Bool);
@@ -4416,18 +4413,11 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   // XXX should we distinguish out of bounds and overlapped cases?
   if (unbound) {
-    Assignment symcreteSolution = cm->get(unbound->constraints);
-    ConstraintSet concreteConstraints = symcreteSolution.createConstraintsFromAssignment();
-    ConstraintManager cm(concreteConstraints);
-    for (ref<Expr> constraint : unbound->constraints) {
-      cm.addConstraint(constraint);
-    }
-
     if (incomplete) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
     } else if (LazyInitialization &&
-               isReadFromSymbolicArray(ConstraintManager::simplifyExpr(
-                   concreteConstraints, base)) &&
+               isReadFromSymbolicArray(
+                   cm->simplifyExprWithSymcretes(unbound->constraints, base)) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 state.isGEPExpr(address))) {
       const Array *lazyInstantiationSize = makeArray(

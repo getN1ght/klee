@@ -53,7 +53,8 @@ void AddressSpace::unbindObject(const MemoryObject *mo) {
 
 ObjectPair AddressSpace::findObject(const MemoryObject *mo) const {
   const auto res = objects.lookup(mo);
-  return res ? ObjectPair(mo, res->second.get()) : ObjectPair(mo, nullptr);
+  return res ? ObjectPair(res->first, res->second.get())
+             : ObjectPair(nullptr, nullptr);
 }
 
 ObjectPair AddressSpace::findObject(IDType id) const {
@@ -123,7 +124,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   MemoryObject hack(example);
   const auto res = objects.lookup_previous(&hack);
 
-  if (res) {
+  if (res && predicate(res->first)) {
     const MemoryObject *mo = res->first;
     if (ref<ConstantExpr> arrayConstantSize =
             dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
