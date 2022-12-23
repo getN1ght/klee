@@ -258,7 +258,11 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
     return "";
   }
   ref<ConstantExpr> address = cast<ConstantExpr>(addressExpr);
-  if (!state.addressSpace.resolveOne(address, idStringAddress)) {
+  bool foundString;
+  assert(state.addressSpace.resolveOne(state, executor.solver, address,
+                                       idStringAddress, foundString) &&
+         "strign at readStringAtAddress should not query the solver");
+  if (!foundString) {
     executor.terminateStateOnUserError(
         state, "Invalid string pointer passed to one of the klee_ functions");
     return "";
@@ -691,8 +695,12 @@ void SpecialFunctionHandler::handleGetErrno(ExecutionState &state,
 
   // Retrieve the memory object of the errno variable
   IDType idErrnoObject;
-  bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), idErrnoObject);
+  bool resolved;
+  assert(state.addressSpace.resolveOne(state, executor.solver,
+                                       ref<ConstantExpr>(ConstantExpr::create(
+                                           (uint64_t)errno_addr, Expr::Int64)),
+                                       idErrnoObject, resolved) &&
+         "handleGetErrno should not query the solver during errno search");
   if (!resolved)
     executor.terminateStateOnUserError(state, "Could not resolve address for errno");
   const ObjectState *os = state.addressSpace.findObject(idErrnoObject).second;
@@ -798,7 +806,15 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(ExecutionState &state,
   } else {
     IDType idObject;
 
-    if (!state.addressSpace.resolveOne(cast<ConstantExpr>(address), idObject)) {
+    bool foundObject;
+    assert(state.addressSpace.resolveOne(
+               state, executor.solver,
+               ref<ConstantExpr>(cast<ConstantExpr>(address)), idObject,
+               foundObject) &&
+           "handleCheckMemoryAccess during objects searching should not query "
+           "the solver");
+
+    if (!foundObject) {
       executor.terminateStateOnError(state,
                                      "check_memory_access: memory error",
                                      StateTerminationType::Ptr,

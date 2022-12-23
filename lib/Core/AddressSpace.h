@@ -81,8 +81,12 @@ namespace klee {
     ~AddressSpace() {}
 
     /// Resolve address to an ObjectPair in result.
-    /// \return true iff an object was found.
-    bool resolveOne(const ref<ConstantExpr> &address, IDType &result) const;
+    /// \param success true iff an object was found.
+    ///
+    /// \return true iff solver did not fail.
+    bool resolveOne(ExecutionState &state, TimingSolver *solver,
+                    const ref<ConstantExpr> &address, IDType &result,
+                    bool &success) const;
 
     /// Resolve address to an ObjectPair in result.
     ///

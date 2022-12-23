@@ -2007,11 +2007,16 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
           if (!cs.isByValArgument(k)) {
             os->write(offsets[k], arguments[k]);
           } else {
-            ConstantExpr *CE = dyn_cast<ConstantExpr>(arguments[k]);
+            ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(arguments[k]);
             assert(CE); // byval argument needs to be a concrete pointer
 
             IDType idObject;
-            state.addressSpace.resolveOne(CE, idObject);
+            bool isResolved;
+            
+            assert(state.addressSpace.resolveOne(state, solver, CE, idObject,
+                                                 isResolved) &&
+                   isResolved);
+
             const ObjectState *osarg = state.addressSpace.findObject(idObject).second;
             assert(osarg);
             for (unsigned i = 0; i < osarg->size; i++)
@@ -3905,10 +3910,19 @@ void Executor::callExternalFunction(ExecutionState &state,
       ce->toMemory(&args[wordIndex]);
       IDType result;
       // Checking to see if the argument is a pointer to something
-      if (ce->getWidth() == Context::get().getPointerWidth() &&
-          state.addressSpace.resolveOne(ce, result)) {
-        state.addressSpace.findObject(result).second->flushToConcreteStore(
-            solver, state);
+      if (ce->getWidth() == Context::get().getPointerWidth()) {
+        bool resolved;
+        bool success =
+            state.addressSpace.resolveOne(state, solver, ce, result, resolved);
+        if (!success) {
+          terminateStateOnSolverError(
+              state, "Query timed out (resolution for fucntion call).");
+          return;
+        }
+        if (resolved) {
+          state.addressSpace.findObject(result).second->flushToConcreteStore(
+              solver, state);
+        }
       }
       wordIndex += (ce->getWidth()+63)/64;
     } else {
@@ -3942,8 +3956,13 @@ void Executor::callExternalFunction(ExecutionState &state,
   // Update external errno state with local state value
   int *errno_addr = getErrnoLocation(state);
   IDType idResult;
-  bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), idResult);
+  bool resolved;
+  assert(state.addressSpace.resolveOne(state, solver,
+                                       ref<ConstantExpr>(ConstantExpr::create(
+                                           (uint64_t)errno_addr, Expr::Int64)),
+                                       idResult, resolved) &&
+         "resolveOne for errno should not query the solver");
+
   if (!resolved)
     klee_error("Could not resolve memory object for errno");
   ObjectPair result = state.addressSpace.findObject(idResult);
@@ -4270,7 +4289,12 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
     if (!state.addressSpace.resolveOne(state, solver, address, idFastResult, success)) {
       address = toConstant(state, address, "resolveOne failure");
-      success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), idFastResult);
+
+      if (!state.addressSpace.resolveOne(
+              state, solver, ref<ConstantExpr>(cast<ConstantExpr>(address)),
+              idFastResult, success)) {
+        assert(0 && "FIXME: unhandled solver failure");
+      }
     }
 
     solver->setTimeout(time::Span());
@@ -4359,7 +4383,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                      state.queryMetaData);
     solver->setTimeout(time::Span());
     if (!success) {
-      terminateStateOnSolverError(state, "Query timed out (resolve)");
+      terminateStateOnSolverError(state, "Query timed out (resolve ResolutionList)");
       return;
     }
 
@@ -4519,8 +4543,8 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
   bool success = solver->mayBeTrue(state.constraints,
                                    checkAddressForLazyInitializationExpr,
                                    canBeLazyInitialized, state.queryMetaData);
-
   solver->setTimeout(time::Span());
+
   if (!success) {
     terminateStateOnSolverError(state,
                                 "Query timed out (Lazy initialization).");

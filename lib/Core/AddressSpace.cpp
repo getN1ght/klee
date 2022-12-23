@@ -79,11 +79,13 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
 
 ///
 
-bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
-                              IDType &result) const {
+bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
+                              const ref<ConstantExpr> &addr, IDType &result,
+                              bool &success) const {
   uint64_t address = addr->getZExtValue();
   MemoryObject hack(address);
 
+  success = false;
   if (const auto res = objects.lookup_previous(&hack)) {
     const auto &mo = res->first;
     if (ref<ConstantExpr> arrayConstantSize =
@@ -92,25 +94,38 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
       // [mo->address, mo->address + mo->size) or the object is a 0-sized
       // object.
       uint64_t size = arrayConstantSize->getZExtValue();
-      if ((size == 0 && address == mo->address) ||
-          (address - mo->address < size)) {
-        result = mo->id;
-        return true;
+      success = ((size == 0 && address == mo->address) ||
+                 (address - mo->address < size));
+    } else {
+      ref<Expr> inBounds = mo->getBoundsCheckPointer(addr);
+      if (state.isGEPExpr(addr)) {
+        ref<Expr> base = state.gepExprBases.at(addr).first;
+        unsigned baseSize = state.gepExprBases.at(addr).second;
+        inBounds =
+            AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, 1));
+        inBounds = AndExpr::create(inBounds,
+                                   mo->getBoundsCheckPointer(base, baseSize));
       }
+
+      if (!solver->mayBeTrue(state.constraints, inBounds, success,
+                             state.queryMetaData)) {
+        return false;
+      }
+    }
+
+    if (success) {
+      result = mo->id;
     }
   }
 
-  return false;
+  return true;
 }
 
 bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                               ref<Expr> address, IDType &result,
                               MOPredicate predicate, bool &success) const {
   if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(address)) {
-    if (resolveOne(CE, result)) {
-      success = true;
-      return true;
-    }
+    return resolveOne(state, solver, CE, result, success);
   }
 
   TimerStatIncrementer timer(stats::resolveTime);
@@ -267,12 +282,16 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
                            ref<Expr> p, ResolutionList &rl,
                            MOPredicate predicate, unsigned maxResolutions,
                            time::Span timeout) const {
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(p)) {
+  if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(p)) {
     IDType res;
-    if (resolveOne(CE, res)) {
-      rl.push_back(res);
-      return false;
+    bool mayBeInBoundsFastPath;
+    if (!resolveOne(state, solver, CE, res, mayBeInBoundsFastPath)) {
+      return true;
     }
+    if (mayBeInBoundsFastPath) {
+      rl.push_back(res);
+    }
+    return false;
   }
   TimerStatIncrementer timer(stats::resolveTime);
 
