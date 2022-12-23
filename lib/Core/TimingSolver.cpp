@@ -63,6 +63,35 @@ bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
   return success;
 }
 
+bool TimingSolver::tryGetUnique(const ConstraintSet &constraints, ref<Expr> e,
+                                ref<Expr> &result,
+                                SolverQueryMetaData &metaData) {
+  result = e;
+  if (!isa<ConstantExpr>(result)) {
+    ref<ConstantExpr> value;
+    bool isTrue = false;
+    
+    e = optimizer.optimizeExpr(e, true);
+    TimerStatIncrementer timer(stats::solverTime);
+    
+    if (!solver->getValue(Query(constraints, e), value)) {
+      return false; 
+    }
+    ref<Expr> cond = EqExpr::create(e, value);
+    cond = optimizer.optimizeExpr(cond, false);
+    if (!solver->mustBeTrue(Query(constraints, cond), isTrue)) {
+      return false;
+    }
+    if (isTrue) {
+      result = value;
+    }
+
+    metaData.queryCost += timer.delta();
+  }
+  
+  return true;
+}
+
 bool TimingSolver::mustBeTrue(const ConstraintSet &constraints, ref<Expr> expr,
                               bool &result, SolverQueryMetaData &metaData,
                               bool produceValidityCore) {

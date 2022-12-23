@@ -493,8 +493,7 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       interpreterHandler->getOutputFilename(SOLVER_QUERIES_KQUERY_FILE_NAME),
       cmSolver, addressManager);
 
-  this->solver = new TimingSolver(solver, EqualitySubstitution);
-
+  this->solver = new TimingSolver(solver, optimizer, EqualitySubstitution);
 
   initializeSearchOptions();
 
@@ -1311,29 +1310,6 @@ void Executor::bindLocal(KInstruction *target, ExecutionState &state,
 void Executor::bindArgument(KFunction *kf, unsigned index, 
                             ExecutionState &state, ref<Expr> value) {
   getArgumentCell(state, kf, index).value = value;
-}
-
-ref<Expr> Executor::toUnique(const ExecutionState &state, 
-                             ref<Expr> &e) {
-  ref<Expr> result = e;
-
-  if (!isa<ConstantExpr>(e)) {
-    ref<ConstantExpr> value;
-    bool isTrue = false;
-    e = optimizer.optimizeExpr(e, true);
-    solver->setTimeout(coreSolverTimeout);
-    if (solver->getValue(state.constraints, e, value, state.queryMetaData)) {
-      ref<Expr> cond = EqExpr::create(e, value);
-      cond = optimizer.optimizeExpr(cond, false);
-      if (solver->mustBeTrue(state.constraints, cond, isTrue,
-                             state.queryMetaData) &&
-          isTrue)
-        result = value;
-    }
-    solver->setTimeout(time::Span());
-  }
-  
-  return result;
 }
 
 
@@ -2215,7 +2191,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     // implements indirect branch to a label within the current function
     const auto bi = cast<IndirectBrInst>(i);
     auto address = eval(ki, 0, state).value;
-    address = toUnique(state, address);
+
+    if (!solver->tryGetUnique(state.constraints, address, address,
+                              state.queryMetaData)) {
+      terminateStateOnSolverError(state, "Query timed out (tryGetUnique).");
+      break;
+    }
 
     // concrete address
     if (const auto CE = dyn_cast<ConstantExpr>(address.get())) {
@@ -2291,7 +2272,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> cond = eval(ki, 0, state).value;
     BasicBlock *bb = si->getParent();
 
-    cond = toUnique(state, cond);
+    if (!solver->tryGetUnique(state.constraints, cond, cond,
+                              state.queryMetaData)) {
+      terminateStateOnSolverError(state, "Query timed out (tryGetWeight).");
+      break;
+    }
+
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(cond)) {
       // Somewhat gross to create these all the time, but fine till we
       // switch to an internal rep.
@@ -3926,7 +3912,13 @@ void Executor::callExternalFunction(ExecutionState &state,
       }
       wordIndex += (ce->getWidth()+63)/64;
     } else {
-      ref<Expr> arg = toUnique(state, *ai);
+      ref<Expr> arg;
+      if (!solver->tryGetUnique(state.constraints, *ai, arg,
+                              state.queryMetaData)) {
+        terminateStateOnSolverError(state, "Query timed out (tryGetWeight).");
+        break;
+      }
+
       if (ConstantExpr *ce = dyn_cast<ConstantExpr>(arg)) {
         // fp80 must be aligned to 16 according to the System V AMD 64 ABI
         if (ce->getWidth() == Expr::Fl80 && wordIndex & 0x01)
@@ -4172,9 +4164,15 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
                                  size_t allocationAlignment,
                                  ref<Expr> lazyInitializationSource,
                                  unsigned timestamp) {
-  /// Try to find existing solution
-  ref<Expr> optimizedSize = optimizer.optimizeExpr(toUnique(state, size), true);
-  ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(optimizedSize);
+  /// Try to find existing solution  
+  ref<Expr> uniqueSize;
+  if (!solver->tryGetUnique(state.constraints, size, uniqueSize,
+                            state.queryMetaData)) {
+    terminateStateOnSolverError(state, "Query timed out (tryGetWeight).");
+    return nullptr;
+  }
+  ref<ConstantExpr> arrayConstantSize =
+      dyn_cast<ConstantExpr>(optimizer.optimizeExpr(uniqueSize, true));
 
   /// Constant solution exists. Just return it.
   if (arrayConstantSize) {

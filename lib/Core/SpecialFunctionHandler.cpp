@@ -244,7 +244,14 @@ std::string
 SpecialFunctionHandler::readStringAtAddress(ExecutionState &state, 
                                             ref<Expr> addressExpr) {
   IDType idStringAddress;
-  addressExpr = executor.toUnique(state, addressExpr);
+
+  if (!executor.solver->tryGetUnique(state.constraints, addressExpr,
+                                     addressExpr, state.queryMetaData)) {
+    executor.terminateStateOnSolverError(state,
+                                         "Query timed out (tryGetUnique).");
+    return "";
+  }
+
   if (!isa<ConstantExpr>(addressExpr)) {
     executor.terminateStateOnUserError(
         state, "Symbolic string pointer passed to one of the klee_ functions");
@@ -269,7 +276,13 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
   char c = 0;
   for (size_t i = offset; i < mo->size; ++i) {
     ref<Expr> cur = os->read8(i);
-    cur = executor.toUnique(state, cur);
+    if (!executor.solver->tryGetUnique(state.constraints, cur, cur,
+                                       state.queryMetaData)) {
+      executor.terminateStateOnSolverError(state,
+                                           "Query timed out (tryGetUnique).");
+      return "";
+    }
+
     assert(isa<ConstantExpr>(cur) && 
            "hit symbolic char while reading concrete string");
     c = cast<ConstantExpr>(cur)->getZExtValue(8);
@@ -571,7 +584,13 @@ void SpecialFunctionHandler::handleSetForking(ExecutionState &state,
                                               std::vector<ref<Expr> > &arguments) {
   assert(arguments.size()==1 &&
          "invalid number of arguments to klee_set_forking");
-  ref<Expr> value = executor.toUnique(state, arguments[0]);
+  ref<Expr> value;
+  if (!executor.solver->tryGetUnique(state.constraints, arguments[0], value,
+                                     state.queryMetaData)) {
+    executor.terminateStateOnSolverError(state,
+                                         "Query timed out (tryGetUnique).");
+    return;
+  }
   
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(value)) {
     state.forkDisabled = CE->isZero();
@@ -764,8 +783,16 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(ExecutionState &state,
   assert(arguments.size()==2 &&
          "invalid number of arguments to klee_check_memory_access");
 
-  ref<Expr> address = executor.toUnique(state, arguments[0]);
-  ref<Expr> size = executor.toUnique(state, arguments[1]);
+  ref<Expr> address, size;
+  if (!executor.solver->tryGetUnique(state.constraints, arguments[0], address,
+                                     state.queryMetaData) ||
+      !executor.solver->tryGetUnique(state.constraints, arguments[1], size,
+                                     state.queryMetaData)) {
+    executor.terminateStateOnSolverError(state,
+                                         "Query timed out (tryGetUnique).");
+    return;
+  }
+
   if (!isa<ConstantExpr>(address) || !isa<ConstantExpr>(size)) {
     executor.terminateStateOnUserError(state, "check_memory_access requires constant args");
   } else {
