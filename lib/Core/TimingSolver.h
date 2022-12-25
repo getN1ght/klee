@@ -55,9 +55,9 @@ public:
                 ref<SolverResponse> &negateQueryResult,
                 SolverQueryMetaData &metaData);
 
-  /// Return a unique constant value for the given expression in the
+  /// Writes a unique constant value for the given expression in the
   /// given state, if it has one (i.e. it provably only has a single
-  /// value). Otherwise return the original expression.
+  /// value) in the result. Otherwise writes the original expression.
   bool tryGetUnique(const ConstraintSet &, ref<Expr>, ref<Expr> &result,
                     SolverQueryMetaData &metaData);
 

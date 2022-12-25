@@ -103,6 +103,37 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
   return false;
 }
 
+bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
+                                      TimingSolver *solver, ref<Expr> address,
+                                      IDType &result, bool &success) const {
+  address =
+      state.isGEPExpr(address) ? state.gepExprBases.at(address).first : address;
+  ref<Expr> uniqueAddress;
+  if (!solver->tryGetUnique(state.constraints, address, uniqueAddress,
+                            state.queryMetaData)) {
+    return true;
+  }
+  
+  success = false;
+  if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(uniqueAddress)) {
+    MemoryObject hack(CE->getZExtValue());
+    if (const auto *res = objects.lookup_previous(&hack)) {
+      const MemoryObject *mo = res->first;
+      ref<Expr> inBounds = mo->getBoundsCheckPointer(address);
+
+      if (!solver->mayBeTrue(state.constraints, inBounds, success,
+                             state.queryMetaData)) {
+        return true;
+      }
+      if (success) {
+        result = mo->id;
+      }
+    }
+  }
+
+  return false;
+}
+
 bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                               ref<Expr> address, IDType &result,
                               MOPredicate predicate, bool &success) const {
@@ -114,6 +145,13 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   }
 
   TimerStatIncrementer timer(stats::resolveTime);
+
+  if (resolveOneIfUnique(state, solver, address, result, success)) {
+    return false;
+  }
+  if (success) {
+    return true;
+  }
 
   // try cheap search, will succeed for any inbounds pointer
 
@@ -275,6 +313,16 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     }
   }
   TimerStatIncrementer timer(stats::resolveTime);
+  
+  IDType fastPathObjectID;
+  bool fastPathSuccess;
+  if (resolveOneIfUnique(state, solver, p, fastPathObjectID, fastPathSuccess)) {
+    return true;
+  }
+  if (fastPathSuccess) {
+    rl.push_back(fastPathObjectID);
+    return false;
+  }
 
   // XXX in general this isn't exactly what we want... for
   // a multiple resolution case (or for example, a \in {b,c,0})
