@@ -19,6 +19,8 @@ int main() {
       assert(0);
       // CHECK-NOT: ASSERTION FAIL
     }
+  } else {
+    n = 0;
   }
 }
 

@@ -41,7 +41,12 @@ void klee::findReads(ref<Expr> e,
       if (!isa<ConstantExpr>(re->index) &&
           visited.insert(re->index).second)
         stack.push_back(re->index);
-      
+
+      if (re->updates.root->getSize() &&
+          visited.insert(re->updates.root->getSize()).second) {
+        stack.push_back(re->updates.root->getSize());
+      }
+
       if (visitUpdates) {
         // XXX this is probably suboptimal. We want to avoid a potential
         // explosion traversing update lists which can be quite

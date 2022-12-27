@@ -18,6 +18,7 @@ Assignment ConcretizationManager::get(const ConstraintSet &set) {
       }
     }
   }
+  delete independent;
 
   return assign;
 }
@@ -44,6 +45,7 @@ void ConcretizationManager::add(const ConstraintSet &oldCS,
       }
     }
   }
+  delete independent;
 
   ConstraintSet dependentWithNew;
   ConstraintManager cm(dependentWithNew);
@@ -60,12 +62,21 @@ void ConcretizationManager::add(const ConstraintSet &oldCS,
     newAssign.bindings[i.first] = i.second;
   }
 
-  concretizations.insert(dependentWithNew.asSet(), newAssign);
+  if (Assignment *oldAssign =
+          concretizations.lookup(dependentWithNew.asSet())) {
+    *oldAssign = newAssign;
+  } else {
+    concretizations.insert(dependentWithNew.asSet(), newAssign);
+  }
 }
 
 void ConcretizationManager::add(const Query &q, const Assignment &assign) {
-  ConstraintSet newCS(std::vector<ref<Expr>>{q.expr});
-  add(q.constraints, newCS, assign);
+  if (!isa<ConstantExpr>(q.expr)) {
+    ConstraintSet newCS(std::vector<ref<Expr>>{q.expr});
+    add(q.constraints, newCS, assign);
+  } else {
+    add({}, q.constraints, assign);
+  }
 }
 
 ref<Expr>

@@ -14,8 +14,8 @@ public:
 
   enum class Kind {
     Constant,
-    MakeSymbolic,
     LazyInitializationSymbolic,
+    MakeSymbolic,
     SymbolicAddress,
     SymbolicSize,
   };

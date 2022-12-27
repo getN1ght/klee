@@ -4231,6 +4231,17 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   state.symbolicSizes.push_back(sizeArray);
   cm->add(Query(state.constraints, sizeEqualityExpr), sizeSymcreteAssignment);
   addressManager->addAllocation(addressArray, mo->id);
+
+  /* In the code above we've added symcretes. Now we want to know if
+  received model is correct, and if so, reset symcrete values */
+  ConstraintSet newCS = state.constraints;
+  ConstraintManager constraintManager(newCS);
+  constraintManager.addConstraint(sizeEqualityExpr);
+
+  std::vector<const Array *> objects = Query(state.constraints, sizeEqualityExpr).gatherSymcreteArrays();
+  std::vector<std::vector<uint8_t>> values;
+  solver->getInitialValues(newCS, objects, values, state.queryMetaData);
+
   addConstraint(state, sizeEqualityExpr);
   return mo;
 }

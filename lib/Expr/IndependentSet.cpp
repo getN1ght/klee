@@ -33,20 +33,6 @@ IndependentElementSet::IndependentElementSet(ref<Expr> e) {
       continue;
 
     if (!wholeObjects.count(array)) {
-      // Так был изменен IndependentSet в случае с extern-вызовами.
-      // if (auto s = dyn_cast<ExternalCallSource>(array->source)) {
-      //   for (auto array : s->call->argArrays) {
-      //     wholeObjects.insert(array);
-      //   }
-      //   for (auto array : s->call->preArrays) {
-      //     wholeObjects.insert(array.second);
-      //   }
-      //   for (auto array : s->call->postArrays) {
-      //     wholeObjects.insert(array.second);
-      //   }
-      //   wholeObjects.insert(s->call->retval);
-      // } else
-
       if (ref<SymbolicAllocationSource> allocSource =
               dyn_cast_or_null<SymbolicAllocationSource>(array->source)) {
         wholeObjects.insert(allocSource->linkedArray);

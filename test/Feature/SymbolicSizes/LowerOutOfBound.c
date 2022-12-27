@@ -15,9 +15,10 @@ int main() {
     char *c2 = malloc(9 - n);
     // CHECK: LowerOutOfBound.c:[[@LINE+1]]: memory error: out of bound pointer
     c2[9 - n - 1] = 20;
+  } else {
+    n = 0;
   }
 }
 
 // KLEE: done: completed paths = 2
-// KLEE: done: partially completed paths = 1
 // KLEE: done: generated tests = 3
