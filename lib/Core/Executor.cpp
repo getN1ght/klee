@@ -4243,7 +4243,11 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   solver->getInitialValues(newCS, objects, values, state.queryMetaData);
 
   addConstraint(state, sizeEqualityExpr);
-  return mo;
+  
+  assert(state.addressSpace.findObject(mo->id).first);
+  
+  return const_cast<MemoryObject *>(
+      state.addressSpace.findObject(mo->id).first);
 }
 
 void Executor::executeMemoryOperation(ExecutionState &state,

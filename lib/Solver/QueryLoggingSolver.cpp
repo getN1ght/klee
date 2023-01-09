@@ -217,9 +217,8 @@ bool QueryLoggingSolver::check(const Query &query, ref<SolverResponse> &result) 
 
   finishQuery(success);
 
-  bool hasSolution = isa<InvalidResponse>(result);
-
   if (success) {
+    bool hasSolution = isa<InvalidResponse>(result);
     logBuffer << queryCommentSign
               << "   Solvable: " << (hasSolution ? "true" : "false") << "\n";
     if (hasSolution) {

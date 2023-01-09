@@ -79,8 +79,9 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
     left = right;
     right = ConstantExpr::create(
         std::max((uint64_t)1, 2 * right->getZExtValue()), 64);
-    if (!computeTruth(query.withExpr(UgtExpr::create(query.expr, right)),
-                      mustBeTrue)) {
+    ref<Expr> valueMustBeGreaterExpr = ConstraintManager::simplifyExpr(
+        query.constraints, UgtExpr::create(query.expr, right));
+    if (!computeTruth(query.withExpr(valueMustBeGreaterExpr), mustBeTrue)) {
       return false;
     }
   } while (mustBeTrue);
@@ -89,7 +90,10 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
   while (left->getZExtValue() + 1 < right->getZExtValue()) {
     ref<ConstantExpr> mid = ConstantExpr::create(
         (left->getZExtValue() + right->getZExtValue()) / 2, 64);
-    if (!computeTruth(query.withExpr(UgtExpr::create(query.expr, mid)),
+    ref<Expr> valueMustBeGreaterExpr = ConstraintManager::simplifyExpr(
+        query.constraints, UgtExpr::create(query.expr, mid));
+
+    if (!computeTruth(query.withExpr(valueMustBeGreaterExpr),
                       mustBeTrue)) {
       return false;
     }

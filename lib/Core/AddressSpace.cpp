@@ -106,14 +106,14 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
 bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
                                       TimingSolver *solver, ref<Expr> address,
                                       IDType &result, bool &success) const {
-  address =
+  ref<Expr> base =
       state.isGEPExpr(address) ? state.gepExprBases.at(address).first : address;
   ref<Expr> uniqueAddress;
-  if (!solver->tryGetUnique(state.constraints, address, uniqueAddress,
+  if (!solver->tryGetUnique(state.constraints, base, uniqueAddress,
                             state.queryMetaData)) {
     return true;
   }
-  
+
   success = false;
   if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(uniqueAddress)) {
     MemoryObject hack(CE->getZExtValue());

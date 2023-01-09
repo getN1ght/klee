@@ -131,9 +131,19 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
     return true;
   }
 
-  ConstraintSet queryConstraints =
-      constructConcretizedQuery(query, assignment).constraints;
-  queryConstraints.push_back(query.negateExpr().expr);
+  Query concretizedNegatedQuery =
+      constructConcretizedQuery(query.negateExpr(), assignment);
+
+  ConstraintSet queryConstraints;
+  ConstraintManager queryConstraintsManager(queryConstraints);
+
+  for (auto constarint : concretizedNegatedQuery.constraints) {
+    queryConstraintsManager.addConstraint(constarint);
+  }
+
+  queryConstraintsManager.addConstraint(concretizedNegatedQuery.expr);
+  sizesSumToMinimize =
+      ConstraintManager::simplifyExpr(query.constraints, sizesSumToMinimize);
 
   ref<ConstantExpr> minimalValueOfSum;
   if (!solver->impl->computeMinimalUnsignedValue(
@@ -150,7 +160,7 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
           brokenSymcreteArrays, brokenSymcretesValues, hasSolution)) {
     return false;
   }
-  assert(hasSolution && "Symcrete values should have concretization after "
+  assert(hasSolution && "Symcretes values should have concretization after "
                         "computeInitialValues() query.");
 
   for (unsigned idx = 0; idx < brokenSymcreteArrays.size(); ++idx) {
