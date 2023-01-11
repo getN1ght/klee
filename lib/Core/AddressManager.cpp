@@ -18,6 +18,7 @@ void *AddressManager::allocate(const Array *array, uint64_t size) {
   if (sizeLocation == objects.end()) {
     uint64_t newSize = (uint64_t) 1 << (sizeof(size) * CHAR_BIT -
                              __builtin_clzll(std::max((uint64_t)1, size)));
+    assert(!objects.empty());
     MemoryObject *mo = std::prev(objects.end())->second;
     newMO =
         memory->allocate(newSize, mo->isLocal, mo->isGlobal, mo->allocSite,

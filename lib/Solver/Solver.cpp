@@ -289,6 +289,19 @@ std::vector<const Array *> Query::gatherArrays() const {
   return arrays;
 }
 
+std::vector<const Array *> Query::gatherSymcreteArrays() const {
+  std::unordered_set<const Array *> arrays;
+  llvm::copy(ConstraintSet(std::vector<ref<Expr>>{expr}).gatherSymcreteArrays(),
+             std::inserter(arrays, arrays.begin()));
+  llvm::copy(constraints.gatherSymcreteArrays(),
+             std::inserter(arrays, arrays.begin()));
+  return std::vector<const Array *>(arrays.begin(), arrays.end());
+}
+
+bool Query::containsSymcretes() const {
+  return !gatherSymcreteArrays().empty();
+}
+
 void Query::dump() const {
   llvm::errs() << "Constraints [\n";
   for (const auto &constraint : constraints)
@@ -298,25 +311,6 @@ void Query::dump() const {
   llvm::errs() << "Query [\n";
   expr->dump();
   llvm::errs() << "]\n";
-}
-
-bool Query::containsSymcretes() const {
-  for (const auto array : gatherArrays()) {
-    if (array->source->isSymcrete()) {
-      return true;
-    }
-  }
-  return false;
-}
-
-std::vector<const Array *> Query::gatherSymcreteArrays() const {
-  std::vector<const Array *> result;
-  for (const auto array : gatherArrays()) {
-    if (array->source->isSymcrete()) {
-      result.push_back(array);
-    }
-  }
-  return result;
 }
 
 void ValidityCore::dump() const {

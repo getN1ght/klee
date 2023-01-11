@@ -4164,7 +4164,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
                                  size_t allocationAlignment,
                                  ref<Expr> lazyInitializationSource,
                                  unsigned timestamp) {
-  /// Try to find existing solution  
+  /* Try to find existing solution. */
   ref<Expr> uniqueSize;
   if (!solver->tryGetUnique(state.constraints, size, uniqueSize,
                             state.queryMetaData)) {
@@ -4174,7 +4174,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   ref<ConstantExpr> arrayConstantSize =
       dyn_cast<ConstantExpr>(optimizer.optimizeExpr(uniqueSize, true));
 
-  /// Constant solution exists. Just return it.
+  /* Constant solution exists. Just return it. */
   if (arrayConstantSize) {
     return memory->allocate(arrayConstantSize->getZExtValue(), isLocal,
                             isGlobal, allocSite, allocationAlignment);
@@ -4184,15 +4184,6 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   ref<Expr> upperBoundSizeConstraint =
       UleExpr::create(size, Expr::createPointer(128));
   addConstraint(state, upperBoundSizeConstraint);
-
-  solver->setTimeout(coreSolverTimeout);
-  bool success = solver->getMinimalUnsignedValue(
-      state.constraints, size, arrayConstantSize, state.queryMetaData);
-  solver->setTimeout(time::Span());
-
-  if (!success) {
-    return nullptr;
-  }
 
   Expr::Width pointerWidth = Context::get().getPointerWidth();
   const Array *addressArray =
@@ -4207,47 +4198,90 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
 
   cast<SymbolicAllocationSource>(addressArray->source)->linkedArray = sizeArray;
   cast<SymbolicAllocationSource>(sizeArray->source)->linkedArray = addressArray;
-  uint64_t sizeMemoryObject = arrayConstantSize->getZExtValue();
-
-  MemoryObject *mo =
-      memory->allocate(sizeMemoryObject, isLocal, isGlobal,
-                       allocSite, allocationAlignment, addressExpr, sizeExpr,
-                       lazyInitializationSource, timestamp);
 
   ref<Expr> sizeEqualityExpr = EqExpr::create(size, sizeExpr);
-  Assignment sizeSymcreteAssignment(true);
 
-  char *charSizeIterator =
-      reinterpret_cast<char *>(&sizeMemoryObject);
-  sizeSymcreteAssignment.bindings[sizeArray] = std::vector<uint8_t>(
+  /* In order to minimize memory consumption, we will try to
+  optimize entire sum of symbolic sizes. Hence, compute the sum
+  (maybe we can memoize the sum to prevent summing) every time
+  we meet new symbolic allocation and query the solver for the model. */
+  ref<Expr> symbolicSizesSum = size;
+  for (const Array *symbolicSize : state.symbolicSizes) {
+    symbolicSizesSum = AddExpr::create(
+        symbolicSizesSum, Expr::createTempRead(symbolicSize, pointerWidth));
+  }
+
+  ref<ConstantExpr> minimalSumValue;
+
+  /* Receive model with a smallest sum as possible. */
+  solver->setTimeout(coreSolverTimeout);
+  bool success =
+      solver->getMinimalUnsignedValue(state.constraints, symbolicSizesSum,
+                                      minimalSumValue, state.queryMetaData);
+  solver->setTimeout(time::Span());
+
+  if (!success) {
+    return nullptr;
+  }
+
+  /* Compute assignment for symcretes. */
+  std::vector<const Array *> objects;
+  std::vector<std::vector<uint8_t>> values;
+
+  for (const Array *array : state.constraints.gatherSymcreteArrays()) {
+    objects.push_back(array);
+    objects.push_back(
+        cast<SymbolicAllocationSource>(array->source)->linkedArray);
+  }
+
+  /* We can simply query the solver to get value of size, but
+  to optimize the number of queries we will ask it one time with assignment
+  for symcretes. */
+  findObjects(size, objects);
+
+  solver->setTimeout(coreSolverTimeout);
+  success = solver->getInitialValues(state.constraints.withExpr(EqExpr::create(
+                                         symbolicSizesSum, minimalSumValue)),
+                                     objects, values, state.queryMetaData);
+  solver->setTimeout(time::Span());
+
+  if (!success) {
+    return nullptr;
+  }
+
+  Assignment assignment(objects, values, true);
+  uint64_t sizeMemoryObject =
+      cast<ConstantExpr>(assignment.evaluate(size))->getZExtValue();
+
+  for (auto it = assignment.bindings.begin();
+       it != assignment.bindings.end();) {
+    if (!it->first->source->isSymcrete()) {
+      it = assignment.bindings.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  MemoryObject *mo = memory->allocate(
+      sizeMemoryObject, isLocal, isGlobal, allocSite, allocationAlignment,
+      addressExpr, sizeExpr, lazyInitializationSource, timestamp);
+
+  char *charSizeIterator = reinterpret_cast<char *>(&sizeMemoryObject);
+  assignment.bindings[sizeArray] = std::vector<uint8_t>(
       charSizeIterator,
       charSizeIterator + Context::get().getPointerWidth() / CHAR_BIT);
 
   char *charAddressIterator = reinterpret_cast<char *>(&mo->address);
-  sizeSymcreteAssignment.bindings[addressArray] = std::vector<uint8_t>(
+  assignment.bindings[addressArray] = std::vector<uint8_t>(
       charAddressIterator,
       charAddressIterator + Context::get().getPointerWidth() / CHAR_BIT);
 
   state.symbolicSizes.push_back(sizeArray);
-  cm->add(Query(state.constraints, sizeEqualityExpr), sizeSymcreteAssignment);
+  cm->add(Query(state.constraints, sizeEqualityExpr), assignment);
   addressManager->addAllocation(addressArray, mo->id);
 
-  /* In the code above we've added symcretes. Now we want to know if
-  received model is correct, and if so, reset symcrete values */
-  ConstraintSet newCS = state.constraints;
-  ConstraintManager constraintManager(newCS);
-  constraintManager.addConstraint(sizeEqualityExpr);
-
-  std::vector<const Array *> objects = Query(state.constraints, sizeEqualityExpr).gatherSymcreteArrays();
-  std::vector<std::vector<uint8_t>> values;
-  solver->getInitialValues(newCS, objects, values, state.queryMetaData);
-
   addConstraint(state, sizeEqualityExpr);
-  
-  assert(state.addressSpace.findObject(mo->id).first);
-  
-  return const_cast<MemoryObject *>(
-      state.addressSpace.findObject(mo->id).first);
+  return mo;
 }
 
 void Executor::executeMemoryOperation(ExecutionState &state,
