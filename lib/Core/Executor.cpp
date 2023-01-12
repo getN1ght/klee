@@ -4554,6 +4554,9 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
   MemoryObject *mo = allocate(state, size, false,
                               /*isGlobal=*/false, allocSite,
                               /*allocationAlignment=*/8, address, timestamp);
+  if (!mo) {
+    return 0;
+  }
 
   // Check if address is suitable for LI object.
   ref<Expr> checkAddressForLazyInitializationExpr = EqExpr::create(
