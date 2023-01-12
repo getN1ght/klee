@@ -4635,9 +4635,9 @@ const Array *Executor::makeArray(ExecutionState &state, ref<Expr> size,
   std::string uniqueName;
   if (source->getKind() != ArraySource::Kind::Constant &&
       source->getKind() != ArraySource::Kind::MakeSymbolic) {
-    uniqueName = source->getName() + "[" + name + "]";
+    uniqueName = source->getName() + "<" + name + ">";
     while (!state.arrayNames.insert(uniqueName).second) {
-      uniqueName = source->getName() + "[" + name + llvm::utostr(++id) + "]";
+      uniqueName = source->getName() + "<" + name + llvm::utostr(++id) + ">";
     }
   } else {
     uniqueName = name;
