@@ -130,7 +130,7 @@ public:
   void setAbbreviationMode(AbbreviationMode am) { abbrMode = am; }
 
   /// Create a new printer that will print a query in the SMTLIBv2 language.
-  ExprSMTLIBPrinter();
+  ExprSMTLIBPrinter(ConcretizationManager *);
 
   /// Set the output stream that will be printed to.
   /// This call is persistent across queries.
@@ -234,6 +234,9 @@ protected:
 
   /// The query to print
   const Query *query;
+
+  /// Concretization manager to receive info about symbolic variables
+  ConcretizationManager *cm;
 
   /// Determine the SMTLIBv2 sort of the expression
   SMTLIB_SORT getSort(const ref<Expr> &e);

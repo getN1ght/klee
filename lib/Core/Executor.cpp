@@ -4562,8 +4562,6 @@ IDType Executor::lazyInitializeObject(ExecutionState &state,
 
   bool canBeLazyInitialized = false;
 
-  // We do not want to make `mayBeTrue` requests as they can
-  // affect symcrete variables.
   solver->setTimeout(coreSolverTimeout);
   bool success = solver->mayBeTrue(state.constraints,
                                    checkAddressForLazyInitializationExpr,
@@ -4863,7 +4861,7 @@ void Executor::getConstraintLog(const ExecutionState &state, std::string &res,
   case SMTLIB2: {
     std::string Str;
     llvm::raw_string_ostream info(Str);
-    ExprSMTLIBPrinter printer;
+    ExprSMTLIBPrinter printer(cm);
     printer.setOutput(info);
     Query query(state.constraints, ConstantExpr::alloc(0, Expr::Bool));
     printer.setQuery(query);

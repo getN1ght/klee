@@ -343,7 +343,7 @@ static bool printInputAsSMTLIBv2(const char *Filename,
 	if (!success)
 	return false;
 
-	ExprSMTLIBPrinter printer;
+	ExprSMTLIBPrinter printer(nullptr);
 	printer.setOutput(llvm::outs());
 
 	unsigned int queryNumber = 0;

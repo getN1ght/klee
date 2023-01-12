@@ -41,7 +41,8 @@ Solver *constructSolverChain(Solver *coreSolver, std::string querySMT2LogPath,
   }
 
   if (QueryLoggingOptions.isSet(SOLVER_SMTLIB)) {
-    solver = createSMTLIBLoggingSolver(solver, baseSolverQuerySMT2LogPath, minQueryTimeToLog, LogTimedOutQueries);
+    solver = createSMTLIBLoggingSolver(solver, cm, baseSolverQuerySMT2LogPath,
+                                       minQueryTimeToLog, LogTimedOutQueries);
     klee_message("Logging queries that reach solver in .smt2 format to %s\n",
                  baseSolverQuerySMT2LogPath.c_str());
   }
@@ -74,7 +75,8 @@ Solver *constructSolverChain(Solver *coreSolver, std::string querySMT2LogPath,
   }
 
   if (QueryLoggingOptions.isSet(ALL_SMTLIB)) {
-    solver = createSMTLIBLoggingSolver(solver, querySMT2LogPath, minQueryTimeToLog, LogTimedOutQueries);
+    solver = createSMTLIBLoggingSolver(solver, cm, querySMT2LogPath,
+                                       minQueryTimeToLog, LogTimedOutQueries);
     klee_message("Logging all queries in .smt2 format to %s\n",
                  querySMT2LogPath.c_str());
   }

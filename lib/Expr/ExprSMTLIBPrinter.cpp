@@ -55,9 +55,9 @@ llvm::cl::opt<klee::ExprSMTLIBPrinter::AbbreviationMode> abbreviationMode(
 
 namespace klee {
 
-ExprSMTLIBPrinter::ExprSMTLIBPrinter()
-    : usedArrays(), o(NULL), query(NULL), p(NULL), haveConstantArray(false),
-      logicToUse(QF_AUFBV),
+ExprSMTLIBPrinter::ExprSMTLIBPrinter(ConcretizationManager *cm)
+    : usedArrays(), o(NULL), query(NULL), cm(cm), p(NULL),
+      haveConstantArray(false), logicToUse(QF_AUFBV),
       humanReadable(ExprSMTLIBOptions::humanReadableSMTLIB),
       smtlibBoolOptions(), arraysToCallGetValueOn(NULL) {
   setConstantDisplayMode(ExprSMTLIBOptions::argConstantDisplayMode);
@@ -677,19 +677,25 @@ void ExprSMTLIBPrinter::printAction() {
 
     const Array *theArray = 0;
 
+    Assignment symcretesConcretization(true);
+    if (cm) {
+      symcretesConcretization = cm->get(query->constraints);
+    }
+    
     // loop over the array names
     for (std::vector<const Array *>::const_iterator it =
              arraysToCallGetValueOn->begin();
          it != arraysToCallGetValueOn->end(); it++) {
       theArray = *it;
       // Loop over the array indices
-      if (ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(theArray->size)) {
-        for (unsigned int index = 0; index < arrayConstantSize->getZExtValue(); ++index) {
-          *o << "(get-value ( (select " << (**it).name << " (_ bv" << index << " "
-            << theArray->getDomain() << ") ) ) )\n";
-        }
-      } else {
-        klee_warning("Cannot print %s as it has symbolic size\n", (**it).name.c_str());
+      ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(
+          symcretesConcretization.evaluate(theArray->size));
+      assert(arrayConstantSize &&
+             "During printing symbolic sizes should be concrete");
+      for (unsigned int index = 0; index < arrayConstantSize->getZExtValue();
+           ++index) {
+        *o << "(get-value ( (select " << (**it).name << " (_ bv" << index << " "
+           << theArray->getDomain() << ") ) ) )\n";
       }
     }
   }

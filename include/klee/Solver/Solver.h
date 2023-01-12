@@ -458,10 +458,10 @@ namespace klee {
 
   /// createSMTLIBLoggingSolver - Create a solver which will forward all queries
   /// after writing them to the given path in .smt2 format.
-  Solver *createSMTLIBLoggingSolver(Solver *s, std::string path,
+  Solver *createSMTLIBLoggingSolver(Solver *s, ConcretizationManager *cm,
+                                    std::string path,
                                     time::Span minQueryTimeToLog,
                                     bool logTimedOut);
-
 
   /// createDummySolver - Create a dummy solver implementation which always
   /// fails.

@@ -374,8 +374,8 @@ bool SolverBlueprint::computeInitialValues(
     if (!relaxSymcreteConstraints(query, assign, hasSolution)) {
       return false;
     }
-    // Because relaxSymcreteConstraints response is `isValid`,
-    // and `isValid` == false iff solution for negation exists.
+    /* Because relaxSymcreteConstraints response is `isValid`,
+    and `isValid` == false iff solution for negation exists. */
     hasSolution = !hasSolution;
     if (hasSolution) {
       cm->add(query.negateExpr(), assign);
