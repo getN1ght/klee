@@ -447,6 +447,8 @@ cl::opt<bool> DebugCheckForImpliedValues(
 
 } // namespace
 
+extern llvm::cl::opt<uint64_t> MaxAllocationSize;
+
 // XXX hack
 extern "C" unsigned dumpStates, dumpPTree;
 unsigned dumpStates = 0, dumpPTree = 0;
@@ -4065,27 +4067,45 @@ void Executor::executeAlloc(ExecutionState &state,
     allocationAlignment = getAllocationAlignment(allocSite);
   }
 
-  MemoryObject *mo = allocate(state, size, isLocal, /*isGlobal=*/false, allocSite,
-                              allocationAlignment);
-  if (!mo) {
-    bindLocal(target, state, 
-              ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-  } else {
-    ObjectState *os = bindObjectInState(state, mo, isLocal);
-    if (zeroMemory) {
-      os->initializeToZero();
+  ref<Expr> upperBoundSizeConstraint =
+      UleExpr::create(size, Expr::createPointer(MaxAllocationSize));
+
+  /* If size greater then upper bound for size, then we will follow
+  the malloc semantic and return NULL. Otherwise continue execution. */
+  StatePair sp = fork(state, upperBoundSizeConstraint, true, BranchType::MemOp);
+  ExecutionState *bound = sp.first, *unbound = sp.second;
+
+  if (bound) {
+    MemoryObject *mo = allocate(*bound, size, isLocal, /*isGlobal=*/false,
+                                allocSite, allocationAlignment);
+    if (!mo) {
+      bindLocal(target, *bound,
+                ConstantExpr::alloc(0, Context::get().getPointerWidth()));
     } else {
-      os->initializeToRandom();
+      ObjectState *os = bindObjectInState(*bound, mo, isLocal);
+      if (zeroMemory) {
+        os->initializeToZero();
+      } else {
+        os->initializeToRandom();
+      }
+      bindLocal(target, *bound, mo->getBaseExpr());
+
+      if (reallocFrom) {
+        unsigned count = std::min(reallocFrom->size, os->size);
+        for (unsigned i = 0; i < count; i++)
+          os->write(i, reallocFrom->read8(i));
+        bound->removePointerResolutions(reallocFrom->getObject());
+        bound->addressSpace.unbindObject(reallocFrom->getObject());
+      }
     }
-    bindLocal(target, state, mo->getBaseExpr());
-    
-    if (reallocFrom) {
-      unsigned count = std::min(reallocFrom->size, os->size);
-      for (unsigned i=0; i<count; i++)
-        os->write(i, reallocFrom->read8(i));
-      state.removePointerResolutions(reallocFrom->getObject());
-      state.addressSpace.unbindObject(reallocFrom->getObject());
-    }
+  }
+
+  if (unbound) {
+    assert(!allocate(*unbound, Expr::createPointer(MaxAllocationSize + 1),
+                     isLocal,
+                     /*isGlobal=*/false, allocSite, allocationAlignment));
+    bindLocal(target, *unbound,
+              ConstantExpr::alloc(0, Context::get().getPointerWidth()));
   }
 }
 
@@ -4179,11 +4199,6 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     return memory->allocate(arrayConstantSize->getZExtValue(), isLocal,
                             isGlobal, allocSite, allocationAlignment);
   }
-
-  // TODO: hardcoded constant? This should prevent overflows.
-  ref<Expr> upperBoundSizeConstraint =
-      UleExpr::create(size, Expr::createPointer(128));
-  addConstraint(state, upperBoundSizeConstraint);
 
   Expr::Width pointerWidth = Context::get().getPointerWidth();
   const Array *addressArray =
