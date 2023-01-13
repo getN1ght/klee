@@ -360,9 +360,8 @@ bool SolverBlueprint::computeInitialValues(
   }
 
   Assignment assign = cm->get(query.constraints);
-  /* Here we do not want to make any assertions as API for solver
-  is not very convinient and put all query in constraints, therefore
-  assignment for state.constraints + expr will be always empty. */
+  assert(assertConcretization(query, assign) &&
+         "Assignment does not contain concretization for all symcrete arrays!");
 
   auto concretizedQuery = constructConcretizedQuery(query, assign);
   if (!solver->impl->computeInitialValues(concretizedQuery, objects, values,

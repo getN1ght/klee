@@ -4239,6 +4239,18 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   for symcretes. */
   findObjects(size, objects);
 
+  bool checkSize;
+  solver->setTimeout(coreSolverTimeout);
+  success = solver->mustBeFalse(
+      state.constraints, EqExpr::create(symbolicSizesSum, minimalSumValue),
+      checkSize, state.queryMetaData);
+  solver->setTimeout(time::Span());
+
+  assert(!checkSize && "Incorrect model for sizes received!");
+  if (!success) {
+    return nullptr;
+  }
+
   solver->setTimeout(coreSolverTimeout);
   success = solver->getInitialValues(state.constraints.withExpr(EqExpr::create(
                                          symbolicSizesSum, minimalSumValue)),
@@ -4268,13 +4280,11 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
 
   char *charSizeIterator = reinterpret_cast<char *>(&sizeMemoryObject);
   assignment.bindings[sizeArray] = std::vector<uint8_t>(
-      charSizeIterator,
-      charSizeIterator + Context::get().getPointerWidth() / CHAR_BIT);
+      charSizeIterator, charSizeIterator + pointerWidth / CHAR_BIT);
 
   char *charAddressIterator = reinterpret_cast<char *>(&mo->address);
   assignment.bindings[addressArray] = std::vector<uint8_t>(
-      charAddressIterator,
-      charAddressIterator + Context::get().getPointerWidth() / CHAR_BIT);
+      charAddressIterator, charAddressIterator + pointerWidth / CHAR_BIT);
 
   state.symbolicSizes.push_back(sizeArray);
   cm->add(Query(state.constraints, sizeEqualityExpr), assignment);
