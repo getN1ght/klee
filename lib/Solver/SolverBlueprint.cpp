@@ -79,9 +79,8 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
   // them in order to achieve `mayBeTrue` solution.
   assignment = cm->get(query.constraints);
 
-  ref<Expr> sizesSumToMinimize = ConstantExpr::create(0, 64);
   std::vector<const Array *> brokenSymcreteArrays;
-
+  std::vector<const Array *> brokenSizesArrays;
   ValidityCore validityCore;
   
   bool wereConcretizationsRemoved = true;
@@ -119,10 +118,8 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
         assignment.bindings.erase(sizeSource->linkedArray);
 
         wereConcretizationsRemoved = true;
+        brokenSizesArrays.push_back(brokenArray);
         // Add symbolic size to the sum that should be minimized.
-        sizesSumToMinimize =
-            AddExpr::create(sizesSumToMinimize,
-                            Expr::createTempRead(brokenArray, /*FIXME:*/ 64));
       }
     }
   }
@@ -142,6 +139,20 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
   }
 
   queryConstraintsManager.addConstraint(concretizedNegatedQuery.expr);
+
+  assert(!brokenSizesArrays.empty());
+  uint64_t overflowBits = sizeof(unsigned long long) * CHAR_BIT - 1 -
+                          __builtin_clzll(brokenSizesArrays.size());
+  Expr::Width exprWidth =
+      brokenSizesArrays.front()->size->getWidth();
+  ref<Expr> sizesSumToMinimize =
+      ConstantExpr::create(0, exprWidth + overflowBits);
+  for (const Array *array : brokenSizesArrays) {
+    sizesSumToMinimize =
+        AddExpr::create(sizesSumToMinimize,
+                        ZExtExpr::create(Expr::createTempRead(array, exprWidth),
+                                         exprWidth + overflowBits));
+  }
   sizesSumToMinimize =
       ConstraintManager::simplifyExpr(query.constraints, sizesSumToMinimize);
 

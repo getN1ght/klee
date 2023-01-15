@@ -4101,8 +4101,7 @@ void Executor::executeAlloc(ExecutionState &state,
   }
 
   if (unbound) {
-    assert(!allocate(*unbound, Expr::createPointer(MaxAllocationSize + 1),
-                     isLocal,
+    assert(!allocate(*unbound, size, isLocal,
                      /*isGlobal=*/false, allocSite, allocationAlignment));
     bindLocal(target, *unbound,
               ConstantExpr::alloc(0, Context::get().getPointerWidth()));
@@ -4220,10 +4219,17 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   optimize entire sum of symbolic sizes. Hence, compute the sum
   (maybe we can memoize the sum to prevent summing) every time
   we meet new symbolic allocation and query the solver for the model. */
-  ref<Expr> symbolicSizesSum = size;
+
+  uint64_t overflowBits = sizeof(unsigned long long) * CHAR_BIT - 1 -
+                          __builtin_clzll(state.symbolicSizes.size() + 1);
+
+  ref<Expr> symbolicSizesSum =
+      ZExtExpr::create(size, pointerWidth + overflowBits);
   for (const Array *symbolicSize : state.symbolicSizes) {
     symbolicSizesSum = AddExpr::create(
-        symbolicSizesSum, Expr::createTempRead(symbolicSize, pointerWidth));
+        symbolicSizesSum,
+        ZExtExpr::create(Expr::createTempRead(symbolicSize, pointerWidth),
+                         pointerWidth + overflowBits));
   }
 
   ref<ConstantExpr> minimalSumValue;
@@ -4292,6 +4298,9 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   MemoryObject *mo = memory->allocate(
       sizeMemoryObject, isLocal, isGlobal, allocSite, allocationAlignment,
       addressExpr, sizeExpr, lazyInitializationSource, timestamp);
+  if (!mo) {
+    return nullptr;
+  }
 
   char *charSizeIterator = reinterpret_cast<char *>(&sizeMemoryObject);
   assignment.bindings[sizeArray] = std::vector<uint8_t>(

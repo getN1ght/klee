@@ -71,30 +71,38 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
   }
 
   // At least one value must satisfy constraints
-  ref<ConstantExpr> left = ConstantExpr::create(0, 64);
-  ref<ConstantExpr> right = ConstantExpr::create(0, 64);
+  ref<ConstantExpr> left = ConstantExpr::create(0, query.expr->getWidth());
+  ref<ConstantExpr> right = ConstantExpr::create(1, query.expr->getWidth());
 
   // Compute the right border
+  bool firstIteration = true;
   do {
-    left = right;
-    right = ConstantExpr::create(
-        std::max((uint64_t)1, 2 * right->getZExtValue()), 64);
+    if (!firstIteration) {
+      left = right;
+      right = cast<ConstantExpr>(
+          ShlExpr::create(right, ConstantExpr::create(1, right->getWidth())));
+    }
     ref<Expr> valueMustBeGreaterExpr = ConstraintManager::simplifyExpr(
         query.constraints, UgtExpr::create(query.expr, right));
     if (!computeTruth(query.withExpr(valueMustBeGreaterExpr), mustBeTrue)) {
       return false;
     }
+    firstIteration = false;
   } while (mustBeTrue);
 
   // Binary search the least value for expr from the given query
-  while (left->getZExtValue() + 1 < right->getZExtValue()) {
-    ref<ConstantExpr> mid = ConstantExpr::create(
-        (left->getZExtValue() + right->getZExtValue()) / 2, 64);
+  while (cast<ConstantExpr>(
+             UltExpr::create(AddExpr::create(left, ConstantExpr::create(
+                                                       1, left->getWidth())),
+                             right))
+             ->isTrue()) {
+    ref<ConstantExpr> mid = cast<ConstantExpr>(
+        LShrExpr::create(AddExpr::create(left, right),
+                         ConstantExpr::create(1, right->getWidth())));
     ref<Expr> valueMustBeGreaterExpr = ConstraintManager::simplifyExpr(
         query.constraints, UgtExpr::create(query.expr, mid));
 
-    if (!computeTruth(query.withExpr(valueMustBeGreaterExpr),
-                      mustBeTrue)) {
+    if (!computeTruth(query.withExpr(valueMustBeGreaterExpr), mustBeTrue)) {
       return false;
     }
 
