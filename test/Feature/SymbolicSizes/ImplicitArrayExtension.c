@@ -13,6 +13,7 @@ int main() {
 
   char *s1 = (char *) malloc(n);
   char *s2 = (char *) malloc(m);
+  assert(s1 && s2);
   if (n < m) {
     // CHECK: ImplicitArrayExtension.c:[[@LINE+1]]: memory error: out of bound pointer
     s1[1] = 10; // n == 2

@@ -196,6 +196,7 @@ void MemoryManager::deallocate(const MemoryObject *mo) { assert(0); }
 
 void MemoryManager::markFreed(MemoryObject *mo) {
   if (objects.find(mo) != objects.end()) {
+    allocatedSizes[mo->id].erase(mo->size);
     if (!mo->isFixed && !DeterministicAllocation)
       free((void *)mo->address);
     objects.erase(mo);

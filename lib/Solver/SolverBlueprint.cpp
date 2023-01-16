@@ -131,13 +131,8 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
   Query concretizedNegatedQuery =
       constructConcretizedQuery(query.negateExpr(), assignment);
 
-  ConstraintSet queryConstraints;
+  ConstraintSet queryConstraints = concretizedNegatedQuery.constraints;
   ConstraintManager queryConstraintsManager(queryConstraints);
-
-  for (auto constarint : concretizedNegatedQuery.constraints) {
-    queryConstraintsManager.addConstraint(constarint);
-  }
-
   queryConstraintsManager.addConstraint(concretizedNegatedQuery.expr);
 
   assert(!brokenSizesArrays.empty());
@@ -192,6 +187,7 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
                 ->getZExtValue();
 
         void *address = ag->allocate(dependentAddressArray, newSize);
+        assert(address);
         char *charAddressIterator = reinterpret_cast<char *>(&address);
         assignment.bindings[dependentAddressArray] = std::vector<uint8_t>(
             charAddressIterator, charAddressIterator + sizeof(address));

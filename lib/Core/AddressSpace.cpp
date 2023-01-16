@@ -49,6 +49,7 @@ void AddressSpace::bindObject(const MemoryObject *mo, ObjectState *os) {
 
 void AddressSpace::unbindObject(const MemoryObject *mo) {
   objects = objects.remove(mo);
+  idToObjects = idToObjects.remove(mo->id);
 }
 
 ObjectPair AddressSpace::findObject(const MemoryObject *mo) const {

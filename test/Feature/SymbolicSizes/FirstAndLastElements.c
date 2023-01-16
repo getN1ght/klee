@@ -9,6 +9,9 @@
 int main() {
   int n = klee_int("n");
   char *s = (char *)malloc(n);
+  // CHECK: FirstAndLastElements.c:[[@LINE+1]]: ASSERTION FAIL
+  assert(s);
+
   klee_make_symbolic(s, n, "s");
   // CHECK: FirstAndLastElements.c:[[@LINE+1]]: memory error: out of bound pointer
   int sum = s[n - 1] + s[0];
@@ -17,5 +20,4 @@ int main() {
 }
 
 // CHECK: KLEE: done: completed paths = 1
-// CHECK: KLEE: done: partially completed paths = 2
-// CHECK: KLEE: done: generated tests = 3
+// CHECK: KLEE: done: generated tests = 4

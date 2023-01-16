@@ -4101,8 +4101,6 @@ void Executor::executeAlloc(ExecutionState &state,
   }
 
   if (unbound) {
-    assert(!allocate(*unbound, size, isLocal,
-                     /*isGlobal=*/false, allocSite, allocationAlignment));
     bindLocal(target, *unbound,
               ConstantExpr::alloc(0, Context::get().getPointerWidth()));
   }
