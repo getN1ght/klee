@@ -13,6 +13,9 @@ int main() {
 
   char *s1 = (char *) malloc(-n);
   char *s2 = (char *) malloc(m);
+  // CHECK: NegativeSize.c:[[@LINE+1]]: ASSERTION FAIL
+  assert(s1 && s2);
+
   if (n < m) {
     // CHECK: NegativeSize.c:[[@LINE+1]]: memory error: out of bound pointer
     s1[1] = 10; // n == -2
@@ -24,5 +27,5 @@ int main() {
 }
 
 // CHECK: KLEE: done: completed paths = 1
-// CHECK: KLEE: done: partially completed paths = 3
-// CHECK: KLEE: done: generated tests = 4
+// CHECK: KLEE: done: partially completed paths = 6
+// CHECK: KLEE: done: generated tests = 5

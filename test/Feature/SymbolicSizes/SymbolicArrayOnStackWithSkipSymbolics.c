@@ -12,4 +12,5 @@ int main() {
   f[0] = 10;
 }
 // CHECK: KLEE: done: completed paths = 1
-// CHECK: KLEE: done: generated tests = 2
+// CHECK: KLEE: done: partially completed paths = 2
+// CHECK: KLEE: done: generated tests = 3

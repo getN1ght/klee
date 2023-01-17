@@ -1275,10 +1275,7 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
     }
   }
   updateStateWithSymcretes(state, diffAssignment);
-
-  if (cm->get(state.constraints).bindings.empty()) {
-    cm->add(Query(oldConstraints, condition), Assignment(true));
-  }
+  cm->add(Query(oldConstraints, condition), cm->get(state.constraints));
 
   if (ivcEnabled)
     doImpliedValueConcretization(state, condition,

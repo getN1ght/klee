@@ -35,6 +35,7 @@ IndependentElementSet::IndependentElementSet(ref<Expr> e) {
     if (!wholeObjects.count(array)) {
       if (ref<SymbolicAllocationSource> allocSource =
               dyn_cast_or_null<SymbolicAllocationSource>(array->source)) {
+        wholeObjects.insert(array);
         wholeObjects.insert(allocSource->linkedArray);
       }
 

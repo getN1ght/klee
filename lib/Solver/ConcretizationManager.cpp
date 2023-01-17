@@ -53,7 +53,7 @@ void ConcretizationManager::add(const ConstraintSet &oldCS,
   for (auto i : dependent) {
     cm.addConstraint(i);
   }
-
+  
   for (auto i : newCS) {
     cm.addConstraint(i);
   }
@@ -62,12 +62,25 @@ void ConcretizationManager::add(const ConstraintSet &oldCS,
     newAssign.bindings[i.first] = i.second;
   }
 
-  concretizations.insert(dependentWithNew.asSet(), newAssign);
+  independent = getAllIndependentConstraintsSets(
+      Query(dependentWithNew, ConstantExpr::alloc(0, Expr::Bool)));
+
+  for (auto i : *independent) {
+    Assignment independentAssignment(true);
+    for (const Array *array : i.wholeObjects) {
+      if (newAssign.bindings.count(array)) {
+        independentAssignment.bindings[array] = newAssign.bindings.at(array);
+      }
+    }
+    concretizations.insert(ConstraintSet(i.exprs).asSet(),
+                           independentAssignment);
+  }
+
+  delete independent;
 }
 
 void ConcretizationManager::add(const Query &q, const Assignment &assign) {
-  ConstraintSet newCS(std::vector<ref<Expr>>{q.expr});
-  add(q.constraints, newCS, assign);
+  add(q.constraints, ConstraintSet(std::vector<ref<Expr>>{q.expr}), assign);
 }
 
 ref<Expr>
