@@ -4503,10 +4503,13 @@ void Executor::executeMemoryOperation(ExecutionState &state,
           state,
           Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
           "lazy_instantiation_size", sourceBuilder.lazyInitializationMakeSymbolic());
-      ref<Expr> sizeExpr = Expr::createTempRead(lazyInstantiationSize,
-                                                Context::get().getPointerWidth());
+      ref<Expr> sizeExpr = Expr::createTempRead(
+          lazyInstantiationSize, Context::get().getPointerWidth());
       addConstraint(*unbound,
                     UgeExpr::create(sizeExpr, Expr::createPointer(size)));
+      addConstraint(
+          *unbound,
+          UleExpr::create(sizeExpr, Expr::createPointer(MaxAllocationSize)));
 
       IDType idLazyInitialization =
           lazyInitializeObject(*unbound, base, target, sizeExpr);
@@ -4666,14 +4669,12 @@ void Executor::updateStateWithSymcretes(ExecutionState &state,
 const Array *Executor::makeArray(ExecutionState &state, ref<Expr> size,
                                  const std::string &name,
                                  ref<ArraySource> source) {
+  // FIXME: [state_ID] name <TYPE>
   static uint64_t id = 0;
   std::string uniqueName;
   if (source->getKind() != ArraySource::Kind::Constant &&
       source->getKind() != ArraySource::Kind::MakeSymbolic) {
-    uniqueName = source->getName() + "<" + name + ">";
-    while (!state.arrayNames.insert(uniqueName).second) {
-      uniqueName = source->getName() + "<" + name + llvm::utostr(++id) + ">";
-    }
+    uniqueName = source->getName() + "<" + name + llvm::utostr(++id) + ">";
   } else {
     uniqueName = name;
     while (!state.arrayNames.insert(uniqueName).second) {
