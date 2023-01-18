@@ -677,11 +677,6 @@ void ExprSMTLIBPrinter::printAction() {
 
     const Array *theArray = 0;
 
-    Assignment symcretesConcretization(true);
-    if (cm) {
-      symcretesConcretization = cm->get(query->constraints);
-    }
-    
     // loop over the array names
     for (std::vector<const Array *>::const_iterator it =
              arraysToCallGetValueOn->begin();
@@ -689,9 +684,15 @@ void ExprSMTLIBPrinter::printAction() {
       theArray = *it;
       // Loop over the array indices
       ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(
-          symcretesConcretization.evaluate(theArray->size));
-      assert(arrayConstantSize &&
-             "During printing symbolic sizes should be concrete");
+          cm ? cm->simplifyExprWithSymcretes(query->constraints, theArray->size)
+             : ConstraintManager::simplifyExpr(query->constraints,
+                                               theArray->size));
+      if (!arrayConstantSize) {
+        klee_warning("Query for %s can not be printed as it has non-conretized "
+                     "symbolic size!",
+                     theArray->getName().c_str());
+        continue;
+      }
       for (unsigned int index = 0; index < arrayConstantSize->getZExtValue();
            ++index) {
         *o << "(get-value ( (select " << (**it).name << " (_ bv" << index << " "

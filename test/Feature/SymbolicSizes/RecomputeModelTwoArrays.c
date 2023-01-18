@@ -17,4 +17,4 @@ int main() {
     }
   }
 }
-// CHECK: KLEE: done: generated tests = 4
+// CHECK: KLEE: done: generated tests = 5

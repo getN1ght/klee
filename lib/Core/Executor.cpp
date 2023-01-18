@@ -5022,7 +5022,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state,
   solver->setTimeout(coreSolverTimeout);
 
   ConstraintSet extendedConstraints(state.constraints);
-  ConstraintManager cm(extendedConstraints);
+  ConstraintManager extendedConstrainsManager(extendedConstraints);
 
   // Go through each byte in every test case and attempt to restrict
   // it to the constraints contained in cexPreferences.  (Note:
@@ -5042,8 +5042,14 @@ bool Executor::getSymbolicSolution(const ExecutionState &state,
     if (!success) break;
     // If the particular constraint operated on in this iteration through
     // the loop isn't implied then add it to the list of constraints.
-    if (!mustBeTrue)
-      cm.addConstraint(pi);
+    if (!mustBeTrue) {
+      // We can do `cm->add(Query(oldExtendedConstraints, pi), Assignment(true))`
+      // instead of copying entire constraints, but simplifications in ConstraintsManager
+      // can cause unexpected tranformations (e.g. rewrite equalities).
+      ConstraintSet oldExtendedConstraints = extendedConstraints;
+      extendedConstrainsManager.addConstraint(pi);
+      cm->add(Query(oldExtendedConstraints, pi), cm->get(extendedConstraints));
+    }
   }
 
   std::vector< std::vector<unsigned char> > values;
