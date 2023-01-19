@@ -59,11 +59,17 @@ llvm::cl::opt<unsigned long long> DeterministicStartAddress(
     llvm::cl::init(0x7ff30000000), llvm::cl::cat(MemoryCat));
 } // namespace
 
-llvm::cl::opt<uint64_t> MaxAllocationSize(
-    "max-alloc",
+llvm::cl::opt<uint64_t> MaxConstantAllocationSize(
+    "max-constant-alloc",
     llvm::cl::desc(
         "Maximum available size for single allocation (default 10Mb)"),
     llvm::cl::init(10ll << 20), llvm::cl::cat(MemoryCat));
+
+llvm::cl::opt<uint64_t> MaxSymbolicAllocationSize(
+    "max-sym-alloc",
+    llvm::cl::desc(
+        "Maximum available size for single allocation (default 128b)"),
+    llvm::cl::init(1ll << 7), llvm::cl::cat(MemoryCat));
 
 /***/
 MemoryManager::MemoryManager(ArrayCache *_arrayCache,
@@ -114,7 +120,7 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
                                       ref<Expr> lazyInitializationSource,
                                       unsigned timestamp,
                                       IDType id) {
-  if (size > MaxAllocationSize) {
+  if (size > MaxConstantAllocationSize) {
     klee_warning_once(0, "Large alloc: %" PRIu64
                          " bytes. It will be considered as NULL pointer on allocation.",
                       size);

@@ -27,6 +27,7 @@ void *AddressManager::allocate(const Array *array, uint64_t size) {
   } else {
     newMO = sizeLocation->second;
   }
+  assert(size <= newMO->size);
   return reinterpret_cast<void *>(newMO->address);
 }
 

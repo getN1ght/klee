@@ -447,7 +447,8 @@ cl::opt<bool> DebugCheckForImpliedValues(
 
 } // namespace
 
-extern llvm::cl::opt<uint64_t> MaxAllocationSize;
+extern llvm::cl::opt<uint64_t> MaxConstantAllocationSize;
+extern llvm::cl::opt<uint64_t> MaxSymbolicAllocationSize;
 
 // XXX hack
 extern "C" unsigned dumpStates, dumpPTree;
@@ -4064,8 +4065,10 @@ void Executor::executeAlloc(ExecutionState &state,
     allocationAlignment = getAllocationAlignment(allocSite);
   }
 
-  ref<Expr> upperBoundSizeConstraint =
-      UleExpr::create(size, Expr::createPointer(MaxAllocationSize));
+  ref<Expr> upperBoundSizeConstraint = UleExpr::create(
+      size,
+      Expr::createPointer(isa<ConstantExpr>(size) ? MaxConstantAllocationSize
+                                                  : MaxSymbolicAllocationSize));
 
   /* If size greater then upper bound for size, then we will follow
   the malloc semantic and return NULL. Otherwise continue execution. */
@@ -4504,9 +4507,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
           lazyInstantiationSize, Context::get().getPointerWidth());
       addConstraint(*unbound,
                     UgeExpr::create(sizeExpr, Expr::createPointer(size)));
-      addConstraint(
-          *unbound,
-          UleExpr::create(sizeExpr, Expr::createPointer(MaxAllocationSize)));
+      addConstraint(*unbound,
+                    UleExpr::create(sizeExpr, Expr::createPointer(
+                                                  MaxSymbolicAllocationSize)));
 
       IDType idLazyInitialization =
           lazyInitializeObject(*unbound, base, target, sizeExpr);
