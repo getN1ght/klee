@@ -242,6 +242,8 @@ private:
   // mutable because we may need flush during read of const
   mutable UpdateList updates;
 
+  bool wasZeroInitialized = true;
+  bool isMadeSymbolic = false;
 public:
   unsigned size;
 
@@ -256,13 +258,12 @@ public:
   /// Create a new object state for the given memory object with symbolic
   /// contents.
   ObjectState(const MemoryObject *mo, const Array *array);
+  ObjectState(const MemoryObject *mo, const ObjectState &os);
 
   ObjectState(const ObjectState &os);
   ~ObjectState();
 
   const MemoryObject *getObject() const { return object.get(); }
-
-  const Array *getArray() const { return updates.root; }
 
   void setReadOnly(bool ro) { readOnly = ro; }
 

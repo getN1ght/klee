@@ -4651,17 +4651,12 @@ void Executor::updateStateWithSymcretes(ExecutionState &state,
       if (!oldOS) {
         continue;
       }
-      const Array *oldArray = oldOS->getArray();
-      ObjectState *newOS =
-          oldArray ? new ObjectState(newMO, oldArray) : new ObjectState(newMO);
+      // Create a new ObjectState with the new size and new 
+      // owning memory object.
 
       // Order of operations critical here.
       state.addressSpace.unbindObject(oldMO);
-      state.addressSpace.bindObject(newMO, newOS);
-
-      for (unsigned i = 0; i < oldMO->size; i++) {
-        newOS->write(i, oldOS->read8(i));
-      }
+      state.addressSpace.bindObject(newMO, new ObjectState(newMO, *oldOS));
     }
   }
 }

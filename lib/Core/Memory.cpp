@@ -119,6 +119,8 @@ ObjectState::ObjectState(const ObjectState &os)
     knownSymbolics(nullptr),
     unflushedMask(os.unflushedMask ? new BitArray(*os.unflushedMask, os.size) : nullptr),
     updates(os.updates),
+    wasZeroInitialized(os.wasZeroInitialized),
+    isMadeSymbolic(os.isMadeSymbolic),
     size(os.size),
     readOnly(false) {
   assert(!os.readOnly && "no need to copy read only object?");
@@ -129,6 +131,48 @@ ObjectState::ObjectState(const ObjectState &os)
   }
 
   memcpy(concreteStore, os.concreteStore, size*sizeof(*concreteStore));
+}
+
+ObjectState::ObjectState(const MemoryObject *mo, const ObjectState &os) 
+  : copyOnWriteOwner(0),
+    object(mo),
+    concreteStore(new uint8_t[mo->size]),
+    concreteMask(os.concreteMask ? new BitArray(*os.concreteMask, mo->size) : nullptr),
+    knownSymbolics(nullptr),
+    unflushedMask(os.unflushedMask ? new BitArray(*os.unflushedMask, mo->size) : nullptr),
+    updates(os.updates),
+    wasZeroInitialized(os.wasZeroInitialized),
+    isMadeSymbolic(os.isMadeSymbolic),
+    size(mo->size),
+    readOnly(os.readOnly) {
+  /* This constructor should be used when we extend or truncate the memory
+  for MemoryObject and want to leave content from previous ObjectState. Maybe
+  it is good to make it a method, not a constructor. */
+  unsigned copyingRange = std::min(size, os.size);
+
+  if (os.knownSymbolics) {
+    knownSymbolics = new ref<Expr>[size];
+    for (unsigned i = 0; i < copyingRange; ++i) {
+      knownSymbolics[i] = os.knownSymbolics[i];
+    }
+  }
+  if (isMadeSymbolic) {
+    /* As now we cannot make only a part of object symbolic,
+    we will mark all remain bytes as symbolic. */
+    for (unsigned i = copyingRange; i < size; ++i) {
+      markByteSymbolic(i);
+      setKnownSymbolic(i, 0);
+      markByteFlushed(i);
+    }
+  }
+
+  memcpy(concreteStore, os.concreteStore,
+         copyingRange * sizeof(*concreteStore));
+  // FIXME: 0xAB is a magical number here... Move to constant.
+  memset(reinterpret_cast<char *>(concreteStore) +
+              copyingRange * sizeof(*concreteStore),
+          os.wasZeroInitialized ? 0 : 0xAB,
+          (size - copyingRange) * sizeof(*concreteStore));
 }
 
 ObjectState::~ObjectState() {
@@ -231,7 +275,7 @@ void ObjectState::makeConcrete() {
 void ObjectState::makeSymbolic() {
   assert(!updates.head &&
          "XXX makeSymbolic of objects with symbolic values is unsupported");
-
+  isMadeSymbolic = true;
   // XXX simplify this, can just delete various arrays I guess
   for (unsigned i=0; i<size; i++) {
     markByteSymbolic(i);
@@ -242,15 +286,14 @@ void ObjectState::makeSymbolic() {
 
 void ObjectState::initializeToZero() {
   makeConcrete();
+  wasZeroInitialized = true;
   memset(concreteStore, 0, size);
 }
 
 void ObjectState::initializeToRandom() {  
   makeConcrete();
-  for (unsigned i=0; i<size; i++) {
-    // randomly selected by 256 sided die
-    concreteStore[i] = 0xAB;
-  }
+  wasZeroInitialized = false;
+  memset(concreteStore, 0xAB, size);
 }
 
 /*
