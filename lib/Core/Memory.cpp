@@ -166,6 +166,13 @@ ObjectState::ObjectState(const MemoryObject *mo, const ObjectState &os)
     }
   }
 
+  if (updates.root && isa_and_nonnull<ConstantSource>(updates.root->source)) {
+    const_cast<Array *>(updates.root)
+        ->constantValues.resize(std::max(static_cast<size_t>(size),
+                                         updates.root->constantValues.size()),
+                                ConstantExpr::create(0, Expr::Int8));
+  }
+
   memcpy(concreteStore, os.concreteStore,
          copyingRange * sizeof(*concreteStore));
   // FIXME: 0xAB is a magical number here... Move to constant.
@@ -264,6 +271,7 @@ void ObjectState::flushToConcreteStore(TimingSolver *solver,
 }
 
 void ObjectState::makeConcrete() {
+  isMadeSymbolic = false;
   delete concreteMask;
   delete unflushedMask;
   delete[] knownSymbolics;

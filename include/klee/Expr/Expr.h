@@ -504,7 +504,7 @@ public:
   /// constantValues - The constant initial values for this array, or empty for
   /// a symbolic array. If non-empty, this size of this array is equivalent to
   /// the array size.
-  const std::vector<ref<ConstantExpr> > constantValues;
+  std::vector<ref<ConstantExpr> > constantValues;
 
 private:
   unsigned hashValue;
