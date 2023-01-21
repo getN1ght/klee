@@ -416,6 +416,33 @@ Z3ASTHandle Z3Builder::getInitialArray(const Array *root) {
 
     if (root->isConstantArray() && constant_array_assertions.count(root) == 0) {
       std::vector<Z3ASTHandle> array_assertions;
+      /* For constant arrays of symbolic size we have constraints only for
+      existing part before the query. To overcome this we will add quintifier
+      for all remain bytes in it. Note, that this is possibly weak part in terms
+      of perfomance. */
+      static unsigned idxId = 0;
+      if (!isa<ConstantExpr>(root->size)) {
+        Z3ASTHandle idx(
+            Z3_mk_const(
+                ctx,
+                Z3_mk_string_symbol(
+                    ctx, (std::string("idx") + llvm::utostr(idxId++)).c_str()),
+                getBvSort(32)),
+            ctx);
+        Z3ASTHandle idxConstraints = getTrue();
+        for (unsigned i = 0, e = root->constantValues.size(); i != e; ++i) {
+          idxConstraints =
+              andExpr(idxConstraints, notExpr(eqExpr(bvConst32(32, i), idx)));
+        }
+        Z3ASTHandle implExpr(Z3_mk_implies(ctx, idxConstraints,
+                                           eqExpr(readExpr(array_expr, idx),
+                                                  bvZero(root->getRange()))),
+                             ctx);
+        Z3_app vars[] = {(Z3_app) static_cast<Z3_ast>(idx)};
+        array_assertions.push_back(Z3ASTHandle(
+            Z3_mk_forall_const(ctx, 0, 1, vars, 0, 0, implExpr), ctx));
+      }
+
       for (unsigned i = 0, e = root->constantValues.size(); i != e; ++i) {
         // construct(= (select i root) root->value[i]) to be asserted in
         // Z3Solver.cpp
