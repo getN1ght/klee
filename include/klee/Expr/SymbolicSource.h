@@ -14,6 +14,7 @@ public:
 
   enum class Kind {
     Constant,
+    ConstantWithSymbolicSize,
     LazyInitializationSymbolic,
     MakeSymbolic,
     SymbolicAddress,
@@ -43,6 +44,18 @@ public:
     return S->getKind() == Kind::Constant;
   }
   static bool classof(const ConstantSource *) { return true; }
+};
+
+class ConstantWithSymbolicSizeSource : public ArraySource {
+public:
+  Kind getKind() const override { return Kind::ConstantWithSymbolicSize; }
+  virtual std::string getName() const override { return "constant"; }
+  virtual bool isSymcrete() const override { return false; }
+
+  static bool classof(const ArraySource *S) {
+    return S->getKind() == Kind::ConstantWithSymbolicSize;
+  }
+  static bool classof(const ConstantWithSymbolicSizeSource *) { return true; }
 };
 
 class MakeSymbolicSource : public ArraySource {

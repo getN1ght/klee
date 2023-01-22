@@ -4066,7 +4066,7 @@ void Executor::executeAlloc(ExecutionState &state,
   }
 
   ref<Expr> upperBoundSizeConstraint = UleExpr::create(
-      size,
+      ZExtExpr::create(size, Context::get().getPointerWidth()),
       Expr::createPointer(isa<ConstantExpr>(size) ? MaxConstantAllocationSize
                                                   : MaxSymbolicAllocationSize));
 
@@ -4211,7 +4211,8 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   cast<SymbolicAllocationSource>(addressArray->source)->linkedArray = sizeArray;
   cast<SymbolicAllocationSource>(sizeArray->source)->linkedArray = addressArray;
 
-  ref<Expr> sizeEqualityExpr = EqExpr::create(size, sizeExpr);
+  ref<Expr> sizeEqualityExpr = EqExpr::create(
+      ZExtExpr::create(size, Context::get().getPointerWidth()), sizeExpr);
 
   /* In order to minimize memory consumption, we will try to
   optimize entire sum of symbolic sizes. Hence, compute the sum
@@ -4498,7 +4499,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                isReadFromSymbolicArray(
                    cm->simplifyExprWithSymcretes(unbound->constraints, base)) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
-                state.isGEPExpr(address))) {
+                state.isGEPExpr(address)) &&
+               size <= MaxSymbolicAllocationSize) {
       const Array *lazyInstantiationSize = makeArray(
           state,
           Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),

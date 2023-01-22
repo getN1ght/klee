@@ -9,6 +9,7 @@ namespace klee {
 class SourceBuilder {
 public:
   ref<ArraySource> constant() const;
+  ref<ArraySource> constantWithSymbolicSize() const;
   ref<ArraySource> makeSymbolic() const;
   ref<ArraySource> symbolicAddress() const;
   ref<ArraySource> symbolicSize() const;

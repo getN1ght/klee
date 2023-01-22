@@ -19,6 +19,8 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "klee/Expr/SymbolicSource.h"
+
 #include <memory>
 #include <sstream>
 #include <set>
@@ -531,8 +533,11 @@ private:
         Expr::Width _domain = Expr::Int32, Expr::Width _range = Expr::Int8);
 
 public:
-  bool isSymbolicArray() const { return constantValues.empty(); }
-  bool isConstantArray() const { return !isSymbolicArray(); }
+  bool isSymbolicArray() const { return !isConstantArray(); }
+  bool isConstantArray() const {
+    return isa<ConstantSource>(source) ||
+           isa<ConstantWithSymbolicSizeSource>(source);
+  }
 
   const std::string getName() const { return name; }
   ref<Expr> getSize() const { return size; }

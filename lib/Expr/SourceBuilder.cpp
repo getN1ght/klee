@@ -9,6 +9,10 @@ ref<ArraySource> SourceBuilder::constant() const{
   return new ConstantSource();
 }
 
+ref<ArraySource> SourceBuilder::constantWithSymbolicSize() const{
+  return new ConstantWithSymbolicSizeSource();
+}
+
 ref<ArraySource> SourceBuilder::makeSymbolic() const{
   return new MakeSymbolicSource();
 }

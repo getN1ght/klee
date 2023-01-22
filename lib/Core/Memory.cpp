@@ -166,13 +166,6 @@ ObjectState::ObjectState(const MemoryObject *mo, const ObjectState &os)
     }
   }
 
-  if (updates.root && isa_and_nonnull<ConstantSource>(updates.root->source)) {
-    const_cast<Array *>(updates.root)
-        ->constantValues.resize(std::max(static_cast<size_t>(size),
-                                         updates.root->constantValues.size()),
-                                ConstantExpr::create(0, Expr::Int8));
-  }
-
   memcpy(concreteStore, os.concreteStore,
          copyingRange * sizeof(*concreteStore));
   // FIXME: 0xAB is a magical number here... Move to constant.
@@ -217,6 +210,10 @@ const UpdateList &ObjectState::getUpdates() const {
       Writes[i] = std::make_pair(un->index, un->value);
     }
 
+    /* For objects of symbolic size we will leave last constant
+    sizes for every index and create constant array (in terms of
+    Z3 solver) filled with zeros. This part is required for reads
+    from unitialzed memory. */
     std::vector< ref<ConstantExpr> > Contents(size);
 
     // Initialize to zeros.
@@ -240,10 +237,26 @@ const UpdateList &ObjectState::getUpdates() const {
 
     static unsigned id = 0;
     auto sb = getSourceBuilder();
-    const Array *array = getArrayCache()->CreateArray(
-        "const_arr" + llvm::utostr(++id), object->getSizeExpr(), sb->constant(),
-        &Contents[0], &Contents[0] + Contents.size());
-    updates = UpdateList(array, 0);
+    std::string arrayName = "const_arr" + llvm::utostr(++id);
+    const Array *array = nullptr;
+
+    if (object->hasSymbolicSize()) {
+      /* Extend updates with last written non-zero constant values.
+      ConstantValues must be empty in constant array. */
+      array = getArrayCache()->CreateArray(arrayName, object->getSizeExpr(),
+                                           sb->constantWithSymbolicSize());
+      updates = UpdateList(array, 0);
+      for (unsigned idx = 0; idx < size; ++idx) {
+        if (!Contents[idx]->getZExtValue()) {
+          updates.extend(ConstantExpr::create(idx, Expr::Int32), Contents[idx]);
+        }
+      }
+    } else {
+      array = getArrayCache()->CreateArray(arrayName, object->getSizeExpr(),
+                                           sb->constant(), &Contents[0],
+                                           &Contents[0] + Contents.size());
+      updates = UpdateList(array, 0);
+    }
 
     // Apply the remaining (non-constant) writes.
     for (; Begin != End; ++Begin)

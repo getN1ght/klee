@@ -144,6 +144,7 @@ public:
   void setlazyInitializationSource(ref<Expr> source) {
     lazyInitializationSource = source;
   }
+  bool hasSymbolicSize() const { return !isa<ConstantExpr>(getSizeExpr()); }
   ref<ConstantExpr> getBaseConstantExpr() const {
     return ConstantExpr::create(address, Context::get().getPointerWidth());
   }
