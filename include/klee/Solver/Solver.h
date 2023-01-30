@@ -10,6 +10,7 @@
 #ifndef KLEE_SOLVER_H
 #define KLEE_SOLVER_H
 
+#include "klee/ADT/SparseStorage.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Solver/ConcretizationManager.h"
 #include "klee/Expr/ExprHashMap.h"
@@ -133,12 +134,12 @@ namespace klee {
 
     virtual bool
     getInitialValuesFor(const std::vector<const Array *> &objects,
-                        std::vector<std::vector<unsigned char>> &values) {
+                        std::vector<SparseStorage<unsigned char>> &values) {
       return false;
     }
 
     virtual bool getInitialValues(
-        std::map<const Array *, std::vector<unsigned char>> &values) {
+        std::map<const Array *, SparseStorage<unsigned char>> &values) {
       return false;
     }
 
@@ -182,12 +183,12 @@ namespace klee {
 
   class InvalidResponse : public SolverResponse {
   private:
-    std::map<const Array *, std::vector<unsigned char>> result;
+    std::map<const Array *, SparseStorage<unsigned char>> result;
 
   public:
     InvalidResponse(const std::vector<const Array *> &objects,
-                    const std::vector<std::vector<unsigned char>> &values) {
-      std::vector<std::vector<unsigned char>>::const_iterator values_it =
+                    const std::vector<SparseStorage<unsigned char>> &values) {
+      std::vector<SparseStorage<unsigned char>>::const_iterator values_it =
           values.begin();
 
       for (std::vector<const Array *>::const_iterator i = objects.begin(),
@@ -197,12 +198,12 @@ namespace klee {
       }
     }
 
-    InvalidResponse(const std::map<const Array *, std::vector<unsigned char>>
+    InvalidResponse(const std::map<const Array *, SparseStorage<unsigned char>>
                         &initialValues)
         : result(initialValues) {}
 
     bool getInitialValuesFor(const std::vector<const Array *> &objects,
-                             std::vector<std::vector<unsigned char>> &values) {
+                             std::vector<SparseStorage<unsigned char>> &values) {
       values.reserve(objects.size());
       for (auto object : objects) {
         if (result.count(object)) {
@@ -215,7 +216,7 @@ namespace klee {
     }
 
     bool getInitialValues(
-        std::map<const Array *, std::vector<unsigned char>> &values) {
+        std::map<const Array *, SparseStorage<unsigned char>> &values) {
       values.insert(result.begin(), result.end());
       return true;
     }
@@ -380,9 +381,9 @@ namespace klee {
     // FIXME: This API is lame. We should probably just provide an API which
     // returns an Assignment object, then clients can get out whatever values
     // they want. This also allows us to optimize the representation.
-    bool getInitialValues(const Query&, 
-                          const std::vector<const Array*> &objects,
-                          std::vector< std::vector<unsigned char> > &result);
+    bool getInitialValues(const Query &,
+                          const std::vector<const Array *> &objects,
+                          std::vector<SparseStorage<unsigned char>> &result);
 
     bool getValidityCore(const Query &, ValidityCore &validityCore,
                          bool &result);

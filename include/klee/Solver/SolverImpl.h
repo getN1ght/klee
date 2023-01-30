@@ -93,7 +93,7 @@ namespace klee {
     virtual bool computeInitialValues(const Query& query,
                                       const std::vector<const Array*> 
                                         &objects,
-                                      std::vector< std::vector<unsigned char> > 
+                                      std::vector<SparseStorage<unsigned char>> 
                                         &values,
                                       bool &hasSolution) = 0;
 

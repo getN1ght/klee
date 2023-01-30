@@ -144,7 +144,7 @@ bool Solver::getValidityCore(const Query &query, ValidityCore &validityCore,
 bool 
 Solver::getInitialValues(const Query& query,
                          const std::vector<const Array*> &objects,
-                         std::vector< std::vector<unsigned char> > &values) {
+                         std::vector<SparseStorage<unsigned char>> &values) {
   bool hasSolution;
   bool success =
     impl->computeInitialValues(query, objects, values, hasSolution);

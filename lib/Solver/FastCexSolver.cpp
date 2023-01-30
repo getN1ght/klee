@@ -1011,7 +1011,7 @@ public:
   bool computeValue(const Query&, ref<Expr> &result);
   bool computeInitialValues(const Query&,
                             const std::vector<const Array*> &objects,
-                            std::vector< std::vector<unsigned char> > &values,
+                            std::vector< SparseStorage<unsigned char> > &values,
                             bool &hasSolution);
 };
 
@@ -1122,7 +1122,7 @@ bool
 FastCexSolver::computeInitialValues(const Query& query,
                                     const std::vector<const Array*>
                                       &objects,
-                                    std::vector< std::vector<unsigned char> >
+                                    std::vector< SparseStorage<unsigned char> >
                                       &values,
                                     bool &hasSolution) {
   CexData cd;
@@ -1142,12 +1142,12 @@ FastCexSolver::computeInitialValues(const Query& query,
   for (unsigned i = 0; i != objects.size(); ++i) {
     const Array *array = objects[i];
     assert(array);
-    std::vector<unsigned char> data;
+    SparseStorage<unsigned char> data;
     ref<ConstantExpr> arrayConstantSize =
         dyn_cast<ConstantExpr>(cd.evaluatePossible(array->size));
     assert(arrayConstantSize &&
            "Array of symbolic size had not receive value for size!");
-    data.reserve(arrayConstantSize->getZExtValue());
+    data.resize(arrayConstantSize->getZExtValue());
 
     for (unsigned i=0; i < arrayConstantSize->getZExtValue(); i++) {
       ref<Expr> read = 
@@ -1156,7 +1156,7 @@ FastCexSolver::computeInitialValues(const Query& query,
       ref<Expr> value = cd.evaluatePossible(read);
       
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(value)) {
-        data.push_back((unsigned char) CE->getZExtValue(8));
+        data.insert(i, ((unsigned char)CE->getZExtValue(8)));
       } else {
         // FIXME: When does this happen?
         return false;

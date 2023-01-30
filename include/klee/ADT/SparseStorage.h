@@ -1,73 +1,94 @@
 #ifndef KLEE_SPARSESTORAGE_H
 #define KLEE_SPARSESTORAGE_H
 
-#include <unordered_map>
+#include <cassert>
+#include <cstddef>
+#include <iterator>
+#include <map>
+#include <vector>
 
 namespace klee {
 
-template <typename KeyType, typename ValueType> class SparseStorage {
+template <typename ValueType> class SparseStorage {
 private:
-  std::unordered_map<KeyType, ValueType> internalStorage;
-  const ValueType defaultValue;
+  size_t capacity;
+  std::map<size_t, ValueType> internalStorage;
+  ValueType defaultValue;
 
-  /* FIXME: Can be replaced with internalStorage.contains() with C++20 API */
-  bool contains(const KeyType &key) const {
-    return internalStorage.count(key) != 0;
-  }
+  bool contains(size_t key) const { return internalStorage.count(key) != 0; }
 
 public:
-  
-  class SparseStorageProxy {
-  friend class SparseStorage;
+  struct Iterator {
+    using iterator_category = std::input_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = ValueType;
+    using pointer = ValueType *;
+    using reference = ValueType &;
+
   private:
-    SparseStorage &owner;
-    const KeyType &key;
-    SparseStorageProxy(SparseStorage &owner, const KeyType &key)
-        : owner(owner), key(key) {}
-
-    SparseStorageProxy(const SparseStorageProxy &other)
-        : owner(other.owner), key(other.key) {}
-    SparseStorageProxy(const SparseStorageProxy &&other)
-        : owner(other.owner), key(other.key) {}
-
+    size_t idx;
+    SparseStorage *owner;
   public:
-    
-    /* Copy assignment operators */
-    SparseStorageProxy &operator=(const SparseStorageProxy &other) {
-      return (*this) = static_cast<ValueType &>(other);
-    }
-    SparseStorageProxy &operator=(SparseStorageProxy &&other) {
-      return (*this) = static_cast<ValueType &&>(other);
+    Iterator(size_t idx) : idx(idx) {}
+
+    value_type operator*() const {
+      return owner->get(idx);
     }
 
-    /* Copy values operators */
-    SparseStorageProxy &operator=(const ValueType &value) {
-      owner.internalStorage[key] = value;
-      return *this;
-    }
-    SparseStorageProxy &operator=(ValueType &&value) {
-      owner.internalStorage[key] = value;
-      return *this;
-    }
 
-    operator ValueType() const {
-      return owner.contains(key) ? owner.internalStorage.at(key)
-                                 : owner.defaultValue;
-    }
   };
-
-  SparseStorage(const ValueType &defaultValue) : defaultValue(defaultValue) {}
+  
+  SparseStorage(size_t capacity = 0,
+                const ValueType &defaultValue = ValueType())
+      : capacity(capacity), defaultValue(defaultValue) {}
 
   SparseStorage(const std::vector<ValueType> &values,
-                const ValueType &defaultValue);
-
-  SparseStorageProxy operator[](const KeyType &key) {
-    return SparseStorageProxy(*this, key);
+                const ValueType &defaultValue)
+      : capacity(values.capacity()), defaultValue(defaultValue) {
+    for (size_t idx = 0; idx < values.capacity(); ++idx) {
+      internalStorage[idx] = values[idx];
+    }
   }
 
-  const SparseStorageProxy operator[](const KeyType &key) const {
-    return SparseStorageProxy(*this, key);
+  void insert(size_t idx, const ValueType &value) {
+    assert(idx < capacity && idx >= 0);
+    internalStorage[idx] = value;
   }
+
+  ValueType get(size_t idx) const {
+    assert(idx < capacity && idx >= 0);
+    return contains(idx) ? internalStorage.at(idx) : defaultValue;
+  }
+
+  size_t size() const { return capacity; }
+
+  void resize(size_t newCapacity) {
+    // Free to extend
+    if (newCapacity > capacity) {
+      capacity = newCapacity;
+      return;
+    }
+
+    // Truncate unnessecary elements
+    auto iterOnNewSize = internalStorage.lower_bound(newCapacity);
+    while (iterOnNewSize != internalStorage.end()) {
+      iterOnNewSize = internalStorage.erase(iterOnNewSize);
+    }
+
+    capacity = newCapacity;
+  }
+
+  bool operator==(const SparseStorage<ValueType> &another) const {
+    return size() == another.size() && defaultValue == another.defaultValue &&
+           internalStorage == another.internalStorage;
+  }
+
+  bool operator!=(const SparseStorage<ValueType> &another) const {
+    return !(*this == another);
+  }
+
+  Iterator begin() const { return Iterator(0); }
+  Iterator end() const { return Iterator(size); }
 };
 
 } // namespace klee

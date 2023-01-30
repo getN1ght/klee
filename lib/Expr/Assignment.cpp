@@ -20,7 +20,7 @@ void Assignment::dump() const {
        ++i) {
     llvm::errs() << (*i).first->name << "\n[";
     for (int j = 0, k = (*i).second.size(); j < k; ++j)
-      llvm::errs() << (int)(*i).second[j] << ",";
+      llvm::errs() << (int)(*i).second.get(j) << ",";
     llvm::errs() << "]\n";
   }
 }
@@ -35,7 +35,7 @@ ConstraintSet Assignment::createConstraintsFromAssignment() const {
            "Size of symbolic array should be computed in assignment.");
     for (unsigned arrayIndex = 0;
          arrayIndex < arrayConstantSize->getZExtValue(); ++arrayIndex) {
-      unsigned char value = values[arrayIndex];
+      unsigned char value = values.get(arrayIndex);
       result.push_back(EqExpr::create(
           ReadExpr::create(UpdateList(array, 0),
                            ConstantExpr::alloc(arrayIndex, array->getDomain())),

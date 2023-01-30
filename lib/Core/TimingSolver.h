@@ -86,7 +86,7 @@ public:
 
   bool getInitialValues(const ConstraintSet &,
                         const std::vector<const Array *> &objects,
-                        std::vector<std::vector<unsigned char>> &result,
+                        std::vector<SparseStorage<unsigned char>> &result,
                         SolverQueryMetaData &metaData,
                         bool produceValidityCore = false);
 

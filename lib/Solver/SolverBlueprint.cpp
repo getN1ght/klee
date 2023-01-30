@@ -1,3 +1,4 @@
+#include "klee/ADT/SparseStorage.h"
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
@@ -40,7 +41,7 @@ public:
   bool computeValue(const Query &, ref<Expr> &result);
   bool computeInitialValues(const Query &query,
                             const std::vector<const Array *> &objects,
-                            std::vector<std::vector<unsigned char>> &values,
+                            std::vector<SparseStorage<unsigned char>> &values,
                             bool &hasSolution);
   SolverRunStatus getOperationStatusCode();
   char *getConstraintLog(const Query&);
@@ -157,7 +158,7 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
     return false;
   }
 
-  std::vector<std::vector<uint8_t>> brokenSymcretesValues;
+  std::vector<SparseStorage<unsigned char>> brokenSymcretesValues;
   bool hasSolution = false;
   if (!solver->impl->computeInitialValues(
           Query(queryConstraints,
@@ -189,8 +190,11 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
         void *address = ag->allocate(dependentAddressArray, newSize);
         assert(address);
         char *charAddressIterator = reinterpret_cast<char *>(&address);
-        assignment.bindings[dependentAddressArray] = std::vector<uint8_t>(
-            charAddressIterator, charAddressIterator + sizeof(address));
+        assignment.bindings[dependentAddressArray] =
+            SparseStorage<unsigned char>(
+                std::vector<unsigned char>(
+                    charAddressIterator, charAddressIterator + sizeof(address)),
+                '\0');
       }
     }
   }
@@ -221,7 +225,7 @@ bool SolverBlueprint::computeValidity(const Query &query,
     return false;
   }
 
-  std::vector<std::vector<uint8_t>> trueResponseValues, falseResponseValues;
+  std::vector<SparseStorage<unsigned char>> trueResponseValues, falseResponseValues;
 
   std::vector<const Array *> objects = query.gatherSymcreteArrays();
 
@@ -360,7 +364,7 @@ bool SolverBlueprint::computeValue(const Query &query, ref<Expr> &result) {
 
 bool SolverBlueprint::computeInitialValues(
     const Query &query, const std::vector<const Array *> &objects,
-    std::vector<std::vector<unsigned char>> &values, bool &hasSolution) {
+    std::vector<SparseStorage<unsigned char>> &values, bool &hasSolution) {
   if (!query.containsSymcretes()) {
     return solver->impl->computeInitialValues(query, objects, values,
                                               hasSolution);

@@ -4246,7 +4246,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
 
   /* Compute assignment for symcretes. */
   std::vector<const Array *> objects;
-  std::vector<std::vector<uint8_t>> values;
+  std::vector<SparseStorage<unsigned char>> values;
 
   for (const Array *array : state.constraints.gatherSymcreteArrays()) {
     objects.push_back(array);
@@ -4302,12 +4302,16 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   }
 
   char *charSizeIterator = reinterpret_cast<char *>(&sizeMemoryObject);
-  assignment.bindings[sizeArray] = std::vector<uint8_t>(
-      charSizeIterator, charSizeIterator + pointerWidth / CHAR_BIT);
+  assignment.bindings[sizeArray] = SparseStorage<unsigned char>(
+      std::vector<uint8_t>(charSizeIterator,
+                           charSizeIterator + pointerWidth / CHAR_BIT),
+      0);
 
   char *charAddressIterator = reinterpret_cast<char *>(&mo->address);
-  assignment.bindings[addressArray] = std::vector<uint8_t>(
-      charAddressIterator, charAddressIterator + pointerWidth / CHAR_BIT);
+  assignment.bindings[addressArray] = SparseStorage<unsigned char>(
+      std::vector<uint8_t>(charAddressIterator,
+                           charAddressIterator + pointerWidth / CHAR_BIT),
+      0);
 
   state.symbolicSizes.push_back(sizeArray);
   cm->add(Query(state.constraints, sizeEqualityExpr), assignment);
@@ -4707,8 +4711,8 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
 
         if (!obj) {
           if (ZeroSeedExtension) {
-            std::vector<unsigned char> &values = si.assignment.bindings[array];
-            values = std::vector<unsigned char>(mo->size, '\0');
+            SparseStorage<unsigned char> &values = si.assignment.bindings[array];
+            values = SparseStorage<unsigned char>(mo->size, '\0');
           } else if (!AllowSeedExtension) {
             terminateStateOnUserError(state, "ran out of inputs during seeding");
             break;
@@ -4727,7 +4731,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
             terminateStateOnUserError(state, msg.str());
             break;
           } else {
-            std::vector<unsigned char> &values = si.assignment.bindings[array];
+            SparseStorage<unsigned char> &values = si.assignment.bindings[array];
             values.insert(values.begin(), obj->bytes, 
                           obj->bytes + std::min(obj->numBytes, mo->size));
             if (ZeroSeedExtension) {
@@ -5052,7 +5056,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state,
     }
   }
 
-  std::vector< std::vector<unsigned char> > values;
+  std::vector<SparseStorage<unsigned char>> values;
   std::vector<const Array*> objects;
   for (unsigned i = 0; i != state.symbolics.size(); ++i)
     objects.push_back(state.symbolics[i].second);
