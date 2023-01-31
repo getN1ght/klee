@@ -167,7 +167,10 @@ public:
     return getBoundsCheckOffset(getOffsetExpr(pointer));
   }
   ref<Expr> getBoundsCheckPointer(ref<Expr> pointer, unsigned bytes) const {
-    return getBoundsCheckOffset(getOffsetExpr(pointer), bytes);
+    return SelectExpr::create(
+        EqExpr::create(getSizeExpr(), Expr::createPointer(bytes)),
+        EqExpr::create(pointer, getBaseExpr()),
+        getBoundsCheckOffset(getOffsetExpr(pointer), bytes));
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
