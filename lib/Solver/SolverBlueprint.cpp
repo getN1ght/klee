@@ -389,7 +389,7 @@ bool SolverBlueprint::computeInitialValues(
     hasSolution = !hasSolution;
     if (hasSolution) {
       cm->add(query.negateExpr(), assign);
-      values = std::vector<std::vector<unsigned char>>();
+      values = std::vector<SparseStorage<unsigned char>>();
       return solver->impl->computeInitialValues(
           constructConcretizedQuery(query, assign), objects, values,
           hasSolution);

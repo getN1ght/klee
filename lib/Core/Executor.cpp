@@ -4732,11 +4732,11 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
             break;
           } else {
             SparseStorage<unsigned char> &values = si.assignment.bindings[array];
-            values.insert(values.begin(), obj->bytes, 
+            values.resize(std::min(mo->size, obj->numBytes));
+            values.insert(0, obj->bytes,
                           obj->bytes + std::min(obj->numBytes, mo->size));
             if (ZeroSeedExtension) {
-              for (unsigned i=obj->numBytes; i<mo->size; ++i)
-                values.push_back('\0');
+              values.resize(mo->size);
             }
           }
         }

@@ -481,52 +481,52 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
              "Failed to get size");
 
       data.resize(arraySize);
-      if (!usedArrayBytes.count(array)) {
-        // TODO: skip
+      if (usedArrayBytes.count(array)) {  
+        std::unordered_set<uint64_t> offsetValues;
+        for (ref<Expr> offsetExpr : usedArrayBytes.at(array)) {
+          ::Z3_ast arrayElementOffsetExpr;
+          Z3_model_eval(builder->ctx, theModel, builder->construct(offsetExpr),
+                        Z3_TRUE, &arrayElementOffsetExpr);
+          Z3_inc_ref(builder->ctx, arrayElementOffsetExpr);
+          assert(Z3_get_ast_kind(builder->ctx, arrayElementOffsetExpr) ==
+                    Z3_NUMERAL_AST &&
+                "Evaluated size expression has wrong sort");
+          size_t concretizedOffsetValue = 0;
+          assert(Z3_get_numeral_uint64(builder->ctx, arrayElementOffsetExpr,
+                                      &concretizedOffsetValue) &&
+                "Failed to get size");
+          offsetValues.insert(concretizedOffsetValue);
+          Z3_dec_ref(builder->ctx, arrayElementOffsetExpr);
+        }
+        
+        for (unsigned offset : offsetValues) {
+          // We can't use Z3ASTHandle here so have to do ref counting manually
+          ::Z3_ast arrayElementExpr;
+          Z3ASTHandle initial_read = builder->getInitialRead(array, offset);
+
+          __attribute__((unused))
+          bool successfulEval =
+              Z3_model_eval(builder->ctx, theModel, initial_read,
+                            /*model_completion=*/Z3_TRUE, &arrayElementExpr);
+          assert(successfulEval && "Failed to evaluate model");
+          Z3_inc_ref(builder->ctx, arrayElementExpr);
+          assert(Z3_get_ast_kind(builder->ctx, arrayElementExpr) ==
+                    Z3_NUMERAL_AST &&
+                "Evaluated expression has wrong sort");
+
+          int arrayElementValue = 0;
+          __attribute__((unused))
+          bool successGet = Z3_get_numeral_int(builder->ctx, arrayElementExpr,
+                                              &arrayElementValue);
+          assert(successGet && "failed to get value back");
+          assert(arrayElementValue >= 0 && arrayElementValue <= 255 &&
+                "Integer from model is out of range");
+          data.insert(offset, arrayElementValue);
+          Z3_dec_ref(builder->ctx, arrayElementExpr);
+        }
       }
 
-      std::unordered_set<uint64_t> offsetValues;
-      for (ref<Expr> offsetExpr : usedArrayBytes.at(array)) {
-        ::Z3_ast arrayElementOffsetExpr;
-        Z3_model_eval(builder->ctx, theModel, builder->construct(array->size),
-                      Z3_TRUE, &arrayElementOffsetExpr);
-        Z3_inc_ref(builder->ctx, arrayElementOffsetExpr);
-        assert(Z3_get_ast_kind(builder->ctx, arrayElementOffsetExpr) ==
-                   Z3_NUMERAL_AST &&
-               "Evaluated size expression has wrong sort");
-        size_t concretizedOffsetValue = 0;
-        assert(Z3_get_numeral_uint64(builder->ctx, arrayElementOffsetExpr,
-                                     &concretizedOffsetValue) &&
-               "Failed to get size");
-        offsetValues.insert(concretizedOffsetValue);
-        Z3_dec_ref(builder->ctx, arrayElementOffsetExpr);
-      }
 
-      for (unsigned offset : offsetValues) {
-        // We can't use Z3ASTHandle here so have to do ref counting manually
-        ::Z3_ast arrayElementExpr;
-        Z3ASTHandle initial_read = builder->getInitialRead(array, offset);
-
-        __attribute__((unused))
-        bool successfulEval =
-            Z3_model_eval(builder->ctx, theModel, initial_read,
-                          /*model_completion=*/Z3_TRUE, &arrayElementExpr);
-        assert(successfulEval && "Failed to evaluate model");
-        Z3_inc_ref(builder->ctx, arrayElementExpr);
-        assert(Z3_get_ast_kind(builder->ctx, arrayElementExpr) ==
-                   Z3_NUMERAL_AST &&
-               "Evaluated expression has wrong sort");
-
-        int arrayElementValue = 0;
-        __attribute__((unused))
-        bool successGet = Z3_get_numeral_int(builder->ctx, arrayElementExpr,
-                                             &arrayElementValue);
-        assert(successGet && "failed to get value back");
-        assert(arrayElementValue >= 0 && arrayElementValue <= 255 &&
-               "Integer from model is out of range");
-        data.insert(offset, arrayElementValue);
-        Z3_dec_ref(builder->ctx, arrayElementExpr);
-      }
       Z3_dec_ref(builder->ctx, arraySizeExpr);
       values->push_back(data);
     }

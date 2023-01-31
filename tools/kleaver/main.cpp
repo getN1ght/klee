@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/ADT/SparseStorage.h"
 #include "klee/Config/Version.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
@@ -253,7 +254,7 @@ static bool EvaluateInputAST(const char *Filename,
                     << ")";
         }
       } else {
-        std::vector< std::vector<unsigned char> > result;
+        std::vector< SparseStorage<unsigned char> > result;
 
         if (S->getInitialValues(
                 Query(ConstraintSet(QC->Constraints), QC->Query), QC->Objects,
@@ -269,7 +270,7 @@ static bool EvaluateInputAST(const char *Filename,
             assert(arrayConstantSize &&
              "Array of symbolic size had not receive value for size!");
             for (unsigned j = 0; j != arrayConstantSize->getZExtValue(); ++j) {
-              llvm::outs() << (unsigned) result[i][j];
+              llvm::outs() << (unsigned) result[i].get(j);
               if (j + 1 != arrayConstantSize->getZExtValue())
                 llvm::outs() << ", ";
             }

@@ -190,7 +190,7 @@ bool TimingSolver::getMinimalUnsignedValue(const ConstraintSet &constraints,
 
 bool TimingSolver::getInitialValues(
     const ConstraintSet &constraints, const std::vector<const Array *> &objects,
-    std::vector<std::vector<unsigned char>> &result,
+    std::vector<SparseStorage<unsigned char>> &result,
     SolverQueryMetaData &metaData, bool produceValidityCore) {
   if (objects.empty())
     return true;

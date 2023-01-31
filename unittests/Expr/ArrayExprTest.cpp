@@ -9,6 +9,7 @@
 
 #include "gtest/gtest.h"
 
+#include "klee/ADT/SparseStorage.h"
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/Assignment.h"
@@ -59,8 +60,8 @@ TEST(ArrayExprTest, HashCollisions) {
   ASSERT_NE(updatedRead, firstRead);
   ASSERT_EQ(updatedRead->hash(), firstRead->hash());
 
-  std::vector<unsigned char> value = {6, 0, 0, 0};
-  std::vector<std::vector<unsigned char>> values = {value};
+  SparseStorage<unsigned char> value({6, 0, 0, 0});
+  std::vector<SparseStorage<unsigned char>> values = {value};
   std::vector<const Array *> assigmentArrays = {symArray};
   auto a = std::make_unique<Assignment>(assigmentArrays, values,
                                         /*_allowFreeValues=*/true);

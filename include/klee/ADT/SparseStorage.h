@@ -27,23 +27,35 @@ public:
 
   private:
     size_t idx;
-    SparseStorage *owner;
-  public:
-    Iterator(size_t idx) : idx(idx) {}
+    const SparseStorage *owner;
 
-    value_type operator*() const {
-      return owner->get(idx);
+  public:
+    Iterator(size_t idx, const SparseStorage *owner) : idx(idx), owner(owner) {}
+
+    value_type operator*() const { return owner->get(idx); }
+
+    Iterator &operator++() {
+      ++idx;
+      return *this;
     }
 
+    Iterator operator++(int) {
+      Iterator snap = *this;
+      ++(*this);
+      return snap;
+    }
 
+    bool operator==(const Iterator &other) const { return idx == other.idx; }
+
+    bool operator!=(const Iterator &other) const { return !(*this == other); }
   };
-  
+
   SparseStorage(size_t capacity = 0,
                 const ValueType &defaultValue = ValueType())
       : capacity(capacity), defaultValue(defaultValue) {}
 
   SparseStorage(const std::vector<ValueType> &values,
-                const ValueType &defaultValue)
+                const ValueType &defaultValue = ValueType())
       : capacity(values.capacity()), defaultValue(defaultValue) {
     for (size_t idx = 0; idx < values.capacity(); ++idx) {
       internalStorage[idx] = values[idx];
@@ -51,8 +63,15 @@ public:
   }
 
   void insert(size_t idx, const ValueType &value) {
-    assert(idx < capacity && idx >= 0);
+    assert(idx >= 0 && idx < capacity);
     internalStorage[idx] = value;
+  }
+
+  void insert(size_t idx, const ValueType *iteratorBegin,
+              const ValueType *iteratorEnd) {
+    for (; iteratorBegin != iteratorEnd; ++iteratorBegin, ++idx) {
+      insert(idx, *iteratorBegin);
+    }
   }
 
   ValueType get(size_t idx) const {
@@ -63,8 +82,9 @@ public:
   size_t size() const { return capacity; }
 
   void resize(size_t newCapacity) {
+    assert(newCapacity >= 0);
     // Free to extend
-    if (newCapacity > capacity) {
+    if (newCapacity >= capacity) {
       capacity = newCapacity;
       return;
     }
@@ -87,8 +107,16 @@ public:
     return !(*this == another);
   }
 
-  Iterator begin() const { return Iterator(0); }
-  Iterator end() const { return Iterator(size); }
+  bool operator<(const SparseStorage &another) const {
+    return internalStorage < another.internalStorage;
+  }
+
+  bool operator>(const SparseStorage &another) const {
+    return internalStorage > another.internalStorage;
+  }
+
+  Iterator begin() const { return Iterator(0, this); }
+  Iterator end() const { return Iterator(size(), this); }
 };
 
 } // namespace klee
