@@ -69,7 +69,7 @@ llvm::cl::opt<uint64_t> MaxSymbolicAllocationSize(
     "max-sym-alloc",
     llvm::cl::desc(
         "Maximum available size for single allocation (default 128b)"),
-    llvm::cl::init(1ll << 7), llvm::cl::cat(MemoryCat));
+    llvm::cl::init(10ll << 20), llvm::cl::cat(MemoryCat));
 
 /***/
 MemoryManager::MemoryManager(ArrayCache *_arrayCache,

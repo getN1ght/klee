@@ -74,6 +74,11 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
   ref<ConstantExpr> left = ConstantExpr::create(0, query.expr->getWidth());
   ref<ConstantExpr> right = ConstantExpr::create(1, query.expr->getWidth());
 
+  /* It is a good strategy to find the appropriate bounds to start.
+  We will waste 2 queries here to possibly approximate borders.
+  (This might be useful if we have constraints like query.expr > 100'000) */
+  // TODO:
+
   // Compute the right border
   bool firstIteration = true;
   do {
