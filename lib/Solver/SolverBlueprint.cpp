@@ -93,7 +93,7 @@ bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
     }
     // No unsat cores were found for the query, so we can try
     // to find new solution.
-    if (!isa<ValidResponse>(result)) {
+    if (isa<InvalidResponse>(result)) {
       break;
     }
 
@@ -286,7 +286,7 @@ bool SolverBlueprint::check(const Query &query, ref<SolverResponse> &result) {
          "Assignment does not contain concretization for all symcrete arrays!");
 
   auto concretizedQuery = constructConcretizedQuery(query, assign);
-  if (!solver->check(concretizedQuery, result)) {
+  if (!solver->impl->check(concretizedQuery, result)) {
     return false;
   }
 
@@ -296,7 +296,7 @@ bool SolverBlueprint::check(const Query &query, ref<SolverResponse> &result) {
     }
   }
 
-  if (!isa<ValidResponse>(result)) {
+  if (isa<InvalidResponse>(result)) {
     cm->add(query.negateExpr(), assign);
   }
 
@@ -363,13 +363,13 @@ bool SolverBlueprint::computeValidityCore(const Query &query,
       return false;
     }
     /* Here we already have validity core from query above. */
-    if (!solverResponse->getValidityCore(validityCore)) {
-      validityCore = ValidityCore();
+    if (solverResponse->getValidityCore(validityCore)) {
       isValid = false;
     }
   }
 
   if (!isValid) {
+    validityCore = ValidityCore();
     cm->add(query.negateExpr(), assign);
   }
 
@@ -420,7 +420,7 @@ bool SolverBlueprint::computeInitialValues(
     }
     /* Because relaxSymcreteConstraints response is `isValid`,
     and `isValid` == false iff solution for negation exists. */
-    hasSolution = !isa<ValidResponse>(solverResponse);
+    hasSolution = isa<InvalidResponse>(solverResponse);
     if (hasSolution) {
       cm->add(query.negateExpr(), assign);
       values = std::vector<SparseStorage<unsigned char>>();

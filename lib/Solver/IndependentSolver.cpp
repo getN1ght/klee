@@ -234,11 +234,21 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
     if (arraysInFactor.size() == 0) {
       continue;
     }
-    ConstraintSet tmp(it->exprs);
+    
+    std::vector<ref<Expr>> factorConstraints = it->exprs;
+    ref<Expr> factorExpr = ConstantExpr::alloc(0, Expr::Bool);
+    auto factorConstraintsExprIterator =
+        std::find(factorConstraints.begin(), factorConstraints.end(),
+                  query.negateExpr().expr);
+    if (factorConstraintsExprIterator != factorConstraints.end()) {
+      factorConstraints.erase(factorConstraintsExprIterator);
+      factorExpr = query.expr;
+    }
+
     ref<SolverResponse> tempResult;
     std::vector<SparseStorage<unsigned char>> tempValues;
-    if (!solver->impl->check(Query(tmp, ConstantExpr::alloc(0, Expr::Bool)),
-                             tempResult)) {
+    if (!solver->impl->check(
+            Query(ConstraintSet(factorConstraints), factorExpr), tempResult)) {
       delete factors;
       return false;
     } else if (isa<ValidResponse>(tempResult)) {
@@ -273,7 +283,7 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
   }
   result = new InvalidResponse(retMap);
   std::map<const Array *, SparseStorage<unsigned char>> bindings;
-  result->getInitialValues(bindings);
+  assert(result->getInitialValues(bindings));
   assert(assertCreatedPointEvaluatesToTrue(query, bindings, retMap) &&
          "should satisfy the equation");
   delete factors;
