@@ -118,16 +118,18 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
               ShlExpr::create(ConstantExpr::create(1, middle->getWidth()),
                               middle)));
 
-      bool mustBeGreater = false;
-      if (!computeTruth(query.withExpr(valueMustBeGreaterExpr),
-                        mustBeGreater)) {
+      ref<SolverResponse> solverResponse;
+      if (!check(query.withExpr(valueMustBeGreaterExpr),
+                        solverResponse)) {
         return false;
       }
 
-      if (mustBeGreater) {
+      if (isa<ValidResponse>(solverResponse)) {
         left = middle;
       } else {
-        right = middle;
+        Assignment cexSolution;
+        assert(solverResponse->getInitialValues(cexSolution.bindings));
+        right = cast<ConstantExpr>(cexSolution.evaluate(middle));
       }
     }
     left = ShlExpr::create(ConstantExpr::create(1, left->getWidth()), left);
@@ -162,14 +164,17 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
     ref<Expr> valueMustBeGreaterExpr = ConstraintManager::simplifyExpr(
         query.constraints, UgtExpr::create(query.expr, middle));
 
-    if (!computeTruth(query.withExpr(valueMustBeGreaterExpr), mustBeTrue)) {
+    ref<SolverResponse> solverResponse;
+    if (!check(query.withExpr(valueMustBeGreaterExpr), solverResponse)) {
       return false;
     }
 
-    if (mustBeTrue) {
+    if (isa<ValidResponse>(solverResponse)) {
       left = middle;
     } else {
-      right = middle;
+      Assignment cexSolution;
+      assert(solverResponse->getInitialValues(cexSolution.bindings));
+      right = cast<ConstantExpr>(cexSolution.evaluate(middle));
     }
   }
 
