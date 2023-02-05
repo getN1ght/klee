@@ -100,8 +100,8 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
 
   if (isHighRightBound) {
     left = ConstantExpr::create(rightmostWidthBit, query.expr->getWidth());
-    right = ConstantExpr::create(sizeof(query.expr->getWidth()) * CHAR_BIT,
-                                 query.expr->getWidth());
+    right =
+        ConstantExpr::create(query.expr->getWidth(), query.expr->getWidth());
     /* while (left + 1 < right) */
     while (cast<ConstantExpr>(
                UltExpr::create(AddExpr::create(left, ConstantExpr::create(
@@ -118,22 +118,16 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
               ShlExpr::create(ConstantExpr::create(1, middle->getWidth()),
                               middle)));
 
-      ref<SolverResponse> solverResponse;
-      if (!check(query.withExpr(valueMustBeGreaterExpr),
-                        solverResponse)) {
+      bool mustBeGreater;
+      if (!computeTruth(query.withExpr(valueMustBeGreaterExpr),
+                        mustBeGreater)) {
         return false;
       }
 
-      if (isa<ValidResponse>(solverResponse)) {
+      if (mustBeGreater) {
         left = middle;
       } else {
-        Assignment cexSolution;
-        assert(solverResponse->getInitialValues(cexSolution.bindings));
-        right = ConstantExpr::create(
-            cast<ConstantExpr>(cexSolution.evaluate(query.expr))
-                ->getAPValue()
-                .ceilLogBase2(),
-            right->getWidth());
+        right = middle;
       }
     }
     left = ShlExpr::create(ConstantExpr::create(1, left->getWidth()), left);
@@ -168,17 +162,15 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
     ref<Expr> valueMustBeGreaterExpr = ConstraintManager::simplifyExpr(
         query.constraints, UgtExpr::create(query.expr, middle));
 
-    ref<SolverResponse> solverResponse;
-    if (!check(query.withExpr(valueMustBeGreaterExpr), solverResponse)) {
+    bool mustBeGreater;
+    if (!computeTruth(query.withExpr(valueMustBeGreaterExpr), mustBeGreater)) {
       return false;
     }
 
-    if (isa<ValidResponse>(solverResponse)) {
+    if (mustBeGreater) {
       left = middle;
     } else {
-      Assignment cexSolution;
-      assert(solverResponse->getInitialValues(cexSolution.bindings));
-      right = cast<ConstantExpr>(cexSolution.evaluate(query.expr));
+      right = middle;
     }
   }
 

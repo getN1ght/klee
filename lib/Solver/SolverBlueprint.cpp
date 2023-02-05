@@ -317,12 +317,14 @@ bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
   assert(assertConcretization(query, assign) &&
          "Assignment does not contain concretization for all symcrete arrays!");
 
-  auto concretizedQuery = constructConcretizedQuery(query, assign);
-  ValidityCore validityCore;
-
-  if (!solver->impl->computeValidityCore(concretizedQuery, validityCore,
-                                          isValid)) {
-    return false;
+  if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(
+          cm->simplifyExprWithSymcretes(query.constraints, query.expr))) {
+    isValid = CE->isTrue(); 
+  } else {
+    auto concretizedQuery = constructConcretizedQuery(query, assign);
+    if (!solver->impl->computeTruth(concretizedQuery, isValid)) {
+      return false;
+    }
   }
 
   // If constraints always evaluate to `mustBeTrue`, then relax
@@ -352,10 +354,17 @@ bool SolverBlueprint::computeValidityCore(const Query &query,
          "Assignment does not contain concretization for all symcrete arrays!");
 
   Query concretizedQuery = constructConcretizedQuery(query, assign);
-  if (!solver->impl->computeValidityCore(concretizedQuery, validityCore,
-                                         isValid)) {
-    return false;
+  
+  if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(
+          cm->simplifyExprWithSymcretes(query.constraints, query.expr))) {
+    isValid = CE->isTrue();
+  } else {
+    if (!solver->impl->computeValidityCore(concretizedQuery, validityCore,
+                                          isValid)) {
+      return false;
+    }
   }
+  
 
   if (isValid) {
     ref<SolverResponse> solverResponse;
@@ -385,13 +394,12 @@ bool SolverBlueprint::computeValue(const Query &query, ref<Expr> &result) {
   assert(assertConcretization(query, assign) &&
          "Assignment does not contain concretization for all symcrete arrays!");
 
-  auto concretizedQuery = constructConcretizedQuery(query, assign);
-  if (ref<ConstantExpr> expr =
-          dyn_cast<ConstantExpr>(ConstraintManager::simplifyExpr(
-              concretizedQuery.constraints, concretizedQuery.expr))) {
+  if (ref<ConstantExpr> expr = dyn_cast<ConstantExpr>(
+          cm->simplifyExprWithSymcretes(query.constraints, query.expr))) {
     result = expr;
     return true;
   }
+  auto concretizedQuery = constructConcretizedQuery(query, assign);
   return solver->impl->computeValue(concretizedQuery, result);
 }
 
