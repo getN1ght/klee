@@ -138,6 +138,12 @@ namespace klee {
       return false;
     }
 
+    virtual bool getInitialValuesFor(
+        const std::vector<const Array *> &objects,
+        std::map<const Array *, SparseStorage<unsigned char>> &values) {
+      return false;
+    }
+
     virtual bool getInitialValues(
         std::map<const Array *, SparseStorage<unsigned char>> &values) {
       return false;
@@ -211,6 +217,19 @@ namespace klee {
         } else {
           return false;
         }
+      }
+      return true;
+    }
+
+    virtual bool getInitialValuesFor(
+        const std::vector<const Array *> &objects,
+        std::map<const Array *, SparseStorage<unsigned char>> &values) {
+      std::vector<SparseStorage<unsigned char>> concreteValues;
+      if (!getInitialValuesFor(objects, concreteValues)) {
+        return false;
+      }
+      for (unsigned idx = 0; idx < objects.size(); ++idx) {
+        values[objects[idx]] = concreteValues[idx];
       }
       return true;
     }

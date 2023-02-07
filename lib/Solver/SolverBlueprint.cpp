@@ -50,7 +50,7 @@ public:
 
 private:
   bool assertConcretization(const Query &query, const Assignment &assign) const;
-  bool relaxSymcreteConstraints(const Query &query, Assignment &assign,
+  bool relaxSymcreteConstraints(const Query &query,
                                 ref<SolverResponse> &result);
   Query constructConcretizedQuery(const Query &, const Assignment &);
 };
@@ -75,11 +75,10 @@ bool SolverBlueprint::assertConcretization(const Query &query,
 }
 
 bool SolverBlueprint::relaxSymcreteConstraints(const Query &query,
-                                               Assignment &assignment,
                                                ref<SolverResponse> &result) {
   // Get initial symcrete solution. We will try to relax
   // them in order to achieve `mayBeTrue` solution.
-  assignment = cm->get(query.constraints);
+  Assignment assignment = cm->get(query.constraints);
 
   std::vector<const Array *> brokenSymcreteArrays;
   std::vector<const Array *> brokenSizesArrays;
@@ -252,22 +251,24 @@ bool SolverBlueprint::computeValidity(const Query &query,
   if (!trueInvalid) {
     cm->add(query, falseResponseAssignment);
     ref<SolverResponse> solverResponse;
-    if (!relaxSymcreteConstraints(query, trueResponseAssignment,
-                                  solverResponse)) {
+    if (!relaxSymcreteConstraints(query, solverResponse)) {
       return false;
     }
     if (!isa<ValidResponse>(solverResponse)) {
+      assert(solverResponse->getInitialValuesFor(
+          query.gatherSymcreteArrays(), trueResponseAssignment.bindings));
       cm->add(query.negateExpr(), trueResponseAssignment);
       falseInvalid = false;
     }
   } else if (!falseInvalid) {
     cm->add(query.negateExpr(), trueResponseAssignment);
     ref<SolverResponse> solverResponse;
-    if (!relaxSymcreteConstraints(query.negateExpr(), falseResponseAssignment,
-                                  solverResponse)) {
+    if (!relaxSymcreteConstraints(query.negateExpr(), solverResponse)) {
       return false;
     }
     if (!isa<ValidResponse>(solverResponse)) {
+      assert(solverResponse->getInitialValuesFor(
+          query.gatherSymcreteArrays(), falseResponseAssignment.bindings));
       cm->add(query, falseResponseAssignment);
       trueInvalid = false;
     }
@@ -291,12 +292,14 @@ bool SolverBlueprint::check(const Query &query, ref<SolverResponse> &result) {
   }
 
   if (isa<ValidResponse>(result)) {
-    if (!relaxSymcreteConstraints(query, assign, result)) {
+    if (!relaxSymcreteConstraints(query, result)) {
       return false;
     }
   }
 
   if (isa<InvalidResponse>(result)) {
+    assert(result->getInitialValuesFor(query.gatherSymcreteArrays(),
+                                       assign.bindings));
     cm->add(query.negateExpr(), assign);
   }
 
@@ -331,15 +334,17 @@ bool SolverBlueprint::computeTruth(const Query &query, bool &isValid) {
   // symcretes until remove all of them or query starts to evaluate
   // to `mayBeFalse`.
 
+  ref<SolverResponse> solverResponse;
   if (isValid) {
-    ref<SolverResponse> solverResponse;
-    if (!relaxSymcreteConstraints(query, assign, solverResponse)) {
+    if (!relaxSymcreteConstraints(query, solverResponse)) {
       return false;
     }
     isValid = isa<ValidResponse>(solverResponse);
   }
 
   if (!isValid) {
+    assert(solverResponse->getInitialValuesFor(query.gatherSymcreteArrays(),
+                                               assign.bindings));
     cm->add(query.negateExpr(), assign);
   }
 
@@ -366,9 +371,9 @@ bool SolverBlueprint::computeValidityCore(const Query &query,
   }
   
 
+  ref<SolverResponse> solverResponse;
   if (isValid) {
-    ref<SolverResponse> solverResponse;
-    if (!relaxSymcreteConstraints(query, assign, solverResponse)) {
+    if (!relaxSymcreteConstraints(query, solverResponse)) {
       return false;
     }
     /* Here we already have validity core from query above. */
@@ -379,6 +384,8 @@ bool SolverBlueprint::computeValidityCore(const Query &query,
 
   if (!isValid) {
     validityCore = ValidityCore();
+    assert(solverResponse->getInitialValuesFor(query.gatherSymcreteArrays(),
+                                               assign.bindings));
     cm->add(query.negateExpr(), assign);
   }
 
@@ -423,13 +430,15 @@ bool SolverBlueprint::computeInitialValues(
 
   if (!hasSolution) {
     ref<SolverResponse> solverResponse;
-    if (!relaxSymcreteConstraints(query, assign, solverResponse)) {
+    if (!relaxSymcreteConstraints(query, solverResponse)) {
       return false;
     }
     /* Because relaxSymcreteConstraints response is `isValid`,
     and `isValid` == false iff solution for negation exists. */
     hasSolution = isa<InvalidResponse>(solverResponse);
     if (hasSolution) {
+      assert(solverResponse->getInitialValuesFor(query.gatherSymcreteArrays(),
+                                                 assign.bindings));
       cm->add(query.negateExpr(), assign);
       values = std::vector<SparseStorage<unsigned char>>();
       return solver->impl->computeInitialValues(
