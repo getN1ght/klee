@@ -4611,7 +4611,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         wos->write(mo->getOffsetExpr(address), value);
       }
     } else {
-      ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
+      wos->getDynamicType()->handleMemoryAccess(
+          targetType, mo->getOffsetExpr(address),
+          ConstantExpr::alloc(size, Context::get().getPointerWidth()), false);
+      ref<Expr> result = wos->read(mo->getOffsetExpr(address), type);
       bindLocal(target, *bound, result);
     }
   }

@@ -313,7 +313,8 @@ bool Z3SolverImpl::internalRunSolver(
   //
   // TODO: Investigate using a custom tactic as described in
   // https://github.com/klee/klee/issues/653
-  Z3_solver theSolver = Z3_mk_solver(builder->ctx);
+  Z3_solver theSolver = Z3_mk_solver_for_logic(
+      builder->ctx, Z3_mk_string_symbol(builder->ctx, "QF_AUFBV"));
   Z3_solver_inc_ref(builder->ctx, theSolver);
   Z3_solver_set_params(builder->ctx, theSolver, solverParameters);
 
