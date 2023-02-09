@@ -11,8 +11,6 @@ private:
   static ref<SymbolicSource> constantSource;
   static ref<SymbolicSource> constantWithSymbolicSizeSource;
   static ref<SymbolicSource> makeSymbolicSource;
-  static ref<SymbolicSource> symbolicAddressSource;
-  static ref<SymbolicSource> symbolicSizeSource;
   static ref<SymbolicSource> lazyInitializationMakeSymbolicSource;
 
 public:

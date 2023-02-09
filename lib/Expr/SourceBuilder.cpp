@@ -11,10 +11,6 @@ ref<SymbolicSource> SourceBuilder::constantWithSymbolicSizeSource =
     ref<SymbolicSource>(new ConstantWithSymbolicSizeSource());
 ref<SymbolicSource> SourceBuilder::makeSymbolicSource =
     ref<SymbolicSource>(new MakeSymbolicSource());
-ref<SymbolicSource> SourceBuilder::symbolicAddressSource =
-    ref<SymbolicSource>(new SymbolicAddressSource());
-ref<SymbolicSource> SourceBuilder::symbolicSizeSource =
-    ref<SymbolicSource>(new SymbolicSizeSource());
 ref<SymbolicSource> SourceBuilder::lazyInitializationMakeSymbolicSource =
     ref<SymbolicSource>(new LazyInitializationSymbolicSource());
 
@@ -31,11 +27,11 @@ ref<SymbolicSource> SourceBuilder::makeSymbolic() {
 }
 
 ref<SymbolicSource> SourceBuilder::symbolicAddress() {
-  return SourceBuilder::symbolicAddressSource;
+  return new SymbolicAddressSource();
 }
 
 ref<SymbolicSource> SourceBuilder::symbolicSize() {
-  return SourceBuilder::symbolicSizeSource;
+  return new SymbolicSizeSource();
 }
 
 ref<SymbolicSource> SourceBuilder::lazyInitializationMakeSymbolic() {

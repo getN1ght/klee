@@ -119,8 +119,8 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
         brokenSymcreteArrays.push_back(brokenArray);
 
         // Remove address concretization
-        brokenSymcreteArrays.push_back(sizeSource->linkedArray);
         assignment.bindings.erase(sizeSource->linkedArray);
+        brokenSymcreteArrays.push_back(sizeSource->linkedArray);
 
         wereConcretizationsRemoved = true;
         brokenSizesArrays.push_back(brokenArray);
@@ -394,11 +394,6 @@ bool ConcretizingSolver::computeValue(const Query &query, ref<Expr> &result) {
   }
 
   Assignment assign = query.constraints.getConcretization();
-  
-  if (!assertConcretization(query, assign)) {
-    query.dump();
-    assign.dump();
-  }
   
   assert(assertConcretization(query, assign) &&
          "Assignment does not contain concretization for all symcrete arrays!");
