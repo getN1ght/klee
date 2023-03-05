@@ -105,25 +105,23 @@ protected:
     }
   };
 
-  class ExprCacheSet {
-  public:
-    typedef std::unordered_set<Expr *, ExprHash, ExprCmp> CacheType;
-    CacheType cache;
+  typedef std::unordered_set<Expr *, ExprHash, ExprCmp> CacheType;
 
-    ~ExprCacheSet() { for (auto &p : cache) { p->cached = false; } }
+  struct ExprCacheSet {
+    CacheType cache;
+    ~ExprCacheSet() {
+      while (cache.size() != 0) {
+        ref<Expr> tmp = *cache.begin();
+        tmp->isCached = false;
+        cache.erase(cache.begin());
+      }
+    }
   };
 
-  static std::unique_ptr<Expr::ExprCacheSet> cachedExpressions;
+  static ExprCacheSet cachedExpressions;
   static ref<Expr> createCachedExpr(const ref<Expr> &e);
-  bool cached = false;
+  bool isCached = false;
   bool toBeCleared = false;
-
-public:
-  static void enableCache() {
-    cachedExpressions =
-        std::unique_ptr<Expr::ExprCacheSet>(new Expr::ExprCacheSet());
-  }
-  bool isCached() const { return cached; }
 
 public:
   static unsigned count;
