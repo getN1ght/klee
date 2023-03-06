@@ -13,32 +13,25 @@
 // during linking.
 
 // __isnanf
-int klee_internal_isnanf(float f) {
-  return klee_is_nan_float(f);
-}
+int klee_internal_isnanf(float f) { return klee_is_nan_float(f); }
 
 // __isnan
-int klee_internal_isnan(double d) {
-  return klee_is_nan_double(d);
-}
+int klee_internal_isnan(double d) { return klee_is_nan_double(d); }
 
 // __isnanl
-int klee_internal_isnanl(long double d) {
-  return klee_is_nan_long_double(d);
-}
+int klee_internal_isnanl(long double d) { return klee_is_nan_long_double(d); }
 
 // __fpclassifyf
 int klee_internal_fpclassifyf(float f) {
-/*
- * This version acts like a switch case which returns correct
- * float type from the enum, but itself does not fork
-*/
+  /*
+   * This version acts like a switch case which returns correct
+   * float type from the enum, but itself does not fork
+   */
   int b = klee_is_infinite_float(f);
   int c = (f == 0.0f);
   int d = klee_is_subnormal_float(f);
   int x = klee_is_normal_float(f);
   return ((x << 2) | ((c | d) << 1) | (b | d));
-
 }
 
 // __fpclassify

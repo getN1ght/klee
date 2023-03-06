@@ -47,4 +47,4 @@ ArrayCache::CreateArray(const std::string &_name, ref<Expr> _size,
     return array;
   }
 }
-}
+} // namespace klee

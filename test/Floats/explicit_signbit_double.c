@@ -4,24 +4,24 @@
 // RUN: FileCheck -input-file=%t-output.txt %s
 // REQUIRES: fp-runtime
 #include "klee/klee.h"
-#include <math.h>
 #include <assert.h>
+#include <math.h>
 
 int main() {
-    double a;
-    klee_make_symbolic(&a, sizeof(a), "a");
-    if (__signbit(a)) {
-        if (!klee_is_normal_double(a)) {
-            return 0;
-        } else {
-            assert(a < 0.0);
-        }
+  double a;
+  klee_make_symbolic(&a, sizeof(a), "a");
+  if (__signbit(a)) {
+    if (!klee_is_normal_double(a)) {
+      return 0;
     } else {
-        if (!klee_is_normal_double(a)) {
-            return 1;
-        } else {
-            assert(!(a < 0.0));
-        }
+      assert(a < 0.0);
     }
+  } else {
+    if (!klee_is_normal_double(a)) {
+      return 1;
+    } else {
+      assert(!(a < 0.0));
+    }
+  }
 }
 // CHECK: KLEE: done: completed paths = 4

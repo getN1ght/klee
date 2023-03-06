@@ -14,7 +14,6 @@ int long_double_int_overflow(long double ld) {
   return ld;
 }
 
-
 int main() {
   float f;
 

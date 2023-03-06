@@ -14,4 +14,4 @@ float copysignf(float x, float y);
 double copysign(double x, double y);
 long double copysignl(long double x, long double y);
 
-#endif //KLEE_COPYSIGN_H
+#endif // KLEE_COPYSIGN_H

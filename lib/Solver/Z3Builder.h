@@ -98,12 +98,15 @@ template <> void Z3NodeHandle<Z3_ast>::dump() __attribute__((used));
 template <> unsigned Z3NodeHandle<Z3_ast>::hash() __attribute__((used));
 
 struct Z3ASTHandleHash {
-  unsigned operator()(const Z3ASTHandle &e) const {return const_cast<Z3ASTHandle*>(&e)->hash(); }
+  unsigned operator()(const Z3ASTHandle &e) const {
+    return const_cast<Z3ASTHandle *>(&e)->hash();
+  }
 };
 
 struct Z3ASTHandleCmp {
   bool operator()(const Z3ASTHandle &a, const Z3ASTHandle &b) const {
-    return const_cast<Z3ASTHandle*>(&a)->hash() == const_cast<Z3ASTHandle*>(&b)->hash();
+    return const_cast<Z3ASTHandle *>(&a)->hash() ==
+           const_cast<Z3ASTHandle *>(&b)->hash();
   }
 };
 
@@ -205,7 +208,7 @@ public:
 
   Z3ASTHandle getTrue();
   Z3ASTHandle getFalse();
-  Z3ASTHandle buildFreshBoolConst (const char *name);
+  Z3ASTHandle buildFreshBoolConst(const char *name);
   Z3ASTHandle getInitialRead(const Array *os, unsigned index);
 
   Z3ASTHandle construct(ref<Expr> e) {

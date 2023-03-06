@@ -103,8 +103,7 @@ void TypeManager::initTypesFromStructs() {
     for (unsigned idx = 0; idx < structType->getNumElements(); ++idx) {
       uint64_t offset = structLayout->getElementOffset(idx);
       llvm::Type *rawElementType = structType->getElementType(idx);
-      typesMap[structType]->innerTypes[typesMap[rawElementType]].insert(
-          offset);
+      typesMap[structType]->innerTypes[typesMap[rawElementType]].insert(offset);
 
       /* Provide initialization from types in inner class */
       for (auto &innerStructMemberTypesToOffsets :

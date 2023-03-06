@@ -15,7 +15,7 @@ int main() {
   // The C11 spec (6.3.1.4) says this conversion should
   // truncate the fractional part of ``x`` (i.e.
   // this is like rounding toward 0).
-  y = (unsigned int) x;
+  y = (unsigned int)x;
   if (y == 0) {
     printf("y is zero\n");
   } else {

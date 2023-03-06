@@ -9,26 +9,23 @@
 
 namespace klee {
 
-template<class T>
-class DenseSet {
+template <class T> class DenseSet {
   typedef std::set<T> set_ty;
   set_ty s;
 
 public:
   DenseSet() {}
 
-  void add(T x) {
-    s.insert(x);
-  }
+  void add(T x) { s.insert(x); }
   void add(T start, T end) {
-    for (; start<end; start++)
+    for (; start < end; start++)
       s.insert(start);
   }
 
   // returns true iff set is changed by addition
   bool add(const DenseSet &b) {
     bool modified = false;
-    for (typename set_ty::const_iterator it = b.s.begin(), ie = b.s.end(); 
+    for (typename set_ty::const_iterator it = b.s.begin(), ie = b.s.end();
          it != ie; ++it) {
       if (modified || !s.count(*it)) {
         modified = true;
@@ -39,26 +36,21 @@ public:
   }
 
   bool intersects(const DenseSet &b) {
-    for (typename set_ty::iterator it = s.begin(), ie = s.end(); 
-         it != ie; ++it)
+    for (typename set_ty::iterator it = s.begin(), ie = s.end(); it != ie; ++it)
       if (b.s.count(*it))
         return true;
     return false;
   }
 
-  std::set<unsigned>::iterator begin(){
-    return s.begin();
-  }
+  std::set<unsigned>::iterator begin() { return s.begin(); }
 
-  std::set<unsigned>::iterator end(){
-    return s.end();
-  }
+  std::set<unsigned>::iterator end() { return s.end(); }
 
   void print(llvm::raw_ostream &os) const {
     bool first = true;
     os << "{";
-    for (typename set_ty::iterator it = s.begin(), ie = s.end(); 
-         it != ie; ++it) {
+    for (typename set_ty::iterator it = s.begin(), ie = s.end(); it != ie;
+         ++it) {
       if (first) {
         first = false;
       } else {
@@ -77,16 +69,17 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
   return os;
 }
 
-
 class IndependentElementSet {
 public:
-  typedef std::map<const Array*, DenseSet<unsigned> > elements_ty;
-  elements_ty elements;                 // Represents individual elements of array accesses (arr[1])
-  std::set<const Array*> wholeObjects;  // Represents symbolically accessed arrays (arr[x])
-  std::vector<ref<Expr> > exprs;        // All expressions that are associated with this factor
-                                        // Although order doesn't matter, we use a vector to match
-                                        // the ConstraintManager constructor that will eventually
-                                        // be invoked.
+  typedef std::map<const Array *, DenseSet<unsigned>> elements_ty;
+  elements_ty
+      elements; // Represents individual elements of array accesses (arr[1])
+  std::set<const Array *>
+      wholeObjects; // Represents symbolically accessed arrays (arr[x])
+  std::vector<ref<Expr>> exprs; // All expressions that are associated with this
+                                // factor Although order doesn't matter, we use
+                                // a vector to match the ConstraintManager
+                                // constructor that will eventually be invoked.
 
   IndependentElementSet();
   IndependentElementSet(ref<Expr> e);
@@ -124,6 +117,6 @@ IndependentElementSet getIndependentConstraints(const Query &query,
 // accesses arr[x].
 void calculateArrayReferences(const IndependentElementSet &ie,
                               std::vector<const Array *> &returnVector);
-}
+} // namespace klee
 
 #endif /* KLEE_INDEPENDENTSET_H */

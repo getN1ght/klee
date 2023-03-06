@@ -6,7 +6,6 @@
 #include <assert.h>
 #include <fenv.h>
 
-
 int main() {
   int rm = fegetround();
   int result = 0;

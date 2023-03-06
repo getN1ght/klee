@@ -35,7 +35,7 @@ namespace klee {
 class Array;
 class CallPathNode;
 struct Cell;
-template<class T> class ExprHashMap;
+template <class T> class ExprHashMap;
 struct KFunction;
 struct KBlock;
 struct KInstruction;
@@ -138,8 +138,7 @@ struct CleanupPhaseUnwindingInformation : public UnwindingInformation {
                                    const std::size_t catchingStackIndex)
       : UnwindingInformation(exceptionObject,
                              UnwindingInformation::Kind::CleanupPhase),
-        selectorValue(selectorValue),
-        catchingStackIndex(catchingStackIndex) {}
+        selectorValue(selectorValue), catchingStackIndex(catchingStackIndex) {}
 
   std::unique_ptr<UnwindingInformation> clone() const {
     return std::make_unique<CleanupPhaseUnwindingInformation>(*this);
@@ -201,7 +200,8 @@ public:
 
   // Overall state of the state - Data specific
 
-  /// @brief Exploration depth, i.e., number of times KLEE branched for this state
+  /// @brief Exploration depth, i.e., number of times KLEE branched for this
+  /// state
   std::uint32_t depth = 0;
 
   /// @brief Exploration level, i.e., number of times KLEE cycled for this state
@@ -253,10 +253,12 @@ public:
   /// @brief Set of used array names for this state.  Used to avoid collisions.
   std::set<std::string> arrayNames;
 
-  /// @brief The objects handling the klee_open_merge calls this state ran through
+  /// @brief The objects handling the klee_open_merge calls this state ran
+  /// through
   std::vector<ref<MergeHandler>> openMergeStack;
 
-  /// @brief The numbers of times this state has run through Executor::stepInstruction
+  /// @brief The numbers of times this state has run through
+  /// Executor::stepInstruction
   std::uint64_t steppedInstructions = 0;
 
   /// @brief The numbers of times this state has run through
@@ -303,13 +305,13 @@ public:
   // no move ctor
   ExecutionState(ExecutionState &&) noexcept = delete;
   // no move assignment
-  ExecutionState& operator=(ExecutionState &&) noexcept = delete;
+  ExecutionState &operator=(ExecutionState &&) noexcept = delete;
   // dtor
   ~ExecutionState();
 
   ExecutionState *branch();
 
-  bool inSymbolics(const MemoryObject* mo) const;
+  bool inSymbolics(const MemoryObject *mo) const;
 
   void pushFrame(KInstIterator caller, KFunction *kf);
   void popFrame();
@@ -323,7 +325,8 @@ public:
                std::pair<ref<const MemoryObject>, ref<Expr>> &resolution) const;
 
   void removePointerResolutions(const MemoryObject *mo);
-  void addPointerResolution(ref<Expr> address, ref<Expr> base, const MemoryObject *mo);
+  void addPointerResolution(ref<Expr> address, ref<Expr> base,
+                            const MemoryObject *mo);
   bool resolveOnSymbolics(const ref<ConstantExpr> &addr, IDType &result) const;
 
   void addConstraint(ref<Expr> e);
@@ -347,6 +350,6 @@ struct ExecutionStateIDCompare {
     return a->getID() < b->getID();
   }
 };
-}
+} // namespace klee
 
 #endif /* KLEE_EXECUTIONSTATE_H */

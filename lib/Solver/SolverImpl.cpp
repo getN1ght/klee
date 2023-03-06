@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/Solver/SolverImpl.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Solver/Solver.h"
-#include "klee/Solver/SolverImpl.h"
 #include "klee/Support/ErrorHandling.h"
 
 using namespace klee;
@@ -81,9 +81,9 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
 
   /* In other words we solve 2**base = 2**x + 2**(2**x). As function
   in the right part grows monotonously, we can use binary search
-  to approximate solution, or just pick x = log_2(base) 
+  to approximate solution, or just pick x = log_2(base)
   as 2**x == o(2**(2**x)). */
-  
+
   assert(query.expr->getWidth() > 0);
   bool isHighRightBound = false;
   int rightmostWidthBit = sizeof(unsigned long long) * CHAR_BIT - 1 -
@@ -92,8 +92,8 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
       ConstantExpr::create(1, query.expr->getWidth()),
       ConstantExpr::create(rightmostWidthBit, query.expr->getWidth()));
 
-  if (!computeTruth(query.withExpr(
-                        UgtExpr::create(query.expr, inequalityValueOptimizatonExpr)),
+  if (!computeTruth(query.withExpr(UgtExpr::create(
+                        query.expr, inequalityValueOptimizatonExpr)),
                     isHighRightBound)) {
     return false;
   }

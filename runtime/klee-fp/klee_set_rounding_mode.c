@@ -17,17 +17,22 @@ void klee_set_rounding_mode(enum KleeRoundingMode rm) {
   // We have to be careful here to make sure we pass a constant
   // to klee_set_rounding_mode_internal().
   switch (rm) {
-    case KLEE_FP_RNE:
-      klee_set_rounding_mode_internal(KLEE_FP_RNE); break;
-    case KLEE_FP_RNA:
-      klee_set_rounding_mode_internal(KLEE_FP_RNA); break;
-    case KLEE_FP_RU:
-      klee_set_rounding_mode_internal(KLEE_FP_RU); break;
-    case KLEE_FP_RD:
-      klee_set_rounding_mode_internal(KLEE_FP_RD); break;
-    case KLEE_FP_RZ:
-      klee_set_rounding_mode_internal(KLEE_FP_RZ); break;
-    default:
-      klee_report_error(__FILE__, __LINE__, "Invalid rounding mode", "");
+  case KLEE_FP_RNE:
+    klee_set_rounding_mode_internal(KLEE_FP_RNE);
+    break;
+  case KLEE_FP_RNA:
+    klee_set_rounding_mode_internal(KLEE_FP_RNA);
+    break;
+  case KLEE_FP_RU:
+    klee_set_rounding_mode_internal(KLEE_FP_RU);
+    break;
+  case KLEE_FP_RD:
+    klee_set_rounding_mode_internal(KLEE_FP_RD);
+    break;
+  case KLEE_FP_RZ:
+    klee_set_rounding_mode_internal(KLEE_FP_RZ);
+    break;
+  default:
+    klee_report_error(__FILE__, __LINE__, "Invalid rounding mode", "");
   }
 }

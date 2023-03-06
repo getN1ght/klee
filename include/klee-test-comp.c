@@ -8,16 +8,17 @@
 //===----------------------------------------------------------------------===//
 
 #ifdef EXTERNAL
-#include <stdint.h>
-#include <stddef.h>
-#include <assert.h>
-#include <stdlib.h>
 #include "klee.h"
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 #else
 void klee_make_symbolic(void *addr, unsigned int nbytes, const char *name);
 void klee_assume(_Bool condition);
 __attribute__((noreturn)) void klee_silent_exit(int status);
-void __assert_fail(const char * assertion, const char * file, unsigned int line, const char * function);
+void __assert_fail(const char *assertion, const char *file, unsigned int line,
+                   const char *function);
 #endif
 
 int __VERIFIER_nondet_int(void) {
@@ -62,8 +63,8 @@ unsigned char __VERIFIER_nondet_uchar(void) {
   return x;
 }
 
-char * __VERIFIER_nondet_pchar(void) {
-  char * x;
+char *__VERIFIER_nondet_pchar(void) {
+  char *x;
   klee_make_symbolic(&x, sizeof(x), "char *");
   return x;
 }
@@ -86,11 +87,11 @@ double __VERIFIER_nondet_double(void) {
   return x;
 }
 
-void* __VERIFIER_nondet_pointer(void) {
+void *__VERIFIER_nondet_pointer(void) {
   int size = 1024;
-  char* obj = (char*) calloc(1, size); 
-  //klee_make_symbolic(obj, size, "obj");
-  
+  char *obj = (char *)calloc(1, size);
+  // klee_make_symbolic(obj, size, "obj");
+
   return obj;
 }
 
@@ -103,7 +104,7 @@ float __VERIFIER_nondet_float(void) {
 _Bool __VERIFIER_nondet_bool(void) {
   _Bool x;
   klee_make_symbolic(&x, sizeof(x), "_Bool");
-  klee_assume( x == 0 || x == 1);
+  klee_assume(x == 0 || x == 1);
   return x;
 }
 
@@ -142,13 +143,11 @@ size_t __VERIFIER_nondet_size_t(void) {
 }
 
 #ifndef EXTERNAL
-struct __pthread_t_struct
-{
+struct __pthread_t_struct {
   int id;
 };
 typedef struct __pthread_t_struct pthread_t;
 #endif
-
 
 pthread_t __VERIFIER_nondet_pthread_t(void) {
   pthread_t x;
@@ -162,9 +161,9 @@ void __VERIFIER_assume(int x) {
 }
 
 void __VERIFIER_error(void) {
-  #ifndef EXTERNAL
+#ifndef EXTERNAL
   __assert_fail("Failed", __FILE__, __LINE__, __PRETTY_FUNCTION__);
-  #else
+#else
   assert(0 && "Failure");
-  #endif
+#endif
 }

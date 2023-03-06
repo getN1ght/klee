@@ -9,7 +9,7 @@ int main() {
   klee_make_symbolic(&n, sizeof(n), "n");
   klee_assume(n > 0);
   for (i = 1; i <= n; i++) {
-      sn = sn + a;
+    sn = sn + a;
   }
   assert(sn >= 0);
 }

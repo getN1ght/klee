@@ -19,7 +19,6 @@
 #include <set>
 #include <unordered_map>
 
-
 namespace llvm {
 class Value;
 }
@@ -34,7 +33,7 @@ class MemoryManager {
 private:
   typedef std::set<MemoryObject *> objects_ty;
   objects_ty objects;
-  std::unordered_map<IDType, std::map<uint64_t, MemoryObject *>> allocatedSizes; 
+  std::unordered_map<IDType, std::map<uint64_t, MemoryObject *>> allocatedSizes;
 
   ArrayCache *const arrayCache;
 
@@ -61,13 +60,14 @@ public:
   void deallocate(const MemoryObject *mo);
   void markFreed(MemoryObject *mo);
   ArrayCache *getArrayCache() const { return arrayCache; }
-  const std::map<uint64_t, MemoryObject *> &getAllocatedObjects(IDType idObject);
+  const std::map<uint64_t, MemoryObject *> &
+  getAllocatedObjects(IDType idObject);
   /*
    * Returns the size used by deterministic allocation in bytes
    */
   size_t getUsedDeterministicSize();
 };
 
-} // End klee namespace
+} // namespace klee
 
 #endif /* KLEE_MEMORYMANAGER_H */

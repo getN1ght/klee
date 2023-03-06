@@ -20,7 +20,7 @@
 namespace llvm {
 class Instruction;
 class LLVMContext;
-}
+} // namespace llvm
 
 namespace klee {
 class ExternalDispatcherImpl;
@@ -37,13 +37,13 @@ public:
    * ci with arguments in args[1], args[2], ... and writing the result
    * into args[0].
    */
-  bool executeCall(KCallable *callable, llvm::Instruction *i,
-                   uint64_t *args, int roundingMode);
+  bool executeCall(KCallable *callable, llvm::Instruction *i, uint64_t *args,
+                   int roundingMode);
   void *resolveSymbol(const std::string &name);
 
   int getLastErrno();
   void setLastErrno(int newErrno);
 };
-}
+} // namespace klee
 
 #endif /* KLEE_EXTERNALDISPATCHER_H */

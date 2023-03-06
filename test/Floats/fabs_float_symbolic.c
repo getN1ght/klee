@@ -7,8 +7,8 @@
 #include <assert.h>
 #include <float.h>
 #include <math.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 int main() {
   float x = 0.0f;

@@ -1,7 +1,7 @@
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <errno.h>
 
 /*
  * Return the (stdio) flags for a given mode. Store the flags
@@ -11,22 +11,22 @@
 int convert_to_stdio_open_flags(const char *mode, int *optr) {
   int ret = 0, m = 0, o = 0;
   switch (*mode++) {
-  case 'r':	/* open for reading */
+  case 'r': /* open for reading */
     ret = 1;
     m = O_RDONLY;
     o = 0;
     break;
-  case 'w':	/* open for writing */
+  case 'w': /* open for writing */
     ret = 2;
     m = O_WRONLY;
     o = O_CREAT | O_TRUNC;
     break;
-  case 'a':	/* open for appending */
+  case 'a': /* open for appending */
     ret = 2;
     m = O_WRONLY;
     o = O_CREAT | O_APPEND;
     break;
-  default:	/* illegal mode */
+  default: /* illegal mode */
     errno = EINVAL;
     return 0;
   }
@@ -114,7 +114,7 @@ size_t fread(void *buffer, size_t size, size_t count, FILE *stream) {
   return read_byte / size;
 }
 
-char* fgets(char *s, int n, FILE *stream) {
+char *fgets(char *s, int n, FILE *stream) {
   if (stream == NULL) {
     return 0;
   }
@@ -137,12 +137,9 @@ char* fgets(char *s, int n, FILE *stream) {
   return s;
 }
 
-int getchar(void) {
-  return getc(stdin);
-}
+int getchar(void) { return getc(stdin); }
 
-char* gets(char *s)
-{
+char *gets(char *s) {
   char *p = s;
   if (s == NULL || ferror(stdin) || feof(stdin)) {
     return NULL;
@@ -224,9 +221,7 @@ int fputs(const char *str, FILE *stream) {
   return 1;
 }
 
-int putchar(int c) {
-  return putc(c, stdout);
-}
+int putchar(int c) { return putc(c, stdout); }
 
 int puts(const char *str) {
   int write_code = fputs(str, stdout);

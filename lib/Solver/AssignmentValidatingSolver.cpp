@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/ExprUtil.h"
-#include "klee/Expr/Assignment.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverImpl.h"
 
@@ -35,7 +35,7 @@ public:
                             bool &hasSolution);
   bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &query, ValidityCore &validityCore,
-                        bool &isValid);
+                           bool &isValid);
   void validateAssigment(const Query &query,
                          const std::vector<const Array *> &objects,
                          std::vector<SparseStorage<unsigned char>> &values);
@@ -143,7 +143,7 @@ bool AssignmentValidatingSolver::check(const Query &query,
   expressions.insert(query.constraints.begin(), query.constraints.end());
   expressions.insert(query.expr);
 
-  std::vector<const Array*> objects;
+  std::vector<const Array *> objects;
   findSymbolicObjects(expressions.begin(), expressions.end(), objects);
   std::vector<SparseStorage<unsigned char>> values;
 
@@ -195,4 +195,4 @@ void AssignmentValidatingSolver::setCoreSolverTimeout(time::Span timeout) {
 Solver *createAssignmentValidatingSolver(Solver *s) {
   return new Solver(new AssignmentValidatingSolver(s));
 }
-}
+} // namespace klee

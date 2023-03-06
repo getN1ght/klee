@@ -61,25 +61,23 @@ public:
   /// The IncompleteSolver class provides an implementation of
   /// computeValidity using computeTruth. Sub-classes may override
   /// this if a more efficient implementation is available.
-  virtual IncompleteSolver::PartialValidity computeValidity(const Query&);
+  virtual IncompleteSolver::PartialValidity computeValidity(const Query &);
 
   /// computeValidity - Compute a partial validity for the given query.
   ///
   /// The passed expression is non-constant with bool type.
-  virtual IncompleteSolver::PartialValidity computeTruth(const Query&) = 0;
-  
+  virtual IncompleteSolver::PartialValidity computeTruth(const Query &) = 0;
+
   /// computeValue - Attempt to compute a value for the given expression.
-  virtual bool computeValue(const Query&, ref<Expr> &result) = 0;
+  virtual bool computeValue(const Query &, ref<Expr> &result) = 0;
 
   /// computeInitialValues - Attempt to compute the constant values
   /// for the initial state of each given object. If a correct result
   /// is not found, then the values array must be unmodified.
-  virtual bool computeInitialValues(const Query&,
-                                    const std::vector<const Array*> 
-                                      &objects,
-                                    std::vector<SparseStorage<unsigned char>> 
-                                      &values,
-                                    bool &hasSolution) = 0;
+  virtual bool
+  computeInitialValues(const Query &, const std::vector<const Array *> &objects,
+                       std::vector<SparseStorage<unsigned char>> &values,
+                       bool &hasSolution) = 0;
 };
 
 /// StagedSolver - Adapter class for staging an incomplete solver with
@@ -89,26 +87,26 @@ class StagedSolverImpl : public SolverImpl {
 private:
   IncompleteSolver *primary;
   Solver *secondary;
-  
+
 public:
   StagedSolverImpl(IncompleteSolver *_primary, Solver *_secondary);
   ~StagedSolverImpl();
-    
-  bool computeTruth(const Query&, bool &isValid);
-  bool computeValidity(const Query&, Solver::Validity &result);
-  bool computeValue(const Query&, ref<Expr> &result);
-  bool computeInitialValues(const Query&,
-                            const std::vector<const Array*> &objects,
+
+  bool computeTruth(const Query &, bool &isValid);
+  bool computeValidity(const Query &, Solver::Validity &result);
+  bool computeValue(const Query &, ref<Expr> &result);
+  bool computeInitialValues(const Query &,
+                            const std::vector<const Array *> &objects,
                             std::vector<SparseStorage<unsigned char>> &values,
                             bool &hasSolution);
   bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &query, ValidityCore &validityCore,
                            bool &hasSolution);
   SolverRunStatus getOperationStatusCode();
-  char *getConstraintLog(const Query&);
+  char *getConstraintLog(const Query &);
   void setCoreSolverTimeout(time::Span timeout);
 };
 
-}
+} // namespace klee
 
 #endif /* KLEE_INCOMPLETESOLVER_H */

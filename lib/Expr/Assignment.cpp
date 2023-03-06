@@ -18,8 +18,8 @@ void Assignment::dump() const {
     llvm::errs() << "No bindings\n";
     return;
   }
-  for (bindings_ty::const_iterator i = bindings.begin(), e = bindings.end(); i != e;
-       ++i) {
+  for (bindings_ty::const_iterator i = bindings.begin(), e = bindings.end();
+       i != e; ++i) {
     llvm::errs() << (*i).first->name << "\n[";
     for (int j = 0, k = (*i).second.size(); j < k; ++j)
       llvm::errs() << (int)(*i).second.load(j) << ",";

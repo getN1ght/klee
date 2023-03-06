@@ -10,7 +10,7 @@ int main() {
   int i, n = 0, sn = 0;
   klee_make_symbolic(&n, sizeof(n), "n");
   for (i = 1; i <= n; i++) {
-      sn = sn + a;
+    sn = sn + a;
   }
   if (sn > 10) {
     printf("sn > 10");

@@ -4,9 +4,9 @@
 // RUN: FileCheck -input-file=%t-output.txt %s
 // REQUIRES: x86_64
 #include "klee/klee.h"
-#include <stdio.h>
-#include <math.h>
 #include <assert.h>
+#include <math.h>
+#include <stdio.h>
 
 int main() {
   long double x;

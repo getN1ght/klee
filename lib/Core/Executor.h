@@ -47,59 +47,57 @@
 struct KTest;
 
 namespace llvm {
-  class BasicBlock;
-  class BranchInst;
-  class CallInst;
-  class LandingPadInst;
-  class Constant;
-  class ConstantExpr;
-  class Function;
-  class GlobalValue;
-  class Instruction;
-  class LLVMContext;
-  class DataLayout;
-  class Twine;
-  class Value;
-}
+class BasicBlock;
+class BranchInst;
+class CallInst;
+class LandingPadInst;
+class Constant;
+class ConstantExpr;
+class Function;
+class GlobalValue;
+class Instruction;
+class LLVMContext;
+class DataLayout;
+class Twine;
+class Value;
+} // namespace llvm
 
 namespace klee {
-  class AddressManager;  
-  class Array;
-  struct Cell;
-  class CodeGraphDistance;
-  class ExecutionState;
-  class ExternalDispatcher;
-  class Expr;
-  template<class T> class ExprHashMap;
-  class InstructionInfoTable;
-  class KCallable;
-  struct KFunction;
-  struct KInstruction;
-  class KInstIterator;
-  class KModule;
-  class MemoryManager;
-  class MemoryObject;
-  class ObjectState;
-  class PTree;
-  class Searcher;
-  class SeedInfo;
-  class SpecialFunctionHandler;
-  struct StackFrame;
-  class SymbolicSource;
-  class TargetCalculator;
-  class StatsTracker;
-  class TimingSolver;
-  class TreeStreamWriter;
-  class TypeManager;
-  class MergeHandler;
-  class MergingSearcher;
-  template<class T> class ref;
+class AddressManager;
+class Array;
+struct Cell;
+class CodeGraphDistance;
+class ExecutionState;
+class ExternalDispatcher;
+class Expr;
+template <class T> class ExprHashMap;
+class InstructionInfoTable;
+class KCallable;
+struct KFunction;
+struct KInstruction;
+class KInstIterator;
+class KModule;
+class MemoryManager;
+class MemoryObject;
+class ObjectState;
+class PTree;
+class Searcher;
+class SeedInfo;
+class SpecialFunctionHandler;
+struct StackFrame;
+class SymbolicSource;
+class TargetCalculator;
+class StatsTracker;
+class TimingSolver;
+class TreeStreamWriter;
+class TypeManager;
+class MergeHandler;
+class MergingSearcher;
+template <class T> class ref;
 
-
-
-  /// \todo Add a context object to keep track of data only live
-  /// during an instruction step. Should contain addedStates,
-  /// removedStates, and haltExecution, among others.
+/// \todo Add a context object to keep track of data only live
+/// during an instruction step. Should contain addedStates,
+/// removedStates, and haltExecution, among others.
 
 class Executor : public Interpreter {
   friend class OwningSearcher;
@@ -110,15 +108,16 @@ class Executor : public Interpreter {
   friend klee::Searcher *klee::constructUserSearcher(Executor &executor);
 
 public:
-  typedef std::pair<ExecutionState*,ExecutionState*> StatePair;
+  typedef std::pair<ExecutionState *, ExecutionState *> StatePair;
 
   /// The random number generator.
   RNG theRNG;
 
 private:
-  /* Set of Intrinsic::ID. Plain type is used here to avoid including llvm in the header */
-  static const std::unordered_set <llvm::Intrinsic::ID> supportedFPIntrinsics;
-  static const std::unordered_set <llvm::Intrinsic::ID> modelledFPIntrinsics;
+  /* Set of Intrinsic::ID. Plain type is used here to avoid including llvm in
+   * the header */
+  static const std::unordered_set<llvm::Intrinsic::ID> supportedFPIntrinsics;
+  static const std::unordered_set<llvm::Intrinsic::ID> modelledFPIntrinsics;
 
   std::unique_ptr<KModule> kmodule;
   InterpreterHandler *interpreterHandler;
@@ -130,7 +129,7 @@ private:
   MemoryManager *memory;
   TypeManager *typeSystemManager;
 
-  std::set<ExecutionState*, ExecutionStateIDCompare> states;
+  std::set<ExecutionState *, ExecutionStateIDCompare> states;
   std::set<ExecutionState *, ExecutionStateIDCompare> pausedStates;
   StatsTracker *statsTracker;
   TreeStreamWriter *pathWriter, *symPathWriter;
@@ -142,13 +141,13 @@ private:
   std::unique_ptr<TargetCalculator> targetCalculator;
 
   /// Used to track states that have been added during the current
-  /// instructions step. 
-  /// \invariant \ref addedStates is a subset of \ref states. 
+  /// instructions step.
+  /// \invariant \ref addedStates is a subset of \ref states.
   /// \invariant \ref addedStates and \ref removedStates are disjoint.
   std::vector<ExecutionState *> addedStates;
   /// Used to track states that have been removed during the current
-  /// instructions step. 
-  /// \invariant \ref removedStates is a subset of \ref states. 
+  /// instructions step.
+  /// \invariant \ref removedStates is a subset of \ref states.
   /// \invariant \ref addedStates and \ref removedStates are disjoint.
   std::vector<ExecutionState *> removedStates;
 
@@ -159,18 +158,18 @@ private:
   /// satisfies one or more seeds will be added to this map. What
   /// happens with other states (that don't satisfy the seeds) depends
   /// on as-yet-to-be-determined flags.
-  std::map<ExecutionState*, std::vector<SeedInfo> > seedMap;
-  
+  std::map<ExecutionState *, std::vector<SeedInfo>> seedMap;
+
   /// Map of globals to their representative memory object.
-  std::map<const llvm::GlobalValue*, MemoryObject*> globalObjects;
+  std::map<const llvm::GlobalValue *, MemoryObject *> globalObjects;
 
   /// Map of globals to their bound address. This also includes
   /// globals that have no representative object (i.e. functions).
-  std::map<const llvm::GlobalValue*, ref<ConstantExpr> > globalAddresses;
+  std::map<const llvm::GlobalValue *, ref<ConstantExpr>> globalAddresses;
 
   /// Map of legal function addresses to the corresponding Function.
   /// Used to validate and dereference function pointers.
-  std::unordered_map<std::uint64_t, llvm::Function*> legalFunctions;
+  std::unordered_map<std::uint64_t, llvm::Function *> legalFunctions;
 
   /// When non-null the bindings that will be used for calls to
   /// klee_make_symbolic in order replay.
@@ -185,7 +184,7 @@ private:
 
   /// When non-null a list of "seed" inputs which will be used to
   /// drive execution.
-  const std::vector<struct KTest *> *usingSeeds;  
+  const std::vector<struct KTest *> *usingSeeds;
 
   /// Disables forking, instead a random path is chosen. Enabled as
   /// needed to control memory usage. \see fork()
@@ -242,15 +241,14 @@ private:
 
   void initializeTypeManager();
 
-  // Given a concrete object in our [klee's] address space, add it to 
+  // Given a concrete object in our [klee's] address space, add it to
   // objects checked code can reference.
   MemoryObject *addExternalObject(ExecutionState &state, void *addr, KType *,
                                   unsigned size, bool isReadOnly);
 
   void initializeGlobalAlias(const llvm::Constant *c, ExecutionState &state);
-  void initializeGlobalObject(ExecutionState &state, ObjectState *os, 
-			      const llvm::Constant *c,
-			      unsigned offset);
+  void initializeGlobalObject(ExecutionState &state, ObjectState *os,
+                              const llvm::Constant *c, unsigned offset);
   void initializeGlobals(ExecutionState &state);
   void allocateGlobalObjects(ExecutionState &state);
   void initializeGlobalAliases(ExecutionState &state);
@@ -258,14 +256,12 @@ private:
 
   void stepInstruction(ExecutionState &state);
   void updateStates(ExecutionState *current);
-  void transferToBasicBlock(llvm::BasicBlock *dst, 
-			    llvm::BasicBlock *src,
-			    ExecutionState &state);
+  void transferToBasicBlock(llvm::BasicBlock *dst, llvm::BasicBlock *src,
+                            ExecutionState &state);
 
-  void callExternalFunction(ExecutionState &state,
-                            KInstruction *target,
+  void callExternalFunction(ExecutionState &state, KInstruction *target,
                             KCallable *callable,
-                            std::vector< ref<Expr> > &arguments);
+                            std::vector<ref<Expr>> &arguments);
 
   ObjectState *bindObjectInState(ExecutionState &state, const MemoryObject *mo,
                                  KType *dynamicType, bool IsAlloca,
@@ -280,10 +276,8 @@ private:
   /// state) pairs for each object the given address can point to the
   /// beginning of.
   typedef std::vector<std::pair<IDType, ExecutionState *>> ExactResolutionList;
-  void resolveExact(ExecutionState &state,
-                    ref<Expr> p, KType *type,
-                    ExactResolutionList &results,
-                    const std::string &name);
+  void resolveExact(ExecutionState &state, ref<Expr> p, KType *type,
+                    ExactResolutionList &results, const std::string &name);
 
   MemoryObject *allocate(ExecutionState &state, ref<Expr> size, bool isLocal,
                          bool isGlobal, const llvm::Value *allocSite,
@@ -320,8 +314,7 @@ private:
   /// convenience for realloc). Note that this function can cause the
   /// state to fork and that \ref state cannot be safely accessed
   /// afterwards.
-  void executeFree(ExecutionState &state,
-                   ref<Expr> address,
+  void executeFree(ExecutionState &state, ref<Expr> address,
                    KInstruction *target = 0);
 
   /// Serialize a landingpad instruction so it can be handled by the
@@ -334,25 +327,21 @@ private:
   /// for exception handling.
   void unwindToNextLandingpad(ExecutionState &state);
 
-  void executeCall(ExecutionState &state, 
-                   KInstruction *ki,
-                   llvm::Function *f,
-                   std::vector< ref<Expr> > &arguments);
-                   
+  void executeCall(ExecutionState &state, KInstruction *ki, llvm::Function *f,
+                   std::vector<ref<Expr>> &arguments);
+
   // do address resolution / object binding / out of bounds checking
   // and perform the operation
-  void executeMemoryOperation(ExecutionState &state,
-                              bool isWrite,
-                              KType *targetType,
-                              ref<Expr> address,
+  void executeMemoryOperation(ExecutionState &state, bool isWrite,
+                              KType *targetType, ref<Expr> address,
                               ref<Expr> value /* undef if read */,
                               KInstruction *target /* undef if write */);
 
   IDType lazyInitializeObject(ExecutionState &state, ref<Expr> address,
-                              KInstruction *target, KType *targetType, uint64_t size);
+                              KInstruction *target, KType *targetType,
+                              uint64_t size);
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
-                           KType *type,
-                           const std::string &name,
+                           KType *type, const std::string &name,
                            const ref<SymbolicSource> source, bool isLocal);
   void updateStateWithSymcretes(ExecutionState &state,
                                 const Assignment &assignment);
@@ -384,26 +373,19 @@ private:
   // Used for testing.
   ref<Expr> replaceReadWithSymbolic(ExecutionState &state, ref<Expr> e);
 
-  const Cell& eval(KInstruction *ki, unsigned index, 
+  const Cell &eval(KInstruction *ki, unsigned index,
                    ExecutionState &state) const;
 
-  Cell& getArgumentCell(ExecutionState &state,
-                        KFunction *kf,
-                        unsigned index) {
+  Cell &getArgumentCell(ExecutionState &state, KFunction *kf, unsigned index) {
     return state.stack.back().locals[kf->getArgRegister(index)];
   }
 
-  Cell& getDestCell(ExecutionState &state,
-                    KInstruction *target) {
+  Cell &getDestCell(ExecutionState &state, KInstruction *target) {
     return state.stack.back().locals[target->dest];
   }
 
-  void bindLocal(KInstruction *target, 
-                 ExecutionState &state, 
-                 ref<Expr> value);
-  void bindArgument(KFunction *kf, 
-                    unsigned index,
-                    ExecutionState &state,
+  void bindLocal(KInstruction *target, ExecutionState &state, ref<Expr> value);
+  void bindArgument(KFunction *kf, unsigned index, ExecutionState &state,
                     ref<Expr> value);
 
   /// Evaluates an LLVM constant expression.  The optional argument ki
@@ -411,7 +393,7 @@ private:
   /// if not applicable/unavailable.
   ref<klee::ConstantExpr> evalConstantExpr(const llvm::ConstantExpr *c,
                                            llvm::APFloat::roundingMode rm,
-					   const KInstruction *ki = NULL);
+                                           const KInstruction *ki = NULL);
 
   /// Evaluates an LLVM float comparison. the operands are two float
   /// expressions.
@@ -423,7 +405,7 @@ private:
   /// not applicable/unavailable.
   ref<klee::ConstantExpr> evalConstant(const llvm::Constant *c,
                                        llvm::APFloat::roundingMode rm,
-				       const KInstruction *ki = NULL);
+                                       const KInstruction *ki = NULL);
 
   /// Return a unique constant value for the given expression in the
   /// given state, if it has one (i.e. it provably only has a single
@@ -436,12 +418,13 @@ private:
   /// should generally be avoided.
   ///
   /// \param purpose An identify string to printed in case of concretization.
-  ref<klee::ConstantExpr> toConstant(ExecutionState &state, ref<Expr> e, 
+  ref<klee::ConstantExpr> toConstant(ExecutionState &state, ref<Expr> e,
                                      const char *purpose);
 
   /// Bind a constant value for e to the given target. NOTE: This
   /// function may fork state if the state has multiple seeds.
-  void executeGetValue(ExecutionState &state, ref<Expr> e, KInstruction *target);
+  void executeGetValue(ExecutionState &state, ref<Expr> e,
+                       KInstruction *target);
 
   /// Get textual information regarding a memory address.
   std::string getAddressInfo(ExecutionState &state, ref<Expr> address,
@@ -449,8 +432,9 @@ private:
 
   // Determines the \param lastInstruction of the \param state which is not KLEE
   // internal and returns its InstructionInfo
-  const InstructionInfo & getLastNonKleeInternalInstruction(const ExecutionState &state,
-      llvm::Instruction** lastInstruction);
+  const InstructionInfo &
+  getLastNonKleeInternalInstruction(const ExecutionState &state,
+                                    llvm::Instruction **lastInstruction);
 
   /// Remove state from queue and delete state
   void terminateState(ExecutionState &state);
@@ -513,12 +497,12 @@ private:
   /// constant values.
   void bindInstructionConstants(KInstruction *KI);
 
-  void doImpliedValueConcretization(ExecutionState &state,
-                                    ref<Expr> e,
+  void doImpliedValueConcretization(ExecutionState &state, ref<Expr> e,
                                     ref<ConstantExpr> value);
 
-  /// check memory usage and terminate states when over threshold of -max-memory + 100MB
-  /// \return true if below threshold, false otherwise (states were terminated)
+  /// check memory usage and terminate states when over threshold of -max-memory
+  /// + 100MB \return true if below threshold, false otherwise (states were
+  /// terminated)
   bool checkMemoryUsage();
 
   /// check if branching/forking is allowed
@@ -533,12 +517,10 @@ private:
 
 public:
   Executor(llvm::LLVMContext &ctx, const InterpreterOptions &opts,
-      InterpreterHandler *ie);
+           InterpreterHandler *ie);
   virtual ~Executor();
 
-  const InterpreterHandler& getHandler() {
-    return *interpreterHandler;
-  }
+  const InterpreterHandler &getHandler() { return *interpreterHandler; }
 
   void setPathWriter(TreeStreamWriter *tsw) override { pathWriter = tsw; }
 
@@ -584,20 +566,21 @@ public:
 
   unsigned getSymbolicPathStreamID(const ExecutionState &state) override;
 
-  void getConstraintLog(const ExecutionState &state, std::string &res,
-                        Interpreter::LogType logFormat =
-                            Interpreter::STP) override;
+  void
+  getConstraintLog(const ExecutionState &state, std::string &res,
+                   Interpreter::LogType logFormat = Interpreter::STP) override;
 
-  void setInitializationGraph(const ExecutionState &state, const Assignment &model, KTest &tc);
+  void setInitializationGraph(const ExecutionState &state,
+                              const Assignment &model, KTest &tc);
 
   void logState(const ExecutionState &state, int id,
                 std::unique_ptr<llvm::raw_fd_ostream> &f) override;
 
   bool getSymbolicSolution(const ExecutionState &state, KTest &res) override;
 
-  void getCoveredLines(const ExecutionState &state,
-                       std::map<const std::string *, std::set<unsigned>> &res)
-      override;
+  void getCoveredLines(
+      const ExecutionState &state,
+      std::map<const std::string *, std::set<unsigned>> &res) override;
 
   Expr::Width getWidthForLLVMType(llvm::Type *type) const;
   size_t getAllocationAlignment(const llvm::Value *allocSite) const;
@@ -609,7 +592,7 @@ public:
   void setMergingSearcher(MergingSearcher *ms) { mergingSearcher = ms; };
   void executeStep(ExecutionState &state);
 };
-  
-} // End klee namespace
+
+} // namespace klee
 
 #endif /* KLEE_EXECUTOR_H */

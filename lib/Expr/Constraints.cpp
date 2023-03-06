@@ -27,8 +27,7 @@ llvm::cl::opt<bool> RewriteEqualities(
     "rewrite-equalities",
     llvm::cl::desc("Rewrite existing constraints when an equality with a "
                    "constant is added (default=true)"),
-    llvm::cl::init(true),
-    llvm::cl::cat(SolvingCat));
+    llvm::cl::init(true), llvm::cl::cat(SolvingCat));
 } // namespace
 
 class ExprReplaceVisitor : public ExprVisitor {
@@ -70,7 +69,7 @@ public:
 
   Action visitExprPost(const Expr &e) override {
     auto it = replacements.find(ref<Expr>(const_cast<Expr *>(&e)));
-    if (it!=replacements.end()) {
+    if (it != replacements.end()) {
       ref<Expr> equality = EqExpr::create(it->first, it->second);
       conflictExpressions.insert(equality);
       return Action::changeTo(it->second);
@@ -107,7 +106,7 @@ bool ConstraintManager::rewriteConstraints(ExprVisitor &visitor) {
   for (auto &ce : old) {
     ref<Expr> e = visitor.visit(ce);
 
-    if (e!=ce) {
+    if (e != ce) {
       addConstraintInternal(e); // enable further reductions
       changed = true;
     } else {
@@ -126,9 +125,10 @@ ref<Expr> ConstraintManager::simplifyExpr(const ConstraintSet &constraints,
   return simplifyExpr(constraints, e, cE, r);
 }
 
-ref<Expr> ConstraintManager::simplifyExpr(
-    const ConstraintSet &constraints, const ref<Expr> &e,
-    ExprHashSet &conflictExpressions, Expr::States &result) {
+ref<Expr> ConstraintManager::simplifyExpr(const ConstraintSet &constraints,
+                                          const ref<Expr> &e,
+                                          ExprHashSet &conflictExpressions,
+                                          Expr::States &result) {
 
   if (isa<ConstantExpr>(e))
     return e;
@@ -138,8 +138,7 @@ ref<Expr> ConstraintManager::simplifyExpr(
   for (auto &constraint : constraints) {
     if (const EqExpr *ee = dyn_cast<EqExpr>(constraint)) {
       if (isa<ConstantExpr>(ee->left)) {
-        equalities.insert(std::make_pair(ee->right,
-                                         ee->left));
+        equalities.insert(std::make_pair(ee->right, ee->left));
       } else {
         equalities.insert(
             std::make_pair(constraint, ConstantExpr::alloc(1, Expr::Bool)));
@@ -180,8 +179,8 @@ void ConstraintManager::addConstraintInternal(const ref<Expr> &e) {
       // (byte-constant comparison).
       BinaryExpr *be = cast<BinaryExpr>(e);
       if (isa<ConstantExpr>(be->left)) {
-	ExprReplaceVisitor visitor(be->right, be->left);
-	rewriteConstraints(visitor);
+        ExprReplaceVisitor visitor(be->right, be->left);
+        rewriteConstraints(visitor);
       }
     }
     constraints.push_back(e);
@@ -199,7 +198,8 @@ void ConstraintManager::addConstraint(const ref<Expr> &e) {
   addConstraintInternal(simplified);
 }
 
-void ConstraintManager::addConstraint(const ref<Expr> &e, const Assignment &symcretes) {
+void ConstraintManager::addConstraint(const ref<Expr> &e,
+                                      const Assignment &symcretes) {
   addConstraint(e);
   constraints.updateConcretization(symcretes);
 }
@@ -230,9 +230,7 @@ ConstraintSet::ConstraintSet(ExprHashSet cs)
 ConstraintSet::ConstraintSet()
     : constraints(), concretization(Assignment(true)) {}
 
-void ConstraintSet::push_back(const ref<Expr> &e) {
-  constraints.push_back(e);
-}
+void ConstraintSet::push_back(const ref<Expr> &e) { constraints.push_back(e); }
 
 void ConstraintSet::updateConcretization(const Assignment &c) {
   concretization = c;

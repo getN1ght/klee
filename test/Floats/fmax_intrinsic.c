@@ -6,13 +6,13 @@
 #include <math.h>
 
 int main() {
-    float a, b;
-    klee_make_symbolic(&a, sizeof(a), "a");
-    klee_make_symbolic(&b, sizeof(b), "b");
-    if (fmaxf(a, b) == a) {
-        return 1;
-    } else {
-        return 2;
-    }
+  float a, b;
+  klee_make_symbolic(&a, sizeof(a), "a");
+  klee_make_symbolic(&b, sizeof(b), "b");
+  if (fmaxf(a, b) == a) {
+    return 1;
+  } else {
+    return 2;
+  }
 }
 // CHECK: KLEE: done: completed paths = 2

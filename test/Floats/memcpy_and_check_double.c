@@ -25,9 +25,9 @@ int main() {
   double g;
   memcpy(&g, &x, sizeof(double));
 
-  if ( (x & EXP_MASK) == EXP_MASK) {
+  if ((x & EXP_MASK) == EXP_MASK) {
     // Number is either NaN of infinity
-    if ( (x & SIGNIFICAND_MASK) == 0) {
+    if ((x & SIGNIFICAND_MASK) == 0) {
       // Number should be infinity
       assert(klee_is_infinite_double(f));
       assert(klee_is_infinite_double(g));

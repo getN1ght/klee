@@ -17,4 +17,4 @@ float nearbyintf(float arg);
 double nearbyint(double arg);
 long double nearbyintl(long double arg);
 
-#endif //KLEE_RINT_H
+#endif // KLEE_RINT_H

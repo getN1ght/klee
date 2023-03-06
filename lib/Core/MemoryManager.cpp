@@ -73,8 +73,7 @@ llvm::cl::opt<uint64_t> MaxSymbolicAllocationSize(
 
 /***/
 MemoryManager::MemoryManager(ArrayCache *_arrayCache)
-    : arrayCache(_arrayCache),
-      deterministicSpace(0), nextFreeSlot(0),
+    : arrayCache(_arrayCache), deterministicSpace(0), nextFreeSlot(0),
       spaceSize(DeterministicAllocationSize.getValue() * 1024 * 1024) {
   if (DeterministicAllocation) {
     // Page boundary
@@ -110,15 +109,10 @@ MemoryManager::~MemoryManager() {
     munmap(deterministicSpace, spaceSize);
 }
 
-MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
-                                      bool isGlobal,
-                                      const llvm::Value *allocSite,
-                                      size_t alignment,
-                                      ref<Expr> addressExpr,
-                                      ref<Expr> sizeExpr,
-                                      ref<Expr> lazyInitializationSource,
-                                      unsigned timestamp,
-                                      IDType id) {
+MemoryObject *MemoryManager::allocate(
+    uint64_t size, bool isLocal, bool isGlobal, const llvm::Value *allocSite,
+    size_t alignment, ref<Expr> addressExpr, ref<Expr> sizeExpr,
+    ref<Expr> lazyInitializationSource, unsigned timestamp, IDType id) {
   if (size > MaxConstantAllocationSize) {
     return 0;
   }
@@ -142,8 +136,9 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
     if ((char *)address + alloc_size < deterministicSpace + spaceSize) {
       nextFreeSlot = (char *)address + alloc_size + RedzoneSize;
     } else {
-      klee_warning_once(0, "Couldn't allocate %" PRIu64
-                           " bytes. Not enough deterministic space left.",
+      klee_warning_once(0,
+                        "Couldn't allocate %" PRIu64
+                        " bytes. Not enough deterministic space left.",
                         size);
       address = 0;
     }

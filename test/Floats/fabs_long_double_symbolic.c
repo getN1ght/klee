@@ -8,8 +8,8 @@
 #include <assert.h>
 #include <float.h>
 #include <math.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 int main() {
   long double x = 0.0f;

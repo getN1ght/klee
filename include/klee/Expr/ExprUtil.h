@@ -18,48 +18,45 @@
 #include <vector>
 
 namespace klee {
-  class Array;
-  class Expr;
-  class ReadExpr;
-  template<typename T> class ref;
+class Array;
+class Expr;
+class ReadExpr;
+template <typename T> class ref;
 
-  /// Find all ReadExprs used in the expression DAG. If visitUpdates
-  /// is true then this will including those reachable by traversing
-  /// update lists. Note that this may be slow and return a large
-  /// number of results.
-  void findReads(ref<Expr> e, 
-                 bool visitUpdates,
-                 std::vector< ref<ReadExpr> > &result);
-  
-  /// Return a list of all unique symbolic objects referenced by the given
-  /// expression.
-  void findSymbolicObjects(ref<Expr> e,
-                           std::vector<const Array*> &results);
+/// Find all ReadExprs used in the expression DAG. If visitUpdates
+/// is true then this will including those reachable by traversing
+/// update lists. Note that this may be slow and return a large
+/// number of results.
+void findReads(ref<Expr> e, bool visitUpdates,
+               std::vector<ref<ReadExpr>> &result);
 
-  /// Return a list of all unique symbolic objects referenced by the
-  /// given expression range.
-  template<typename InputIterator>
-  void findSymbolicObjects(InputIterator begin, 
-                           InputIterator end,
-                           std::vector<const Array*> &results);
+/// Return a list of all unique symbolic objects referenced by the given
+/// expression.
+void findSymbolicObjects(ref<Expr> e, std::vector<const Array *> &results);
 
-  template <typename InputIterator>
-  void findObjects(InputIterator begin, InputIterator end,
-                   std::vector<const Array *> &results);
+/// Return a list of all unique symbolic objects referenced by the
+/// given expression range.
+template <typename InputIterator>
+void findSymbolicObjects(InputIterator begin, InputIterator end,
+                         std::vector<const Array *> &results);
 
-  void findObjects(ref<Expr> e, std::vector<const Array *> &results);
+template <typename InputIterator>
+void findObjects(InputIterator begin, InputIterator end,
+                 std::vector<const Array *> &results);
 
-  bool isReadFromSymbolicArray(ref<Expr> e);
+void findObjects(ref<Expr> e, std::vector<const Array *> &results);
 
-  ref<Expr> createNonOverflowingSumExpr(const std::vector<ref<Expr>> &terms);
+bool isReadFromSymbolicArray(ref<Expr> e);
 
-  class ConstantArrayFinder : public ExprVisitor {
-  protected:
-    ExprVisitor::Action visitRead(const ReadExpr &re);
+ref<Expr> createNonOverflowingSumExpr(const std::vector<ref<Expr>> &terms);
 
-  public:
-    std::set<const Array *> results;
-  };
-}
+class ConstantArrayFinder : public ExprVisitor {
+protected:
+  ExprVisitor::Action visitRead(const ReadExpr &re);
+
+public:
+  std::set<const Array *> results;
+};
+} // namespace klee
 
 #endif /* KLEE_EXPRUTIL_H */

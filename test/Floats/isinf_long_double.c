@@ -5,17 +5,16 @@
 // REQUIRES: x86_64
 // REQUIRES: fp-runtime
 #include "klee/klee.h"
-#include <stdio.h>
-#include <math.h>
 #include <assert.h>
+#include <math.h>
+#include <stdio.h>
 
 int main() {
   long double x;
   klee_make_symbolic(&x, sizeof(long double), "x");
   if (isinf(x)) {
     assert(klee_is_infinite_long_double(x));
-  }
-  else {
+  } else {
     assert(!klee_is_infinite_long_double(x));
   }
 }

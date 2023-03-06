@@ -16,9 +16,9 @@
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/ExprUtil.h"
-#include "klee/Support/OptionCategories.h"
 #include "klee/Solver/SolverImpl.h"
 #include "klee/Support/ErrorHandling.h"
+#include "klee/Support/OptionCategories.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errno.h"
@@ -41,7 +41,7 @@ llvm::cl::opt<bool> IgnoreSolverFailures(
     "ignore-solver-failures", llvm::cl::init(false),
     llvm::cl::desc("Ignore any STP solver failures (default=false)"),
     llvm::cl::cat(klee::SolvingCat));
-}
+} // namespace
 
 #define vc_bvBoolExtract IAMTHESPAWNOFSATAN
 
@@ -78,7 +78,9 @@ public:
   ~STPSolverImpl() override;
 
   char *getConstraintLog(const Query &) override;
-  void setCoreSolverTimeout(time::Span timeout) override { this->timeout = timeout; }
+  void setCoreSolverTimeout(time::Span timeout) override {
+    this->timeout = timeout;
+  }
 
   bool computeTruth(const Query &, bool &isValid) override;
   bool computeValue(const Query &, ref<Expr> &result) override;
@@ -91,8 +93,8 @@ public:
 
 STPSolverImpl::STPSolverImpl(bool useForkedSTP, bool optimizeDivides)
     : vc(vc_createValidityChecker()),
-      builder(new STPBuilder(vc, optimizeDivides)),
-      useForkedSTP(useForkedSTP), runStatusCode(SOLVER_RUN_STATUS_FAILURE) {
+      builder(new STPBuilder(vc, optimizeDivides)), useForkedSTP(useForkedSTP),
+      runStatusCode(SOLVER_RUN_STATUS_FAILURE) {
   assert(vc && "unable to create validity checker");
   assert(builder && "unable to create STPBuilder");
 
@@ -194,7 +196,7 @@ runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
 
   values.reserve(objects.size());
   unsigned i = 0; // FIXME C++17: use reference from emplace_back()
-  for (const auto object : objects) {    
+  for (const auto object : objects) {
     uint64_t objectSize = 0;
     if (ref<ConstantExpr> sizeExpr = dyn_cast<ConstantExpr>(object->size)) {
       objectSize = sizeExpr->getZExtValue();
@@ -244,7 +246,8 @@ runAndGetCexForked(::VC vc, STPBuilder *builder, ::VCExpr q,
   int pid = fork();
   // - error
   if (pid == -1) {
-    klee_warning("fork failed (for STP) - %s", llvm::sys::StrError(errno).c_str());
+    klee_warning("fork failed (for STP) - %s",
+                 llvm::sys::StrError(errno).c_str());
     if (!IgnoreSolverFailures)
       exit(1);
     munmap(shared_memory_object_sizes, memory_object_size);
@@ -283,7 +286,7 @@ runAndGetCexForked(::VC vc, STPBuilder *builder, ::VCExpr q,
       }
     }
     _exit(res);
-  // - parent
+    // - parent
   } else {
     int status;
     pid_t res;
@@ -416,5 +419,5 @@ void STPSolver::setCoreSolverTimeout(time::Span timeout) {
   impl->setCoreSolverTimeout(timeout);
 }
 
-} // klee
+} // namespace klee
 #endif // ENABLE_STP

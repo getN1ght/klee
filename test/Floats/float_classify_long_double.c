@@ -5,9 +5,9 @@
 // REQUIRES: x86_64
 // REQUIRES: fp-runtime
 #include "klee/klee.h"
-#include <stdio.h>
-#include <math.h>
 #include <assert.h>
+#include <math.h>
+#include <stdio.h>
 
 int main() {
   long double x, y, z;

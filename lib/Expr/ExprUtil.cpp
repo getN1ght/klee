@@ -16,14 +16,13 @@
 
 using namespace klee;
 
-void klee::findReads(ref<Expr> e, 
-                     bool visitUpdates,
-                     std::vector< ref<ReadExpr> > &results) {
-  // Invariant: \forall_{i \in stack} !i.isConstant() && i \in visited 
-  std::vector< ref<Expr> > stack;
+void klee::findReads(ref<Expr> e, bool visitUpdates,
+                     std::vector<ref<ReadExpr>> &results) {
+  // Invariant: \forall_{i \in stack} !i.isConstant() && i \in visited
+  std::vector<ref<Expr>> stack;
   ExprHashSet visited;
   std::set<const UpdateNode *> updates;
-  
+
   if (!isa<ConstantExpr>(e)) {
     visited.insert(e);
     stack.push_back(e);
@@ -38,8 +37,7 @@ void klee::findReads(ref<Expr> e,
       // repeats.
       results.push_back(re);
 
-      if (!isa<ConstantExpr>(re->index) &&
-          visited.insert(re->index).second)
+      if (!isa<ConstantExpr>(re->index) && visited.insert(re->index).second)
         stack.push_back(re->index);
 
       if (re->updates.root->getSize() &&
@@ -68,10 +66,9 @@ void klee::findReads(ref<Expr> e,
       }
     } else if (!isa<ConstantExpr>(top)) {
       Expr *e = top.get();
-      for (unsigned i=0; i<e->getNumKids(); i++) {
+      for (unsigned i = 0; i < e->getNumKids(); i++) {
         ref<Expr> k = e->getKid(i);
-        if (!isa<ConstantExpr>(k) &&
-            visited.insert(k).second)
+        if (!isa<ConstantExpr>(k) && visited.insert(k).second)
           stack.push_back(k);
       }
     }
@@ -88,7 +85,7 @@ protected:
 
   Action visitRead(const ReadExpr &re) {
     const UpdateList &ul = re.updates;
-    
+
     visit(ul.root->getSize());
     // XXX should we memo better than what ExprVisitor is doing for us?
     for (const auto *un = ul.head.get(); un; un = un->next.get()) {
@@ -104,8 +101,8 @@ protected:
   }
 
 public:
-  std::set<const Array*> results;
-  std::vector<const Array*> &objects;
+  std::set<const Array *> results;
+  std::vector<const Array *> &objects;
 
   ObjectFinder(std::vector<const Array *> &_objects,
                bool _findOnlySymbolicObjects = false)
@@ -134,20 +131,19 @@ ExprVisitor::Action ConstantArrayFinder::visitRead(const ReadExpr &re) {
 
   return Action::doChildren();
 }
-}
+} // namespace klee
 
-template<typename InputIterator>
-void klee::findSymbolicObjects(InputIterator begin, 
-                               InputIterator end,
-                               std::vector<const Array*> &results) {
+template <typename InputIterator>
+void klee::findSymbolicObjects(InputIterator begin, InputIterator end,
+                               std::vector<const Array *> &results) {
   SymbolicObjectFinder of(results);
-  for (; begin!=end; ++begin)
+  for (; begin != end; ++begin)
     of.visit(*begin);
 }
 
 void klee::findSymbolicObjects(ref<Expr> e,
-                               std::vector<const Array*> &results) {
-  findSymbolicObjects(&e, &e+1, results);
+                               std::vector<const Array *> &results) {
+  findSymbolicObjects(&e, &e + 1, results);
 }
 
 template <typename InputIterator>
@@ -162,14 +158,14 @@ void klee::findObjects(ref<Expr> e, std::vector<const Array *> &results) {
   findObjects(&e, &e + 1, results);
 }
 
-typedef std::vector< ref<Expr> >::iterator A;
-template void klee::findSymbolicObjects<A>(A, A, std::vector<const Array*> &);
+typedef std::vector<ref<Expr>>::iterator A;
+template void klee::findSymbolicObjects<A>(A, A, std::vector<const Array *> &);
 
-typedef std::set< ref<Expr> >::iterator B;
-template void klee::findSymbolicObjects<B>(B, B, std::vector<const Array*> &);
+typedef std::set<ref<Expr>>::iterator B;
+template void klee::findSymbolicObjects<B>(B, B, std::vector<const Array *> &);
 
 typedef ExprHashSet::iterator C;
-template void klee::findSymbolicObjects<C>(C, C, std::vector<const Array*> &);
+template void klee::findSymbolicObjects<C>(C, C, std::vector<const Array *> &);
 
 typedef std::vector<ref<Expr>>::iterator A;
 template void klee::findObjects<A>(A, A, std::vector<const Array *> &);
@@ -182,7 +178,6 @@ template void klee::findObjects<B>(B, B, std::vector<const Array *> &);
 
 typedef ExprHashSet::iterator C;
 template void klee::findObjects<C>(C, C, std::vector<const Array *> &);
-
 
 bool klee::isReadFromSymbolicArray(ref<Expr> e) {
   if (auto read = dyn_cast<ReadExpr>(e)) {

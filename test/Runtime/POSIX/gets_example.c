@@ -4,7 +4,6 @@
 // RUN: %klee --output-dir=%t.klee-out --posix-runtime %t.bc --sym-stdin 64 > %t.log
 // RUN: FileCheck %s -input-file=%t.log
 
-
 #include <stdio.h>
 
 int main() {

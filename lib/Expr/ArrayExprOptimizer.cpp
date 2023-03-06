@@ -307,11 +307,10 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       for (unsigned i = 0; i < elementsInArray; i++) {
         uint64_t val = 0;
         for (unsigned j = 0; j < bytesPerElement; j++) {
-          val |= (*(
-                       arrayConstValues[(i * bytesPerElement) + j]
-                           .get()
-                           ->getAPValue()
-                           .getRawData())
+          val |= (*(arrayConstValues[(i * bytesPerElement) + j]
+                        .get()
+                        ->getAPValue()
+                        .getRawData())
                   << (j * 8));
         }
         arrayValues.push_back(val);
@@ -349,7 +348,8 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       if (info.second > width) {
         width = info.second;
       }
-      ref<ConstantExpr> constantArraySize = dyn_cast<ConstantExpr>(read->updates.root->getSize());
+      ref<ConstantExpr> constantArraySize =
+          dyn_cast<ConstantExpr>(read->updates.root->getSize());
       if (!constantArraySize) {
         continue;
       }
@@ -374,7 +374,8 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       // reverse the list
       std::vector<const UpdateNode *> us;
       us.reserve(read->updates.getSize());
-      for (const UpdateNode *un = read->updates.head.get(); un; un = un->next.get())
+      for (const UpdateNode *un = read->updates.head.get(); un;
+           un = un->next.get())
         us.push_back(un);
 
       for (auto it = us.rbegin(); it != us.rend(); it++) {
@@ -386,8 +387,7 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
           ba.set(index);
         } else {
           ba.unset(index);
-          auto arrayValue =
-              dyn_cast<ConstantExpr>(un->value);
+          auto arrayValue = dyn_cast<ConstantExpr>(un->value);
           assert(arrayValue && "Not a constant expression");
           arrayConstValues[index] = arrayValue;
         }
@@ -403,11 +403,10 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
             elementIsConcrete = false;
             break;
           } else {
-            val |= (*(
-                         arrayConstValues[(i * bytesPerElement) + j]
-                             .get()
-                             ->getAPValue()
-                             .getRawData())
+            val |= (*(arrayConstValues[(i * bytesPerElement) + j]
+                          .get()
+                          ->getAPValue()
+                          .getRawData())
                     << (j * 8));
           }
         }
@@ -565,9 +564,10 @@ ref<Expr> ExprOptimizer::buildConstantSelectExpr(
           }
           currOr = tempOr;
         }
-        temp = SelectExpr::create(currOr, builder->Constant(llvm::APInt(
-                                              valWidth, range.first, false)),
-                                  result);
+        temp = SelectExpr::create(
+            currOr,
+            builder->Constant(llvm::APInt(valWidth, range.first, false)),
+            result);
       }
     }
     result = temp;

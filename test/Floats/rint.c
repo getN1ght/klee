@@ -7,15 +7,15 @@
 #include <math.h>
 
 int main() {
-    float a, b, c;
-    klee_make_symbolic(&a, sizeof(a), "a");
-    klee_make_symbolic(&b, sizeof(b), "b");
-    klee_make_symbolic(&c, sizeof(c), "c");
-    klee_assume(rintf(c) == 2.0);
-    if (rintf(a) == b) {
-        return 1;
-    } else {
-        return 2;
-    }
+  float a, b, c;
+  klee_make_symbolic(&a, sizeof(a), "a");
+  klee_make_symbolic(&b, sizeof(b), "b");
+  klee_make_symbolic(&c, sizeof(c), "c");
+  klee_assume(rintf(c) == 2.0);
+  if (rintf(a) == b) {
+    return 1;
+  } else {
+    return 2;
+  }
 }
 // CHECK: KLEE: done: completed paths = 2

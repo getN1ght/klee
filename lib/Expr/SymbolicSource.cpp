@@ -2,5 +2,4 @@
 
 #include <vector>
 
-namespace klee {
-}
+namespace klee {}

@@ -7,8 +7,8 @@
 #include "klee/klee.h"
 #include <assert.h>
 #include <fenv.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef enum KleeRoundingMode KleeRoundingModeTy;
 
@@ -29,16 +29,19 @@ int main() {
   assert(newRoundingMode == symbolicRoundingMode);
 
   switch (newRoundingMode) {
-  #define SUCCESSFUL_CASE(X) case  X : \
-      printf( # X "\n"); assert(result == 0); break;
+#define SUCCESSFUL_CASE(X) \
+  case X:                  \
+    printf(#X "\n");       \
+    assert(result == 0);   \
+    break;
     SUCCESSFUL_CASE(FE_TONEAREST)
     SUCCESSFUL_CASE(FE_UPWARD)
     SUCCESSFUL_CASE(FE_DOWNWARD)
     SUCCESSFUL_CASE(FE_TOWARDZERO)
-    default:
-      // MSG-NOT: unreachable
-      printf("unreachable\n");
-      abort();
+  default:
+    // MSG-NOT: unreachable
+    printf("unreachable\n");
+    abort();
   }
   return 0;
 }

@@ -22,7 +22,8 @@
 namespace klee {
 class Z3BitvectorBuilder : public Z3Builder {
 private:
-  void FPCastWidthAssert(int *width_out, char const* msg);
+  void FPCastWidthAssert(int *width_out, char const *msg);
+
 protected:
   Z3ASTHandle bvExtract(Z3ASTHandle expr, unsigned top,
                         unsigned bottom) override;

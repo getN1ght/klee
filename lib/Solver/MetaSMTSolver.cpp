@@ -9,15 +9,15 @@
 #include "klee/Config/config.h"
 
 #ifdef ENABLE_METASMT
-#include "MetaSMTSolver.h"
 #include "MetaSMTBuilder.h"
+#include "MetaSMTSolver.h"
 
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/ExprUtil.h"
-#include "klee/Support/ErrorHandling.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverImpl.h"
+#include "klee/Support/ErrorHandling.h"
 
 #include "llvm/Support/ErrorHandling.h"
 
@@ -460,35 +460,35 @@ Solver *createMetaSMTSolver() {
 #ifdef METASMT_HAVE_STP
   case METASMT_BACKEND_STP:
     backend = "STP";
-    coreSolver = new MetaSMTSolver<DirectSolver_Context<solver::STP_Backend> >(
+    coreSolver = new MetaSMTSolver<DirectSolver_Context<solver::STP_Backend>>(
         UseForkedCoreSolver, CoreSolverOptimizeDivides);
     break;
 #endif
 #ifdef METASMT_HAVE_Z3
   case METASMT_BACKEND_Z3:
     backend = "Z3";
-    coreSolver = new MetaSMTSolver<DirectSolver_Context<solver::Z3_Backend> >(
+    coreSolver = new MetaSMTSolver<DirectSolver_Context<solver::Z3_Backend>>(
         UseForkedCoreSolver, CoreSolverOptimizeDivides);
     break;
 #endif
 #ifdef METASMT_HAVE_BTOR
   case METASMT_BACKEND_BOOLECTOR:
     backend = "Boolector";
-    coreSolver = new MetaSMTSolver<DirectSolver_Context<solver::Boolector> >(
+    coreSolver = new MetaSMTSolver<DirectSolver_Context<solver::Boolector>>(
         UseForkedCoreSolver, CoreSolverOptimizeDivides);
     break;
 #endif
 #ifdef METASMT_HAVE_CVC4
   case METASMT_BACKEND_CVC4:
     backend = "CVC4";
-    coreSolver = new MetaSMTSolver<DirectSolver_Context<solver::CVC4> >(
+    coreSolver = new MetaSMTSolver<DirectSolver_Context<solver::CVC4>>(
         UseForkedCoreSolver, CoreSolverOptimizeDivides);
     break;
 #endif
 #ifdef METASMT_HAVE_YICES2
   case METASMT_BACKEND_YICES2:
     backend = "Yices2";
-    coreSolver = new MetaSMTSolver<DirectSolver_Context<solver::Yices2> >(
+    coreSolver = new MetaSMTSolver<DirectSolver_Context<solver::Yices2>>(
         UseForkedCoreSolver, CoreSolverOptimizeDivides);
     break;
 #endif
@@ -500,5 +500,5 @@ Solver *createMetaSMTSolver() {
   return coreSolver;
 }
 
-}
+} // namespace klee
 #endif // ENABLE_METASMT

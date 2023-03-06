@@ -86,8 +86,7 @@ ref<Expr> ExprRewriter::rewrite(const ref<Expr> &e, const array2idx_ty &arrays,
           set++;
         }
         if (set > 0 && set < size / width)
-          invert =
-              ((float)set / (float)(size / width)) > 0.5 ? true : false;
+          invert = ((float)set / (float)(size / width)) > 0.5 ? true : false;
         int start = -1;
         for (unsigned i = 0; i < size / width; ++i) {
           if ((!invert && ba.get(i)) || (invert && !ba.get(i))) {
@@ -116,8 +115,8 @@ ref<Expr> ExprRewriter::rewrite(const ref<Expr> &e, const array2idx_ty &arrays,
           } else {
             // create range expr
             ref<Expr> s = ConstantExpr::create(start * width, idxWidth);
-            ref<Expr> e = ConstantExpr::create(
-                ((size / width) - 1) * width, idxWidth);
+            ref<Expr> e =
+                ConstantExpr::create(((size / width) - 1) * width, idxWidth);
             eqExprs.push_back(createRangeExpr((*index_it), s, e));
           }
         }

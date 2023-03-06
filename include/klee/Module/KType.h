@@ -1,11 +1,11 @@
 #ifndef KLEE_KTYPE_H
 #define KLEE_KTYPE_H
 
+#include <set>
 #include <stddef.h>
 #include <stdint.h>
-#include <vector>
 #include <unordered_map>
-#include <set>
+#include <vector>
 
 namespace llvm {
 class Type;
@@ -104,8 +104,7 @@ public:
    */
   virtual ref<Expr> getContentRestrictions(ref<Expr>) const;
 
-  const std::unordered_map<KType *, std::set<uint64_t>> &
-  getInnerTypes() const;
+  const std::unordered_map<KType *, std::set<uint64_t>> &getInnerTypes() const;
 
   TypeSystemKind getTypeSystemKind() const;
 

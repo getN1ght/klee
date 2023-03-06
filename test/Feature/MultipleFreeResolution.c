@@ -4,7 +4,6 @@
 // RUN: ls %t.klee-out/ | grep .ktest | wc -l | grep 4
 // RUN: ls %t.klee-out/ | grep .err | wc -l | grep 3
 
-
 #include <stdio.h>
 #include <stdlib.h>
 

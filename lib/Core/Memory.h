@@ -20,12 +20,12 @@
 
 #include "llvm/ADT/StringExtras.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
-#include <cstdint>
 
 namespace llvm {
-  class Value;
+class Value;
 }
 
 namespace klee {
@@ -92,44 +92,25 @@ public:
 
 public:
   // XXX this is just a temp hack, should be removed
-  explicit
-  MemoryObject(uint64_t _address) 
-    : id(counter++),
-      timestamp(time++),
-      address(_address),
-      addressExpr(nullptr),
-      lazyInitializationSource(nullptr),
-      size(0),
-      sizeExpr(nullptr),
-      alignment(0),
-      isFixed(true),
-      parent(NULL),
-      allocSite(0) {
-  }
+  explicit MemoryObject(uint64_t _address)
+      : id(counter++), timestamp(time++), address(_address),
+        addressExpr(nullptr), lazyInitializationSource(nullptr), size(0),
+        sizeExpr(nullptr), alignment(0), isFixed(true), parent(NULL),
+        allocSite(0) {}
 
-  MemoryObject(uint64_t _address, unsigned _size, uint64_t alignment,
-               bool _isLocal, bool _isGlobal, bool _isFixed,
-               const llvm::Value *_allocSite,
-               MemoryManager *_parent,
-               ref<Expr> _addressExpr = nullptr,
-               ref<Expr> _sizeExpr = nullptr,
-               ref<Expr> _lazyInitializationSource = nullptr,
-               unsigned _timestamp = 0 /* unused if _lazyInstantiatedSource is null*/)
-    : id(counter++),
-      timestamp(_timestamp),
-      address(_address),
-      addressExpr(_addressExpr),
-      lazyInitializationSource(_lazyInitializationSource),
-      size(_size),
-      sizeExpr(_sizeExpr),
-      alignment(alignment),
-      name("unnamed"),
-      isLocal(_isLocal),
-      isGlobal(_isGlobal),
-      isFixed(_isFixed),
-      isUserSpecified(false),
-      parent(_parent),
-      allocSite(_allocSite) {
+  MemoryObject(
+      uint64_t _address, unsigned _size, uint64_t alignment, bool _isLocal,
+      bool _isGlobal, bool _isFixed, const llvm::Value *_allocSite,
+      MemoryManager *_parent, ref<Expr> _addressExpr = nullptr,
+      ref<Expr> _sizeExpr = nullptr,
+      ref<Expr> _lazyInitializationSource = nullptr,
+      unsigned _timestamp = 0 /* unused if _lazyInstantiatedSource is null*/)
+      : id(counter++), timestamp(_timestamp), address(_address),
+        addressExpr(_addressExpr),
+        lazyInitializationSource(_lazyInitializationSource), size(_size),
+        sizeExpr(_sizeExpr), alignment(alignment), name("unnamed"),
+        isLocal(_isLocal), isGlobal(_isGlobal), isFixed(_isFixed),
+        isUserSpecified(false), parent(_parent), allocSite(_allocSite) {
     if (lazyInitializationSource) {
       timestamp = _timestamp;
     } else {
@@ -142,13 +123,9 @@ public:
   /// Get an identifying string for this allocation.
   void getAllocInfo(std::string &result) const;
 
-  void setName(std::string name) const {
-    this->name = name;
-  }
+  void setName(std::string name) const { this->name = name; }
 
-  void updateTimestamp() const {
-    this->timestamp = time++;
-  }
+  void updateTimestamp() const { this->timestamp = time++; }
 
   bool isLazyInitialized() const { return bool(lazyInitializationSource); }
   ref<Expr> getLazyInitializationSource() const {
@@ -223,10 +200,7 @@ public:
     return 0;
   }
 
-  bool equals(const MemoryObject &b) const {
-    return compare(b) == 0;
-  }
-
+  bool equals(const MemoryObject &b) const { return compare(b) == 0; }
 };
 
 class ObjectState {
@@ -328,7 +302,7 @@ private:
   void write8(unsigned offset, ref<Expr> value);
   void write8(ref<Expr> offset, ref<Expr> value);
 
-  void fastRangeCheckOffset(ref<Expr> offset, unsigned *base_r, 
+  void fastRangeCheckOffset(ref<Expr> offset, unsigned *base_r,
                             unsigned *size_r) const;
   void flushRangeForRead(unsigned rangeBase, unsigned rangeSize) const;
   void flushRangeForWrite(unsigned rangeBase, unsigned rangeSize);
@@ -350,7 +324,7 @@ private:
 
   ArrayCache *getArrayCache() const;
 };
-  
-} // End klee namespace
+
+} // namespace klee
 
 #endif /* KLEE_MEMORY_H */

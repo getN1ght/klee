@@ -12,9 +12,9 @@
 #include "ExecutionState.h"
 
 #include "klee/Config/Version.h"
+#include "klee/Solver/Solver.h"
 #include "klee/Statistics/Statistics.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
-#include "klee/Solver/Solver.h"
 
 #include "CoreStats.h"
 
@@ -47,11 +47,14 @@ bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
                      : solver->evaluate(Query(constraints, expr), result);
 
   if (success && produceValidityCore) {
-    if (isa<ValidResponse>(queryResult) && isa<InvalidResponse>(negatedQueryResult)) {
+    if (isa<ValidResponse>(queryResult) &&
+        isa<InvalidResponse>(negatedQueryResult)) {
       result = Solver::True;
-    } else if (isa<InvalidResponse>(queryResult) && isa<ValidResponse>(negatedQueryResult)) {
+    } else if (isa<InvalidResponse>(queryResult) &&
+               isa<ValidResponse>(negatedQueryResult)) {
       result = Solver::False;
-    } else if (isa<InvalidResponse>(queryResult) && isa<InvalidResponse>(negatedQueryResult)) {
+    } else if (isa<InvalidResponse>(queryResult) &&
+               isa<InvalidResponse>(negatedQueryResult)) {
       result = Solver::Unknown;
     } else {
       assert(0 && "unreachable");
@@ -70,12 +73,12 @@ bool TimingSolver::tryGetUnique(const ConstraintSet &constraints, ref<Expr> e,
   if (!isa<ConstantExpr>(result)) {
     ref<ConstantExpr> value;
     bool isTrue = false;
-    
+
     e = optimizer.optimizeExpr(e, true);
     TimerStatIncrementer timer(stats::solverTime);
-    
+
     if (!solver->getValue(Query(constraints, e), value)) {
-      return false; 
+      return false;
     }
     ref<Expr> cond = EqExpr::create(e, value);
     cond = optimizer.optimizeExpr(cond, false);
@@ -88,7 +91,7 @@ bool TimingSolver::tryGetUnique(const ConstraintSet &constraints, ref<Expr> e,
 
     metaData.queryCost += timer.delta();
   }
-  
+
   return true;
 }
 
@@ -108,9 +111,10 @@ bool TimingSolver::mustBeTrue(const ConstraintSet &constraints, ref<Expr> expr,
 
   ValidityCore validityCore;
 
-  bool success = produceValidityCore ?
-      solver->getValidityCore(Query(constraints, expr), validityCore, result) :
-      solver->mustBeTrue(Query(constraints, expr), result);
+  bool success = produceValidityCore
+                     ? solver->getValidityCore(Query(constraints, expr),
+                                               validityCore, result)
+                     : solver->mustBeTrue(Query(constraints, expr), result);
 
   metaData.queryCost += timer.delta();
 
@@ -152,7 +156,7 @@ bool TimingSolver::getValue(const ConstraintSet &constraints, ref<Expr> expr,
     result = CE;
     return true;
   }
-  
+
   TimerStatIncrementer timer(stats::solverTime);
 
   if (simplifyExprs)
@@ -201,11 +205,12 @@ bool TimingSolver::getInitialValues(
 
   bool success =
       produceValidityCore
-          ? solver->check(Query(constraints, ConstantExpr::alloc(0, Expr::Bool)),
-                                queryResult)
-          : solver->getInitialValues(Query(constraints,
-                                           ConstantExpr::alloc(0, Expr::Bool)),
-                                     objects, result);
+          ? solver->check(
+                Query(constraints, ConstantExpr::alloc(0, Expr::Bool)),
+                queryResult)
+          : solver->getInitialValues(
+                Query(constraints, ConstantExpr::alloc(0, Expr::Bool)), objects,
+                result);
 
   if (success && produceValidityCore && isa<InvalidResponse>(queryResult)) {
     success = queryResult->tryGetInitialValuesFor(objects, result);

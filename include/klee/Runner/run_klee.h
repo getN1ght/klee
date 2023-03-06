@@ -3,4 +3,4 @@
 
 int run_klee(int argc, char **argv, char **envp);
 
-#endif //KLEE_RUN_KLEE_H
+#endif // KLEE_RUN_KLEE_H

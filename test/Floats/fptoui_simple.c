@@ -12,7 +12,7 @@ int main() {
   klee_make_symbolic(&x, sizeof(float), "x");
   klee_assume(x > 1.0f); // This also implies x isn't a NaN
   klee_assume(x < 128.0f);
-  y = (unsigned int) x;
+  y = (unsigned int)x;
   assert(y > 0);
   assert(y < 128);
   return 0;

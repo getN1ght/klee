@@ -21,7 +21,7 @@ int main() {
   klee_assume(x > 0.0f); // This also implies x isn't a NaN
   y = 1.0e12f;
   z = x + y;
-  if ( z == y ) {
+  if (z == y) {
     // Note if we use reals to approximate floats this branch won't be feasible
     printf("add x absorbed\n");
   } else {

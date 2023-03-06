@@ -11,13 +11,13 @@ int main() {
   klee_make_symbolic(&f, sizeof(f), "f");
   float result = -f;
   if (!isnan(f)) {
-      if (signbit(f)) {
-          assert(!signbit(result));
-      } else {
-          assert(signbit(result));
-      }
+    if (signbit(f)) {
+      assert(!signbit(result));
+    } else {
+      assert(signbit(result));
+    }
   } else {
-      assert(isnan(result));
+    assert(isnan(result));
   }
   return 0;
 }

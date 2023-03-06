@@ -55,7 +55,7 @@ public:
     return constraints == b.constraints;
   }
 
-  bool operator <(const ConstraintSet &b) const {
+  bool operator<(const ConstraintSet &b) const {
     return constraints < b.constraints;
   }
 

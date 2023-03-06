@@ -21,17 +21,17 @@ int main() {
   switch (newRoundingMode) {
 // Using klee_print_expr() here is a hack to avoid making an external
 // call which prevents KLEE_FP_RNA from being used.
-#define CASE(X)                                                                \
-  case X:                                                                      \
-    klee_print_expr(#X "\n", "");                                              \
+#define CASE(X)                   \
+  case X:                         \
+    klee_print_expr(#X "\n", ""); \
     break;
     CASE(KLEE_FP_RNE)
     CASE(KLEE_FP_RNA)
     CASE(KLEE_FP_RU)
     CASE(KLEE_FP_RD)
     CASE(KLEE_FP_RZ)
-    default:
-      abort();
+  default:
+    abort();
   }
   return 0;
 }

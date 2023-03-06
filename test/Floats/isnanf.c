@@ -3,9 +3,9 @@
 // RUN: %klee --libc=klee --fp-runtime --output-dir=%t.klee-out --exit-on-error %t1.bc > %t-output.txt 2>&1
 // RUN: FileCheck -input-file=%t-output.txt %s
 #include "klee/klee.h"
-#include <stdio.h>
-#include <math.h>
 #include <assert.h>
+#include <math.h>
+#include <stdio.h>
 
 int main() {
   float x;
@@ -13,8 +13,7 @@ int main() {
   if (isnan(x)) {
     assert(x != x);
     assert(klee_is_nan_float(x));
-  }
-  else {
+  } else {
     assert(x == x);
     assert(!klee_is_nan_float(x));
   }

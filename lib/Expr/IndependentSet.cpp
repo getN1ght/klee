@@ -1,6 +1,5 @@
 #include "klee/Expr/IndependentSet.h"
 
-
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Solver/Solver.h"
@@ -9,7 +8,6 @@
 #include <map>
 #include <set>
 #include <vector>
-
 
 namespace klee {
 
@@ -298,4 +296,4 @@ void calculateArrayReferences(const IndependentElementSet &ie,
   }
 }
 
-}
+} // namespace klee

@@ -1,4 +1,5 @@
-//===-- CodeGraphDistance.cpp ---------------------------------------------------===//
+//===-- CodeGraphDistance.cpp
+//---------------------------------------------------===//
 //
 //                     The KLEE Symbolic Virtual Machine
 //
@@ -88,7 +89,8 @@ void CodeGraphDistance::calculateDistance(KFunction *kf) {
 void CodeGraphDistance::calculateBackwardDistance(KFunction *kf) {
   auto &functionMap = kf->parent->functionMap;
   auto &callMap = kf->parent->callMap;
-  std::unordered_map<KFunction *, unsigned int> &bdist = functionBackwardDistance[kf];
+  std::unordered_map<KFunction *, unsigned int> &bdist =
+      functionBackwardDistance[kf];
   std::vector<std::pair<KFunction *, unsigned>> &bsort =
       functionSortedBackwardDistance[kf];
   std::deque<KFunction *> nodes;
@@ -112,7 +114,8 @@ void CodeGraphDistance::calculateBackwardDistance(KFunction *kf) {
   }
 }
 
-const std::unordered_map<KBlock *, unsigned> &CodeGraphDistance::getDistance(KBlock *kb) {
+const std::unordered_map<KBlock *, unsigned> &
+CodeGraphDistance::getDistance(KBlock *kb) {
   if (blockDistance.count(kb) == 0)
     calculateDistance(kb);
   return blockDistance.at(kb);
@@ -139,7 +142,8 @@ CodeGraphDistance::getSortedBackwardDistance(KBlock *kb) {
   return blockSortedBackwardDistance.at(kb);
 }
 
-const std::unordered_map<KFunction *, unsigned> &CodeGraphDistance::getDistance(KFunction *kf) {
+const std::unordered_map<KFunction *, unsigned> &
+CodeGraphDistance::getDistance(KFunction *kf) {
   if (functionDistance.count(kf) == 0)
     calculateDistance(kf);
   return functionDistance.at(kf);

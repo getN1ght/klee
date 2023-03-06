@@ -4,9 +4,9 @@
 // RUN: FileCheck -input-file=%t-output.txt %s
 // REQUIRES: x86_64
 #include "klee/klee.h"
-#include <stdio.h>
-#include <math.h>
 #include <assert.h>
+#include <math.h>
+#include <stdio.h>
 
 int main() {
   long double x;
@@ -14,8 +14,7 @@ int main() {
   if (isnan(x)) {
     assert(x != x);
     assert(klee_is_nan_long_double(x));
-  }
-  else {
+  } else {
     assert(x == x);
     assert(!klee_is_nan_long_double(x));
   }

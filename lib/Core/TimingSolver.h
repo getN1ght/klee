@@ -48,7 +48,8 @@ public:
   }
 
   bool evaluate(const ConstraintSet &, ref<Expr>, Solver::Validity &result,
-                SolverQueryMetaData &metaData, bool produceValidityCore = false);
+                SolverQueryMetaData &metaData,
+                bool produceValidityCore = false);
 
   bool evaluate(const ConstraintSet &, ref<Expr>,
                 ref<SolverResponse> &queryResult,
@@ -99,6 +100,6 @@ public:
                                            SolverQueryMetaData &metaData,
                                            time::Span timeout = time::Span());
 };
-}
+} // namespace klee
 
 #endif /* KLEE_TIMINGSOLVER_H */

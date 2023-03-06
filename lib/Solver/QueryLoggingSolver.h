@@ -33,7 +33,8 @@ protected:
   // @brief buffer to store logs before flushing to file
   llvm::raw_string_ostream logBuffer;
   unsigned queryCount;
-  time::Span minQueryTimeToLog; // we log to file only those queries which take longer than the specified time
+  time::Span minQueryTimeToLog; // we log to file only those queries which take
+                                // longer than the specified time
   bool logTimedOutQueries = false;
   time::Point startTime;
   time::Span lastQueryDuration;
@@ -56,8 +57,9 @@ protected:
   void flushBufferConditionally(bool writeToFile);
 
 public:
-  QueryLoggingSolver(Solver *_solver, std::string path, const std::string &commentSign,
-                     time::Span queryTimeToLog, bool logTimedOut);
+  QueryLoggingSolver(Solver *_solver, std::string path,
+                     const std::string &commentSign, time::Span queryTimeToLog,
+                     bool logTimedOut);
 
   virtual ~QueryLoggingSolver();
 
@@ -71,7 +73,7 @@ public:
                             bool &hasSolution);
   bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &query, ValidityCore &validityCore,
-                        bool &isValid);
+                           bool &isValid);
   SolverRunStatus getOperationStatusCode();
   char *getConstraintLog(const Query &);
   void setCoreSolverTimeout(time::Span timeout);

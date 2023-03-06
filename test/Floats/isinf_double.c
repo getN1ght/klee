@@ -4,17 +4,16 @@
 // RUN: FileCheck -input-file=%t-output.txt %s
 // REQUIRES: fp-runtime
 #include "klee/klee.h"
-#include <stdio.h>
-#include <math.h>
 #include <assert.h>
+#include <math.h>
+#include <stdio.h>
 
 int main() {
   double x;
   klee_make_symbolic(&x, sizeof(double), "x");
   if (isinf(x)) {
     assert(klee_is_infinite_double(x));
-  }
-  else {
+  } else {
     assert(!klee_is_infinite_double(x));
   }
 }

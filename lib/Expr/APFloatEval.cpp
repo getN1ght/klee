@@ -6,8 +6,8 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-#include "klee/Config/Version.h"
 #include "klee/util/APFloatEval.h"
+#include "klee/Config/Version.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cfenv>
 #include <cmath>

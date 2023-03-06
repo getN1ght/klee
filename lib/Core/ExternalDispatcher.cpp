@@ -15,6 +15,8 @@
 #if LLVM_VERSION_CODE < LLVM_VERSION(8, 0)
 #include "llvm/IR/CallSite.h"
 #endif
+#include "llvm/ExecutionEngine/GenericValue.h"
+#include "llvm/ExecutionEngine/MCJIT.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
@@ -22,15 +24,13 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/ExecutionEngine/GenericValue.h"
-#include "llvm/ExecutionEngine/MCJIT.h"
 #include "llvm/Support/DynamicLibrary.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/raw_ostream.h"
 
+#include <cfenv>
 #include <csetjmp>
 #include <csignal>
-#include <cfenv>
 
 using namespace llvm;
 using namespace klee;
@@ -66,8 +66,8 @@ private:
 public:
   ExternalDispatcherImpl(llvm::LLVMContext &ctx);
   ~ExternalDispatcherImpl();
-  bool executeCall(KCallable *callable, llvm::Instruction *i,
-                   uint64_t *args, int roundingMode);
+  bool executeCall(KCallable *callable, llvm::Instruction *i, uint64_t *args,
+                   int roundingMode);
   void *resolveSymbol(const std::string &name);
   int getLastErrno();
   void setLastErrno(int newErrno);
@@ -163,8 +163,8 @@ ExternalDispatcherImpl::~ExternalDispatcherImpl() {
 bool ExternalDispatcherImpl::executeCall(KCallable *callable, Instruction *i,
                                          uint64_t *args, int roundingMode) {
   dispatchers_ty::iterator it = dispatchers.find(i);
-    // Save current rounding mode used by KLEE internally and set the
-    // rounding mode needed during the external call.
+  // Save current rounding mode used by KLEE internally and set the
+  // rounding mode needed during the external call.
   int oldRoundingMode = fegetround();
   bool success = !fesetround(roundingMode);
   if (!success) {
@@ -176,7 +176,7 @@ bool ExternalDispatcherImpl::executeCall(KCallable *callable, Instruction *i,
     // Code already JIT'ed for this
     bool result = runProtectedCall(it->second, args);
     // Restore rounding mode.
-    success =!fesetround(oldRoundingMode);
+    success = !fesetround(oldRoundingMode);
     if (!success) {
       llvm::errs() << "Failed to restore rounding mode after externall call\n";
       abort();
@@ -199,12 +199,12 @@ bool ExternalDispatcherImpl::executeCall(KCallable *callable, Instruction *i,
   }
 #endif
 
-      Module *dispatchModule = NULL;
-      // The MCJIT generates whole modules at a time so for every call that we
-      // haven't made before we need to create a new Module.
-      dispatchModule = new Module(getFreshModuleID(), ctx);
-      dispatcher = createDispatcher(callable, i, dispatchModule);
-      dispatchers.insert(std::make_pair(i, dispatcher));
+  Module *dispatchModule = NULL;
+  // The MCJIT generates whole modules at a time so for every call that we
+  // haven't made before we need to create a new Module.
+  dispatchModule = new Module(getFreshModuleID(), ctx);
+  dispatcher = createDispatcher(callable, i, dispatchModule);
+  dispatchers.insert(std::make_pair(i, dispatcher));
 
   // Force the JIT execution engine to go ahead and build the function. This
   // ensures that any errors or assertions in the compilation process will
@@ -229,7 +229,7 @@ bool ExternalDispatcherImpl::executeCall(KCallable *callable, Instruction *i,
   bool result = runProtectedCall(dispatcher, args);
 
   // Restore rounding mode.
-  success =!fesetround(oldRoundingMode);
+  success = !fesetround(oldRoundingMode);
   if (!success) {
     llvm::errs() << "Failed to restore rounding mode after externall call\n";
     abort();
@@ -347,12 +347,12 @@ Function *ExternalDispatcherImpl::createDispatcher(KCallable *target,
   }
 
   llvm::CallInst *result;
-  if (auto* func = dyn_cast<KFunction>(target)) {
-    auto dispatchTarget = module->getOrInsertFunction(target->getName(), FTy,
-                                                      func->function->getAttributes());
+  if (auto *func = dyn_cast<KFunction>(target)) {
+    auto dispatchTarget = module->getOrInsertFunction(
+        target->getName(), FTy, func->function->getAttributes());
     result = Builder.CreateCall(dispatchTarget,
                                 llvm::ArrayRef<Value *>(args, args + i));
-  } else if (auto* asmValue = dyn_cast<KInlineAsm>(target)) {
+  } else if (auto *asmValue = dyn_cast<KInlineAsm>(target)) {
     result = Builder.CreateCall(asmValue->getInlineAsm(),
                                 llvm::ArrayRef<Value *>(args, args + i));
   } else {
@@ -381,8 +381,8 @@ ExternalDispatcher::ExternalDispatcher(llvm::LLVMContext &ctx)
 
 ExternalDispatcher::~ExternalDispatcher() { delete impl; }
 
-bool ExternalDispatcher::executeCall(KCallable *callable,
-                                     llvm::Instruction *i, uint64_t *args, int roundingMode) {
+bool ExternalDispatcher::executeCall(KCallable *callable, llvm::Instruction *i,
+                                     uint64_t *args, int roundingMode) {
   return impl->executeCall(callable, i, args, roundingMode);
 }
 
@@ -394,4 +394,4 @@ int ExternalDispatcher::getLastErrno() { return impl->getLastErrno(); }
 void ExternalDispatcher::setLastErrno(int newErrno) {
   impl->setLastErrno(newErrno);
 }
-}
+} // namespace klee

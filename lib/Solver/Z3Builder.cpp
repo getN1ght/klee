@@ -11,8 +11,8 @@
 #include "Z3Builder.h"
 
 #include "klee/ADT/Bits.h"
-#include "klee/Expr/SymbolicSource.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/SymbolicSource.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverStats.h"
 #include "klee/Support/ErrorHandling.h"
@@ -26,15 +26,15 @@ namespace klee {
 
 // Declared here rather than `Z3Builder.h` so they can be called in gdb.
 template <> void Z3NodeHandle<Z3_sort>::dump() {
-  llvm::errs() << "Z3SortHandle:\n" << ::Z3_sort_to_string(context, node)
-               << "\n";
+  llvm::errs() << "Z3SortHandle:\n"
+               << ::Z3_sort_to_string(context, node) << "\n";
 }
 template <> unsigned Z3NodeHandle<Z3_sort>::hash() {
   return Z3_get_ast_hash(context, as_ast());
 }
 template <> void Z3NodeHandle<Z3_ast>::dump() {
-  llvm::errs() << "Z3ASTHandle:\n" << ::Z3_ast_to_string(context, as_ast())
-               << "\n";
+  llvm::errs() << "Z3ASTHandle:\n"
+               << ::Z3_ast_to_string(context, as_ast()) << "\n";
 }
 template <> unsigned Z3NodeHandle<Z3_ast>::hash() {
   return Z3_get_ast_hash(context, as_ast());
@@ -81,7 +81,8 @@ Z3Builder::Z3Builder(bool autoClearConstructCache,
   if (z3LogInteractionFile.length() > 0) {
     klee_message("Logging Z3 API interaction to \"%s\"",
                  z3LogInteractionFile.c_str());
-    assert(!Z3HashConfig::Z3InteractionLogOpen && "interaction log should not already be open");
+    assert(!Z3HashConfig::Z3InteractionLogOpen &&
+           "interaction log should not already be open");
     Z3_open_log(z3LogInteractionFile.c_str());
     Z3HashConfig::Z3InteractionLogOpen = true;
   }
@@ -126,7 +127,7 @@ Z3SortHandle Z3Builder::getArraySort(Z3SortHandle domainSort,
   return Z3SortHandle(Z3_mk_array_sort(ctx, domainSort, rangeSort), ctx);
 }
 
-Z3ASTHandle Z3Builder::buildFreshBoolConst (const char *name) {
+Z3ASTHandle Z3Builder::buildFreshBoolConst(const char *name) {
   Z3SortHandle boolSort = getBoolSort();
   return Z3ASTHandle(Z3_mk_fresh_const(ctx, name, boolSort), ctx);
 }
@@ -141,7 +142,7 @@ Z3ASTHandle Z3Builder::buildArray(const char *name, unsigned indexWidth,
 }
 
 Z3ASTHandle Z3Builder::buildConstantArray(const char *name, unsigned indexWidth,
-                                  unsigned valueWidth, unsigned value) {
+                                          unsigned valueWidth, unsigned value) {
   Z3SortHandle domainSort = getBvSort(indexWidth);
   Z3ASTHandle defaultValue = bvZExtConst(valueWidth, value);
   return Z3ASTHandle(Z3_mk_const_array(ctx, domainSort, defaultValue), ctx);
@@ -217,7 +218,8 @@ Z3ASTHandle Z3Builder::iffExpr(Z3ASTHandle lhs, Z3ASTHandle rhs) {
   Z3SortHandle rhsSort = Z3SortHandle(Z3_get_sort(ctx, rhs), ctx);
   assert(Z3_get_sort_kind(ctx, lhsSort) == Z3_get_sort_kind(ctx, rhsSort) &&
          "lhs and rhs sorts must match");
-  assert(Z3_get_sort_kind(ctx, lhsSort) == Z3_BOOL_SORT && "args must have BOOL sort");
+  assert(Z3_get_sort_kind(ctx, lhsSort) == Z3_BOOL_SORT &&
+         "args must have BOOL sort");
   return Z3ASTHandle(Z3_mk_iff(ctx, lhs, rhs), ctx);
 }
 
@@ -247,8 +249,9 @@ Z3ASTHandle Z3Builder::getInitialArray(const Array *root) {
     std::string unique_name = root->name + unique_id;
     if (ref<ConstantWithSymbolicSizeSource> constantWithSymbolicSizeSource =
             dyn_cast<ConstantWithSymbolicSizeSource>(root->source)) {
-      array_expr = buildConstantArray(unique_name.c_str(), root->getDomain(),
-                                      root->getRange(), constantWithSymbolicSizeSource->defaultValue);
+      array_expr = buildConstantArray(
+          unique_name.c_str(), root->getDomain(), root->getRange(),
+          constantWithSymbolicSizeSource->defaultValue);
     } else {
       array_expr =
           buildArray(unique_name.c_str(), root->getDomain(), root->getRange());
@@ -407,7 +410,7 @@ Z3ASTHandle Z3Builder::constructActual(ref<Expr> e, int *width_out) {
     }
   }
 
-  // Casting
+    // Casting
 
   case Expr::ZExt: {
     int srcWidth;
@@ -638,7 +641,7 @@ Z3ASTHandle Z3Builder::constructActual(ref<Expr> e, int *width_out) {
     }
   }
 
-  // Comparison
+    // Comparison
 
   case Expr::Eq: {
     EqExpr *ee = cast<EqExpr>(e);
@@ -708,5 +711,5 @@ Z3ASTHandle Z3Builder::constructActual(ref<Expr> e, int *width_out) {
     return getTrue();
   }
 }
-}
+} // namespace klee
 #endif // ENABLE_Z3

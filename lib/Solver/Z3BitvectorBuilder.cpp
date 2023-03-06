@@ -256,16 +256,17 @@ Z3ASTHandle Z3BitvectorBuilder::constructAShrByConstant(Z3ASTHandle expr,
   }
 }
 
-void Z3BitvectorBuilder::FPCastWidthAssert(int *width_out, char const* msg) {
+void Z3BitvectorBuilder::FPCastWidthAssert(int *width_out, char const *msg) {
 #if LLVM_VERSION_CODE >= LLVM_VERSION(4, 0)
   assert(&(ConstantExpr::widthToFloatSemantics(*width_out)) !=
-    &(llvm::APFloat::Bogus()) && msg);
+             &(llvm::APFloat::Bogus()) &&
+         msg);
 #else
   assert(&(ConstantExpr::widthToFloatSemantics(*width_out)) !=
-    &(llvm::APFloat::Bogus) && msg);
+             &(llvm::APFloat::Bogus) &&
+         msg);
 #endif
 }
-
 
 /** if *width_out!=1 then result is a bitvector,
 otherwise it is a bool */

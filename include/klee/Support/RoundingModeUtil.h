@@ -11,9 +11,9 @@
 
 namespace klee {
 
-    int LLVMRoundingModeToCRoundingMode(llvm::APFloat::roundingMode rm);
+int LLVMRoundingModeToCRoundingMode(llvm::APFloat::roundingMode rm);
 
-    const char *LLVMRoundingModeToString(llvm::APFloat::roundingMode rm);
-}
+const char *LLVMRoundingModeToString(llvm::APFloat::roundingMode rm);
+} // namespace klee
 
 #endif

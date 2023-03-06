@@ -26,7 +26,7 @@ public:
                             bool &hasSolution);
   bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &query, ValidityCore &validityCore,
-                        bool &isValid);
+                           bool &isValid);
   SolverRunStatus getOperationStatusCode();
 };
 
@@ -78,4 +78,4 @@ SolverImpl::SolverRunStatus DummySolverImpl::getOperationStatusCode() {
 }
 
 Solver *createDummySolver() { return new Solver(new DummySolverImpl()); }
-}
+} // namespace klee

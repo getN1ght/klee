@@ -42,8 +42,7 @@ private:
     }
   };
 
-  typedef std::unordered_map<CacheEntry, const Assignment,
-                             CacheEntryHash>
+  typedef std::unordered_map<CacheEntry, const Assignment, CacheEntryHash>
       concretizations_map;
   concretizations_map concretizations;
 
@@ -57,6 +56,6 @@ public:
   void add(const Query &q, const Assignment &assign);
 };
 
-}; // end klee namespace
+}; // namespace klee
 
 #endif /* KLEE_CONCRETIZATIONMANAGER_H */

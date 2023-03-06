@@ -11,7 +11,7 @@ int main() {
   double y;
   klee_make_symbolic(&x, sizeof(float), "x");
   klee_assume(x > 0.0f); // This also implies x isn't a NaN
-  y = (double) x;
+  y = (double)x;
   assert(y > 0.0);
   return 0;
 }

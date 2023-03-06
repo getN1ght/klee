@@ -14,7 +14,7 @@ int main() {
   klee_assume(x < 10000.0f); // This also implies x isn't a NaN
   y = 1.0e12f;
   z = y - x;
-  if ( z < y ) {
+  if (z < y) {
     // Note this branch should not be feasible when modelling floating point
     // constraints precisely. However when using reals to approximate floats
     // then this branch is feasible.

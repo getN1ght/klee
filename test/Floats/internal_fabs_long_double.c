@@ -8,8 +8,8 @@
 #include <assert.h>
 #include <float.h>
 #include <math.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 long double make_long_double(uint16_t highBits, uint64_t lowBits) {
@@ -68,7 +68,7 @@ int main() {
   assert(isinf(x) == 1);
 
   // -Infinity
-  x = - INFINITY;
+  x = -INFINITY;
   assert(signbit(x));
   result = klee_abs_long_double(x);
   assert(isinf(x) == -1);

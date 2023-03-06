@@ -40,31 +40,27 @@ linkModules(std::vector<std::unique_ptr<llvm::Module>> &modules,
             llvm::StringRef entryFunction, std::string &errorMsg);
 
 #if defined(__x86_64__) || defined(__i386__)
-#define addFunctionReplacement(from, to) \
-        {#from"f", #to"f"},              \
-        {#from, #to},                    \
-        {#from"l", #to"l"}               \
+#define addFunctionReplacement(from, to)                                       \
+  {#from "f", #to "f"}, {#from, #to}, { #from "l", #to "l" }
 
-#define addIntrinsicReplacement(from, to) \
-        {"llvm."#from".f32", #to"f"},     \
-        {"llvm."#from".f64", #to},        \
-        {"llvm."#from".f80", #to"l"}      \
+#define addIntrinsicReplacement(from, to)                                      \
+  {"llvm." #from ".f32", #to "f"}, {"llvm." #from ".f64", #to}, {              \
+    "llvm." #from ".f80", #to "l"                                              \
+  }
 
 #else
-#define addFunctionReplacement(from, to) \
-        {#from"f", #to"f"},              \
-        {#from, #to},                    \
+#define addFunctionReplacement(from, to) {#from "f", #to "f"}, {#from, #to},
 
-#define addIntrinsicReplacement(from, to) \
-        {"llvm."#from".f32", #to"f"},     \
-        {"llvm."#from".f64", #to},        \
+#define addIntrinsicReplacement(from, to)                                      \
+  {"llvm." #from ".f32", #to "f"}, {"llvm." #from ".f64", #to},
 
 #endif
 
-/// Map for replacing std float computations to klee internals (avoid setting concretes during calls below)
-/// There are some functions with provided implementations in runtime/klee-fp, but not explicitly replaced here.
-/// Should we rename them and complete the list?
-const std::vector <std::pair<std::string, std::string>> floatReplacements = {
+/// Map for replacing std float computations to klee internals (avoid setting
+/// concretes during calls below) There are some functions with provided
+/// implementations in runtime/klee-fp, but not explicitly replaced here. Should
+/// we rename them and complete the list?
+const std::vector<std::pair<std::string, std::string>> floatReplacements = {
     addFunctionReplacement(__isnan, klee_internal_isnan),
     addFunctionReplacement(isnan, klee_internal_isnan),
     addFunctionReplacement(__isinf, klee_internal_isinf),
@@ -84,15 +80,13 @@ const std::vector <std::pair<std::string, std::string>> floatReplacements = {
     addIntrinsicReplacement(nearbyint, nearbyint),
     addIntrinsicReplacement(copysign, copysign),
     addIntrinsicReplacement(floor, klee_floor),
-    addIntrinsicReplacement(ceil, ceil)
-};
+    addIntrinsicReplacement(ceil, ceil)};
 #undef addFunctionReplacement
 #undef addIntrinsicReplacement
 
-const std::vector <std::pair<std::string, std::string>> feRoundReplacements {
+const std::vector<std::pair<std::string, std::string>> feRoundReplacements{
     {"fegetround", "klee_internal_fegetround"},
-    {"fesetround", "klee_internal_fesetround"}
-};
+    {"fesetround", "klee_internal_fesetround"}};
 
 /// Return the Function* target of a Call or Invoke instruction, or
 /// null if it cannot be determined (should be only for indirect
@@ -131,6 +125,6 @@ bool functionEscapes(const llvm::Function *f);
 bool loadFile(const std::string &libraryName, llvm::LLVMContext &context,
               std::vector<std::unique_ptr<llvm::Module>> &modules,
               std::string &errorMsg);
-}
+} // namespace klee
 
 #endif /* KLEE_MODULEUTIL_H */

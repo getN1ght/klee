@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <iostream>
 #include "gtest/gtest.h"
+#include <iostream>
 
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/Expr.h"
@@ -20,7 +20,7 @@ namespace {
 
 ref<Expr> getConstant(int value, Expr::Width width) {
   int64_t ext = value;
-  uint64_t trunc = ext & (((uint64_t) -1LL) >> (64 - width));
+  uint64_t trunc = ext & (((uint64_t)-1LL) >> (64 - width));
   return ConstantExpr::create(trunc, width);
 }
 
@@ -54,20 +54,21 @@ TEST(ExprTest, ConcatExtract) {
   EXPECT_EQ(c100, extract1->getKid(1));
 
   ref<Expr> extract2 = ExtractExpr::create(concat1, 6, 26);
-  EXPECT_EQ( Expr::Concat, extract2->getKind());
-  EXPECT_EQ( read8, extract2->getKid(0));
-  EXPECT_EQ( Expr::Concat, extract2->getKid(1)->getKind());
-  EXPECT_EQ( read8, extract2->getKid(1)->getKid(0));
-  EXPECT_EQ( Expr::Concat, extract2->getKid(1)->getKid(1)->getKind());
-  EXPECT_EQ( c100, extract2->getKid(1)->getKid(1)->getKid(0));
-  EXPECT_EQ( Expr::Extract, extract2->getKid(1)->getKid(1)->getKid(1)->getKind());
-  
+  EXPECT_EQ(Expr::Concat, extract2->getKind());
+  EXPECT_EQ(read8, extract2->getKid(0));
+  EXPECT_EQ(Expr::Concat, extract2->getKid(1)->getKind());
+  EXPECT_EQ(read8, extract2->getKid(1)->getKid(0));
+  EXPECT_EQ(Expr::Concat, extract2->getKid(1)->getKid(1)->getKind());
+  EXPECT_EQ(c100, extract2->getKid(1)->getKid(1)->getKid(0));
+  EXPECT_EQ(Expr::Extract,
+            extract2->getKid(1)->getKid(1)->getKid(1)->getKind());
+
   ref<Expr> extract3 = ExtractExpr::create(concat1, 24, 1);
   EXPECT_EQ(Expr::Extract, extract3->getKind());
 
   ref<Expr> extract4 = ExtractExpr::create(concat1, 27, 2);
   EXPECT_EQ(Expr::Extract, extract4->getKind());
-  const ExtractExpr* tmp = cast<ExtractExpr>(extract4);
+  const ExtractExpr *tmp = cast<ExtractExpr>(extract4);
   EXPECT_EQ(3U, tmp->offset);
   EXPECT_EQ(2U, tmp->getWidth());
 
@@ -81,9 +82,10 @@ TEST(ExprTest, ConcatExtract) {
   EXPECT_EQ(read8, extract6->getKid(1)->getKid(0));
   EXPECT_EQ(Expr::Concat, extract6->getKid(1)->getKid(1)->getKind());
   EXPECT_EQ(c100, extract6->getKid(1)->getKid(1)->getKid(0));
-  EXPECT_EQ(Expr::Extract, extract6->getKid(1)->getKid(1)->getKid(1)->getKind());
+  EXPECT_EQ(Expr::Extract,
+            extract6->getKid(1)->getKid(1)->getKid(1)->getKind());
 
-  ref<Expr> concat10 = ConcatExpr::create4(read8, c100, c100, read8);    
+  ref<Expr> concat10 = ConcatExpr::create4(read8, c100, c100, read8);
   ref<Expr> extract10 = ExtractExpr::create(concat10, 8, 16);
   EXPECT_EQ(Expr::Constant, extract10->getKind());
 }
@@ -99,24 +101,23 @@ TEST(ExprTest, ExtractConcat) {
       "arr3", ConstantExpr::create(256, sizeof(uint64_t) * CHAR_BIT),
       SourceBuilder::makeSymbolic());
   ref<Expr> read8_2 = Expr::createTempRead(array2, 8);
-  
+
   ref<Expr> extract1 = ExtractExpr::create(read64, 36, 4);
   ref<Expr> extract2 = ExtractExpr::create(read64, 32, 4);
-  
+
   ref<Expr> extract3 = ExtractExpr::create(read64, 12, 3);
   ref<Expr> extract4 = ExtractExpr::create(read64, 10, 2);
   ref<Expr> extract5 = ExtractExpr::create(read64, 2, 8);
-   
-  ref<Expr> kids1[6] = { extract1, extract2,
-			 read8_2,
-			 extract3, extract4, extract5 };
+
+  ref<Expr> kids1[6] = {extract1, extract2, read8_2,
+                        extract3, extract4, extract5};
   ref<Expr> concat1 = ConcatExpr::createN(6, kids1);
   EXPECT_EQ(29U, concat1->getWidth());
-  
+
   ref<Expr> extract6 = ExtractExpr::create(read8_2, 2, 5);
   ref<Expr> extract7 = ExtractExpr::create(read8_2, 1, 1);
-  
-  ref<Expr> kids2[3] = { extract1, extract6, extract7 };
+
+  ref<Expr> kids2[3] = {extract1, extract6, extract7};
   ref<Expr> concat2 = ConcatExpr::createN(3, kids2);
   EXPECT_EQ(10U, concat2->getWidth());
   EXPECT_EQ(Expr::Extract, concat2->getKid(0)->getKind());
@@ -127,7 +128,7 @@ TEST(ExprTest, ReadExprFoldingBasic) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr> > Contents(size);
+  std::vector<ref<ConstantExpr>> Contents(size);
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -155,7 +156,7 @@ TEST(ExprTest, ReadExprFoldingIndexOutOfBound) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr> > Contents(size);
+  std::vector<ref<ConstantExpr>> Contents(size);
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -177,7 +178,7 @@ TEST(ExprTest, ReadExprFoldingConstantUpdate) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr> > Contents(size);
+  std::vector<ref<ConstantExpr>> Contents(size);
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -204,7 +205,7 @@ TEST(ExprTest, ReadExprFoldingConstantMultipleUpdate) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr> > Contents(size);
+  std::vector<ref<ConstantExpr>> Contents(size);
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -233,7 +234,7 @@ TEST(ExprTest, ReadExprFoldingSymbolicValueUpdate) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr> > Contents(size);
+  std::vector<ref<ConstantExpr>> Contents(size);
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -262,7 +263,7 @@ TEST(ExprTest, ReadExprFoldingSymbolicIndexUpdate) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr> > Contents(size);
+  std::vector<ref<ConstantExpr>> Contents(size);
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -289,4 +290,4 @@ TEST(ExprTest, ReadExprFoldingSymbolicIndexUpdate) {
     EXPECT_EQ(Expr::Read, read.get()->getKind());
   }
 }
-}
+} // namespace

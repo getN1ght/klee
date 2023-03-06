@@ -17,8 +17,8 @@
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/IndependentSet.h"
-#include "klee/Support/Debug.h"
 #include "klee/Solver/SolverImpl.h"
+#include "klee/Support/Debug.h"
 
 #include "llvm/Support/raw_ostream.h"
 
@@ -35,46 +35,45 @@ private:
   Solver *solver;
 
 public:
-  IndependentSolver(Solver *_solver) 
-    : solver(_solver) {}
+  IndependentSolver(Solver *_solver) : solver(_solver) {}
   ~IndependentSolver() { delete solver; }
 
-  bool computeTruth(const Query&, bool &isValid);
-  bool computeValidity(const Query&, Solver::Validity &result);
-  bool computeValue(const Query&, ref<Expr> &result);
-  bool computeInitialValues(const Query& query,
-                            const std::vector<const Array*> &objects,
+  bool computeTruth(const Query &, bool &isValid);
+  bool computeValidity(const Query &, Solver::Validity &result);
+  bool computeValue(const Query &, ref<Expr> &result);
+  bool computeInitialValues(const Query &query,
+                            const std::vector<const Array *> &objects,
                             std::vector<SparseStorage<unsigned char>> &values,
                             bool &hasSolution);
   bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &query, ValidityCore &validityCore,
-                        bool &isValid);
+                           bool &isValid);
   SolverRunStatus getOperationStatusCode();
-  char *getConstraintLog(const Query&);
+  char *getConstraintLog(const Query &);
   void setCoreSolverTimeout(time::Span timeout);
 };
-  
-bool IndependentSolver::computeValidity(const Query& query,
+
+bool IndependentSolver::computeValidity(const Query &query,
                                         Solver::Validity &result) {
-  std::vector< ref<Expr> > required;
+  std::vector<ref<Expr>> required;
   IndependentElementSet eltsClosure =
-    getIndependentConstraints(query, required);
+      getIndependentConstraints(query, required);
   ConstraintSet tmp(required);
   return solver->impl->computeValidity(query.withConstraints(tmp), result);
 }
 
-bool IndependentSolver::computeTruth(const Query& query, bool &isValid) {
-  std::vector< ref<Expr> > required;
-  IndependentElementSet eltsClosure = 
-    getIndependentConstraints(query, required);
+bool IndependentSolver::computeTruth(const Query &query, bool &isValid) {
+  std::vector<ref<Expr>> required;
+  IndependentElementSet eltsClosure =
+      getIndependentConstraints(query, required);
   ConstraintSet tmp(required);
   return solver->impl->computeTruth(query.withConstraints(tmp), isValid);
 }
 
-bool IndependentSolver::computeValue(const Query& query, ref<Expr> &result) {
-  std::vector< ref<Expr> > required;
-  IndependentElementSet eltsClosure = 
-    getIndependentConstraints(query, required);
+bool IndependentSolver::computeValue(const Query &query, ref<Expr> &result) {
+  std::vector<ref<Expr>> required;
+  IndependentElementSet eltsClosure =
+      getIndependentConstraints(query, required);
   ConstraintSet tmp(required);
   return solver->impl->computeValue(query.withConstraints(tmp), result);
 }
@@ -130,55 +129,57 @@ bool assertCreatedPointEvaluatesToTrue(
   return assertCreatedPointEvaluatesToTrue(query, objects, values, retMap);
 }
 
-bool IndependentSolver::computeInitialValues(const Query& query,
-                                             const std::vector<const Array*> &objects,
-                                             std::vector<SparseStorage<unsigned char>> &values,
-                                             bool &hasSolution){
+bool IndependentSolver::computeInitialValues(
+    const Query &query, const std::vector<const Array *> &objects,
+    std::vector<SparseStorage<unsigned char>> &values, bool &hasSolution) {
   // We assume the query has a solution except proven differently
   // This is important in case we don't have any constraints but
   // we need initial values for requested array objects.
   hasSolution = true;
-  // FIXME: When we switch to C++11 this should be a std::unique_ptr so we don't need
-  // to remember to manually call delete
-  std::list<IndependentElementSet> *factors = getAllIndependentConstraintsSets(query);
+  // FIXME: When we switch to C++11 this should be a std::unique_ptr so we don't
+  // need to remember to manually call delete
+  std::list<IndependentElementSet> *factors =
+      getAllIndependentConstraintsSets(query);
 
-  //Used to rearrange all of the answers into the correct order
-  std::map<const Array*, SparseStorage<unsigned char>> retMap;
+  // Used to rearrange all of the answers into the correct order
+  std::map<const Array *, SparseStorage<unsigned char>> retMap;
   for (std::list<IndependentElementSet>::iterator it = factors->begin();
        it != factors->end(); ++it) {
-    std::vector<const Array*> arraysInFactor;
+    std::vector<const Array *> arraysInFactor;
     calculateArrayReferences(*it, arraysInFactor);
-    // Going to use this as the "fresh" expression for the Query() invocation below
+    // Going to use this as the "fresh" expression for the Query() invocation
+    // below
     assert(it->exprs.size() >= 1 && "No null/empty factors");
-    if (arraysInFactor.size() == 0){
+    if (arraysInFactor.size() == 0) {
       continue;
     }
     ConstraintSet tmp(it->exprs);
     std::vector<SparseStorage<unsigned char>> tempValues;
     if (!solver->impl->computeInitialValues(
-            Query(tmp, ConstantExpr::alloc(0, Expr::Bool)),
-            arraysInFactor, tempValues, hasSolution)) {
+            Query(tmp, ConstantExpr::alloc(0, Expr::Bool)), arraysInFactor,
+            tempValues, hasSolution)) {
       values.clear();
       delete factors;
       return false;
-    } else if (!hasSolution){
+    } else if (!hasSolution) {
       values.clear();
       delete factors;
       return true;
     } else {
       assert(tempValues.size() == arraysInFactor.size() &&
              "Should be equal number arrays and answers");
-      for (unsigned i = 0; i < tempValues.size(); i++){
-        if (retMap.count(arraysInFactor[i])){
+      for (unsigned i = 0; i < tempValues.size(); i++) {
+        if (retMap.count(arraysInFactor[i])) {
           // We already have an array with some partially correct answers,
           // so we need to place the answers to the new query into the right
           // spot while avoiding the undetermined values also in the array
-          SparseStorage<unsigned char> * tempPtr = &retMap[arraysInFactor[i]];
+          SparseStorage<unsigned char> *tempPtr = &retMap[arraysInFactor[i]];
           assert(tempPtr->size() == tempValues[i].size() &&
                  "we're talking about the same array here");
-          klee::DenseSet<unsigned> * ds = &(it->elements[arraysInFactor[i]]);
-          for (std::set<unsigned>::iterator it2 = ds->begin(); it2 != ds->end(); it2++){
-            unsigned index = * it2;
+          klee::DenseSet<unsigned> *ds = &(it->elements[arraysInFactor[i]]);
+          for (std::set<unsigned>::iterator it2 = ds->begin(); it2 != ds->end();
+               it2++) {
+            unsigned index = *it2;
             tempPtr->store(index, tempValues[i].load(index));
           }
         } else {
@@ -191,9 +192,9 @@ bool IndependentSolver::computeInitialValues(const Query& query,
 
   Assignment solutionAssignment(retMap, true);
   for (std::vector<const Array *>::const_iterator it = objects.begin();
-       it != objects.end(); it++){
-    const Array * arr = * it;
-    if (!retMap.count(arr)){
+       it != objects.end(); it++) {
+    const Array *arr = *it;
+    if (!retMap.count(arr)) {
       // this means we have an array that is somehow related to the
       // constraint, but whose values aren't actually required to
       // satisfy the query.
@@ -207,7 +208,8 @@ bool IndependentSolver::computeInitialValues(const Query& query,
       values.push_back(retMap[arr]);
     }
   }
-  assert(assertCreatedPointEvaluatesToTrue(query, objects, values, retMap) && "should satisfy the equation");
+  assert(assertCreatedPointEvaluatesToTrue(query, objects, values, retMap) &&
+         "should satisfy the equation");
   delete factors;
   return true;
 }
@@ -234,7 +236,7 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
     if (arraysInFactor.size() == 0) {
       continue;
     }
-    
+
     std::vector<ref<Expr>> factorConstraints = it->exprs;
     ref<Expr> factorExpr = ConstantExpr::alloc(0, Expr::Bool);
     auto factorConstraintsExprIterator =
@@ -302,10 +304,10 @@ bool IndependentSolver::computeValidityCore(const Query &query,
 }
 
 SolverImpl::SolverRunStatus IndependentSolver::getOperationStatusCode() {
-  return solver->impl->getOperationStatusCode();      
+  return solver->impl->getOperationStatusCode();
 }
 
-char *IndependentSolver::getConstraintLog(const Query& query) {
+char *IndependentSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 

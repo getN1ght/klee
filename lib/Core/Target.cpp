@@ -22,11 +22,17 @@ using namespace klee;
 namespace klee {
 llvm::cl::opt<TargetCalculateBy> TargetCalculatorMode(
     "target-calculator-kind", cl::desc("Specifiy the target calculator mode."),
-    cl::values(clEnumValN(TargetCalculateBy::Default, "default", "Looks for the closest uncovered block."),
-               clEnumValN(TargetCalculateBy::Blocks, "blocks", "Looks for the closest uncovered block by state blocks history."),
-               clEnumValN(TargetCalculateBy::Transitions, "transitions", "Looks for the closest uncovered block by state transitions history.")),
+    cl::values(
+        clEnumValN(TargetCalculateBy::Default, "default",
+                   "Looks for the closest uncovered block."),
+        clEnumValN(
+            TargetCalculateBy::Blocks, "blocks",
+            "Looks for the closest uncovered block by state blocks history."),
+        clEnumValN(TargetCalculateBy::Transitions, "transitions",
+                   "Looks for the closest uncovered block by state transitions "
+                   "history.")),
     cl::init(TargetCalculateBy::Default), cl::cat(ExecCat));
-} // namespace
+} // namespace klee
 
 std::string Target::toString() const {
   std::string repr = "Target: ";

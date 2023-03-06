@@ -41,8 +41,8 @@ TEST(ArrayExprTest, HashCollisions) {
                                            ConstantExpr::create(5, Expr::Int8));
   const Array *array = ac.CreateArray(
       "arr0", ConstantExpr::create(256, sizeof(uint64_t) * CHAR_BIT),
-      SourceBuilder::constant(), constVals.data(), constVals.data() + constVals.size(),
-      Expr::Int32, Expr::Int8);
+      SourceBuilder::constant(), constVals.data(),
+      constVals.data() + constVals.size(), Expr::Int32, Expr::Int8);
   const Array *symArray = ac.CreateArray(
       "symIdx", ConstantExpr::create(4, sizeof(uint64_t) * CHAR_BIT),
       SourceBuilder::makeSymbolic());
@@ -79,4 +79,4 @@ TEST(ArrayExprTest, HashCollisions) {
   EXPECT_EQ(a->evaluate(oUpdatedRead), getConstant(42, Expr::Int8));
   EXPECT_EQ(a->evaluate(oFirstRead), getConstant(5, Expr::Int8));
 }
-}
+} // namespace

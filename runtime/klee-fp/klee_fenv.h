@@ -14,4 +14,4 @@
 int klee_internal_fegetround(void);
 int klee_internal_fesetround(int rm);
 
-#endif //KLEE_FENV_H
+#endif // KLEE_FENV_H

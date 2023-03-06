@@ -10,10 +10,10 @@
 
 #include "klee/Config/config.h"
 #include "klee/Expr/Constraints.h"
-#include "klee/Support/OptionCategories.h"
 #include "klee/Statistics/Statistics.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/FileHandling.h"
+#include "klee/Support/OptionCategories.h"
 #include "klee/System/Time.h"
 
 namespace {
@@ -54,9 +54,7 @@ QueryLoggingSolver::QueryLoggingSolver(Solver *_solver, std::string path,
   assert(0 != solver);
 }
 
-QueryLoggingSolver::~QueryLoggingSolver() {
-  delete solver;
-}
+QueryLoggingSolver::~QueryLoggingSolver() { delete solver; }
 
 void QueryLoggingSolver::flushBufferConditionally(bool writeToFile) {
   logBuffer.flush();
@@ -94,7 +92,8 @@ void QueryLoggingSolver::finishQuery(bool success) {
   if (false == success) {
     logBuffer << queryCommentSign << "   Failure reason: "
               << SolverImpl::getOperationStatusString(
-                     solver->impl->getOperationStatusCode()) << "\n";
+                     solver->impl->getOperationStatusCode())
+              << "\n";
   }
 }
 
@@ -102,10 +101,10 @@ void QueryLoggingSolver::flushBuffer() {
   // we either do not limit logging queries
   // or the query time is larger than threshold
   // or we log a timed out query
-  bool writeToFile = (!minQueryTimeToLog)
-      || (lastQueryDuration > minQueryTimeToLog)
-      || (logTimedOutQueries &&
-         (SOLVER_RUN_STATUS_TIMEOUT == solver->impl->getOperationStatusCode()));
+  bool writeToFile =
+      (!minQueryTimeToLog) || (lastQueryDuration > minQueryTimeToLog) ||
+      (logTimedOutQueries &&
+       (SOLVER_RUN_STATUS_TIMEOUT == solver->impl->getOperationStatusCode()));
 
   flushBufferConditionally(writeToFile);
 }
@@ -166,7 +165,7 @@ bool QueryLoggingSolver::computeValue(const Query &query, ref<Expr> &result) {
 
 bool QueryLoggingSolver::computeInitialValues(
     const Query &query, const std::vector<const Array *> &objects,
-    std::vector<SparseStorage<unsigned char> > &values, bool &hasSolution) {
+    std::vector<SparseStorage<unsigned char>> &values, bool &hasSolution) {
   startQuery(query, "InitialValues", 0, &objects);
 
   bool success =
@@ -190,7 +189,8 @@ bool QueryLoggingSolver::computeInitialValues(
         logBuffer << queryCommentSign << "     " << array->name << " = [";
         ref<ConstantExpr> arrayConstantSize =
             dyn_cast<ConstantExpr>(solutionAssignment.evaluate(array->size));
-        assert(arrayConstantSize && "Array of symbolic size had not receive value for size!");
+        assert(arrayConstantSize &&
+               "Array of symbolic size had not receive value for size!");
 
         for (unsigned j = 0; j < arrayConstantSize->getZExtValue(); j++) {
           logBuffer << (int)data.load(j);
@@ -210,7 +210,8 @@ bool QueryLoggingSolver::computeInitialValues(
   return success;
 }
 
-bool QueryLoggingSolver::check(const Query &query, ref<SolverResponse> &result) {
+bool QueryLoggingSolver::check(const Query &query,
+                               ref<SolverResponse> &result) {
   startQuery(query, "Check");
 
   bool success = solver->impl->check(query, result);
@@ -235,7 +236,8 @@ bool QueryLoggingSolver::check(const Query &query, ref<SolverResponse> &result) 
         logBuffer << queryCommentSign << "     " << array->name << " = [";
         ref<ConstantExpr> arrayConstantSize =
             dyn_cast<ConstantExpr>(solutionAssignment.evaluate(array->size));
-        assert(arrayConstantSize && "Array of symbolic size had not receive value for size!");
+        assert(arrayConstantSize &&
+               "Array of symbolic size had not receive value for size!");
         for (unsigned j = 0; j < arrayConstantSize->getZExtValue(); j++) {
           logBuffer << (int)data.load(j);
 

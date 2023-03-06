@@ -6,12 +6,12 @@
 
 #include "klee/klee.h"
 #include <assert.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
-typedef uint32_t v4ui __attribute__ ((vector_size (16)));
+typedef uint32_t v4ui __attribute__((vector_size(16)));
 int main() {
-  v4ui f = { 0, 1, 2, 3 };
+  v4ui f = {0, 1, 2, 3};
   unsigned index = 0;
   klee_make_symbolic(&index, sizeof(unsigned), "index");
   // Performing write should be InsertElement instructions.

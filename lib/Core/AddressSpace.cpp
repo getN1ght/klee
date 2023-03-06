@@ -48,7 +48,7 @@ using namespace klee;
 ///
 
 void AddressSpace::bindObject(const MemoryObject *mo, ObjectState *os) {
-  assert(os->copyOnWriteOwner==0 && "object already has owner");
+  assert(os->copyOnWriteOwner == 0 && "object already has owner");
   os->copyOnWriteOwner = cowKey;
   objects = objects.replace(std::make_pair(mo, os));
   idToObjects = idToObjects.replace(std::make_pair(mo->id, mo));
@@ -74,7 +74,7 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
                                         const ObjectState *os) {
   // If this address space owns they object, return it
   if (cowKey == os->copyOnWriteOwner)
-    return const_cast<ObjectState*>(os);
+    return const_cast<ObjectState *>(os);
 
   // Add a copy of this object state that can be updated
   ref<ObjectState> newObjectState(new ObjectState(*os));
@@ -143,8 +143,9 @@ bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
 }
 
 bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
-                              ref<Expr> address, KType *objectType, IDType &result,
-                              MOPredicate predicate, bool &success) const {
+                              ref<Expr> address, KType *objectType,
+                              IDType &result, MOPredicate predicate,
+                              bool &success) const {
   if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(address)) {
     if (resolveOne(CE, objectType, result)) {
       success = true;
@@ -154,7 +155,8 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
 
   TimerStatIncrementer timer(stats::resolveTime);
 
-  if (!resolveOneIfUnique(state, solver, address, objectType, result, success)) {
+  if (!resolveOneIfUnique(state, solver, address, objectType, result,
+                          success)) {
     return false;
   }
   if (success) {
@@ -212,11 +214,12 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
 }
 
 bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
-                              ref<Expr> address, KType *objectType, IDType &result,
-                              bool &success) const {
+                              ref<Expr> address, KType *objectType,
+                              IDType &result, bool &success) const {
   MOPredicate predicate([](const MemoryObject *mo) { return true; });
   if (UseTimestamps) {
-    ref<Expr> base = state.isGEPExpr(address) ? state.gepExprBases[address].first : address;
+    ref<Expr> base =
+        state.isGEPExpr(address) ? state.gepExprBases[address].first : address;
     unsigned timestamp = UINT_MAX;
     if (!isa<ConstantExpr>(address)) {
       std::pair<ref<const MemoryObject>, ref<Expr>> moBasePair;
@@ -239,7 +242,8 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     };
   }
 
-  return resolveOne(state, solver, address, objectType, result, predicate, success);
+  return resolveOne(state, solver, address, objectType, result, predicate,
+                    success);
 }
 
 int AddressSpace::checkPointerInObject(ExecutionState &state,
@@ -269,10 +273,8 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
         return 1;
       if (mustBeTrue)
         return 0;
-    }
-    else
-      if (size == maxResolutions)
-        return 1;
+    } else if (size == maxResolutions)
+      return 1;
   }
 
   return 2;
@@ -280,9 +282,8 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
 
 bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
                            ref<Expr> p, KType *objectType, ResolutionList &rl,
-                           ResolutionList &rlSkipped,
-                           MOPredicate predicate, unsigned maxResolutions,
-                           time::Span timeout) const {
+                           ResolutionList &rlSkipped, MOPredicate predicate,
+                           unsigned maxResolutions, time::Span timeout) const {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(p)) {
     IDType res;
     if (resolveOne(CE, objectType, res)) {
@@ -291,11 +292,11 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     }
   }
   TimerStatIncrementer timer(stats::resolveTime);
-  
+
   IDType fastPathObjectID;
   bool fastPathSuccess;
   if (!resolveOneIfUnique(state, solver, p, objectType, fastPathObjectID,
-                         fastPathSuccess)) {
+                          fastPathSuccess)) {
     return true;
   }
   if (fastPathSuccess) {
@@ -342,9 +343,9 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
 }
 
 bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
-                           ref<Expr> p, KType *objectType,
-                           ResolutionList &rl, ResolutionList &rlSkipped,
-                           unsigned maxResolutions, time::Span timeout) const {
+                           ref<Expr> p, KType *objectType, ResolutionList &rl,
+                           ResolutionList &rlSkipped, unsigned maxResolutions,
+                           time::Span timeout) const {
   MOPredicate predicate([](const MemoryObject *mo) { return true; });
   if (UseTimestamps) {
     ref<Expr> base = state.isGEPExpr(p) ? state.gepExprBases[p].first : p;
@@ -370,7 +371,8 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     };
   }
 
-  return resolve(state, solver, p, objectType, rl, rlSkipped, predicate, maxResolutions, timeout);
+  return resolve(state, solver, p, objectType, rl, rlSkipped, predicate,
+                 maxResolutions, timeout);
 }
 
 // These two are pretty big hack so we can sort of pass memory back
@@ -380,13 +382,13 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
 // then its concrete cache byte isn't being used) but is just a hack.
 
 void AddressSpace::copyOutConcretes() {
-  for (MemoryMap::iterator it = objects.begin(), ie = objects.end(); 
-       it != ie; ++it) {
+  for (MemoryMap::iterator it = objects.begin(), ie = objects.end(); it != ie;
+       ++it) {
     const MemoryObject *mo = it->first;
 
     if (!mo->isUserSpecified) {
       const auto &os = it->second;
-      auto address = reinterpret_cast<std::uint8_t*>(mo->address);
+      auto address = reinterpret_cast<std::uint8_t *>(mo->address);
 
       if (!os->readOnly)
         memcpy(address, os->concreteStore, mo->size);
@@ -411,7 +413,7 @@ bool AddressSpace::copyInConcretes() {
 
 bool AddressSpace::copyInConcrete(const MemoryObject *mo, const ObjectState *os,
                                   uint64_t src_address) {
-  auto address = reinterpret_cast<std::uint8_t*>(src_address);
+  auto address = reinterpret_cast<std::uint8_t *>(src_address);
   if (memcmp(address, os->concreteStore, mo->size) != 0) {
     if (os->readOnly) {
       return false;
@@ -425,7 +427,7 @@ bool AddressSpace::copyInConcrete(const MemoryObject *mo, const ObjectState *os,
 
 /***/
 
-bool MemoryObjectLT::operator()(const MemoryObject *a, const MemoryObject *b) const {
+bool MemoryObjectLT::operator()(const MemoryObject *a,
+                                const MemoryObject *b) const {
   return a->address < b->address;
 }
-

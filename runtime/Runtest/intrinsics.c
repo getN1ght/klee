@@ -66,10 +66,8 @@ void recursively_allocate(KTestObject *obj, size_t index, void *addr,
                            obj->pointers[i].index, 0, 1);
     }
     void *offset_addr = (void *)(addresses[index] + (obj->pointers[i].offset));
-    memcpy(offset_addr,
-           &addresses[obj->pointers[i].index],
-           sizeof(void *));
-    *((char*) offset_addr) += obj->pointers[i].indexOffset;
+    memcpy(offset_addr, &addresses[obj->pointers[i].index], sizeof(void *));
+    *((char *)offset_addr) += obj->pointers[i].indexOffset;
   }
   return;
 }
@@ -111,11 +109,13 @@ void klee_make_symbolic(void *array, size_t nbytes, const char *name) {
     char *name = getenv("KTEST_FILE");
 
     if (!name) {
-      fprintf(stdout, "KLEE-RUNTIME: KTEST_FILE not set, please enter .ktest path: ");
+      fprintf(stdout,
+              "KLEE-RUNTIME: KTEST_FILE not set, please enter .ktest path: ");
       fflush(stdout);
       name = tmp;
       if (!fgets(tmp, sizeof tmp, stdin) || !strlen(tmp)) {
-        fprintf(stderr, "KLEE-RUNTIME: cannot replay, no KTEST_FILE or user input\n");
+        fprintf(stderr,
+                "KLEE-RUNTIME: cannot replay, no KTEST_FILE or user input\n");
         exit(1);
       }
       tmp[strlen(tmp) - 1] = '\0'; /* kill newline */

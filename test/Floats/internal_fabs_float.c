@@ -7,8 +7,8 @@
 #include <assert.h>
 #include <float.h>
 #include <math.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 int main() {
   // -ve
@@ -65,7 +65,7 @@ int main() {
   assert(isinf(x) == 1);
 
   // -Infinity
-  x = - INFINITY;
+  x = -INFINITY;
   assert(signbit(x));
   result = klee_abs_float(x);
   assert(isinf(x) == -1);

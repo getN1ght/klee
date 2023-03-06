@@ -120,8 +120,7 @@ bool ValidatingSolver::computeInitialValues(
     for (auto const &constraint : query.constraints)
       constraints = AndExpr::create(constraints, constraint);
 
-    if (!oracle->impl->computeTruth(
-            Query(bindings, constraints), answer))
+    if (!oracle->impl->computeTruth(Query(bindings, constraints), answer))
       return false;
     if (!answer)
       assert(0 && "invalid solver result (computeInitialValues)");
@@ -150,7 +149,7 @@ bool ValidatingSolver::check(const Query &query, ref<SolverResponse> &result) {
   if (isa<InvalidResponse>(result)) {
     // Assert the bindings as constraints, and verify that the
     // conjunction of the actual constraints is satisfiable.
-    
+
     ConstraintSet bindings;
     std::map<const Array *, SparseStorage<unsigned char>> initialValues;
     cast<InvalidResponse>(result)->tryGetInitialValues(initialValues);
@@ -176,8 +175,7 @@ bool ValidatingSolver::check(const Query &query, ref<SolverResponse> &result) {
     for (auto const &constraint : query.constraints)
       constraints = AndExpr::create(constraints, constraint);
 
-    if (!oracle->impl->computeTruth(
-            Query(bindings, constraints), banswer))
+    if (!oracle->impl->computeTruth(Query(bindings, constraints), banswer))
       return false;
     if (!banswer)
       assert(0 && "invalid solver result (computeInitialValues)");
@@ -225,4 +223,4 @@ void ValidatingSolver::setCoreSolverTimeout(time::Span timeout) {
 Solver *createValidatingSolver(Solver *s, Solver *oracle) {
   return new Solver(new ValidatingSolver(s, oracle));
 }
-}
+} // namespace klee

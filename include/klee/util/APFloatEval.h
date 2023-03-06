@@ -14,11 +14,11 @@
 
 namespace klee {
 
-    llvm::APFloat evalSqrt(const llvm::APFloat &v, llvm::APFloat::roundingMode rm);
+llvm::APFloat evalSqrt(const llvm::APFloat &v, llvm::APFloat::roundingMode rm);
 
 #if defined(__x86_64__) || defined(__i386__)
-    long double GetNativeX87FP80FromLLVMAPInt(const llvm::APInt &apint);
-    llvm::APInt GetAPIntFromLongDouble(long double ld);
+long double GetNativeX87FP80FromLLVMAPInt(const llvm::APInt &apint);
+llvm::APInt GetAPIntFromLongDouble(long double ld);
 #endif
-}
+} // namespace klee
 #endif

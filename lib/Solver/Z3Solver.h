@@ -16,10 +16,7 @@
 #define Z3_FALSE false
 
 namespace klee {
-enum Z3BuilderType {
-    KLEE_CORE,
-    KLEE_BITVECTOR
-};
+enum Z3BuilderType { KLEE_CORE, KLEE_BITVECTOR };
 
 /// Z3Solver - A complete solver based on Z3
 class Z3Solver : public Solver {
@@ -36,6 +33,6 @@ public:
   /// is off.
   virtual void setCoreSolverTimeout(time::Span timeout);
 };
-}
+} // namespace klee
 
 #endif /* KLEE_Z3SOLVER_H */
