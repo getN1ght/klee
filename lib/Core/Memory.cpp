@@ -156,8 +156,7 @@ ObjectState::ObjectState(const MemoryObject *mo, const ObjectState &os)
     }
   }
 
-  memcpy(concreteStore, os.concreteStore,
-         copyingRange * sizeof(*concreteStore));
+  memcpy(concreteStore, os.concreteStore, copyingRange * sizeof(*concreteStore));
   // FIXME: 0xAB is a magical number here... Move to constant.
   memset(reinterpret_cast<char *>(concreteStore) +
              copyingRange * sizeof(*concreteStore),
