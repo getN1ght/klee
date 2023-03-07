@@ -119,7 +119,10 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
         brokenSymcreteArrays.push_back(sizeSource->linkedArray);
 
         wereConcretizationsRemoved = true;
-        brokenSizes.push_back(Expr::createTempRead(brokenArray, Expr::Int64));
+        Expr::Width sizeWidth =
+            cast<ConstantExpr>(brokenArray->getSize())->getZExtValue() *
+            CHAR_BIT;
+        brokenSizes.push_back(Expr::createTempRead(brokenArray, sizeWidth));
         // Add symbolic size to the sum that should be minimized.
       }
     }
@@ -170,9 +173,13 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
                   brokenSymcreteArrays[idx]->source)) {
         const Array *dependentAddressArray = allocSource->linkedArray;
 
+        Expr::Width sizeWidth =
+            cast<ConstantExpr>(brokenSymcreteArrays[idx]->getSize())
+                ->getZExtValue() *
+            CHAR_BIT;
         uint64_t newSize =
             cast<ConstantExpr>(assignment.evaluate(Expr::createTempRead(
-                                   brokenSymcreteArrays[idx], 64)))
+                                   brokenSymcreteArrays[idx], sizeWidth)))
                 ->getZExtValue();
 
         void *address =
