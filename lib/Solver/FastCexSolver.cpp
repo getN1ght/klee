@@ -10,6 +10,7 @@
 #define DEBUG_TYPE "cex-solver"
 #include "klee/Solver/Solver.h"
 
+#include "klee/ADT/SparseStorage.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprEvaluator.h"
@@ -118,7 +119,9 @@ static uint64_t maxAND(uint64_t a, uint64_t b, uint64_t c, uint64_t d) {
 
 class ValueRange {
 private:
-  std::uint64_t m_min = 1, m_max = 0;
+  llvm::APInt m_min, m_max;
+
+  // std::uint64_t m_min = 1, m_max = 0;
 
 public:
   ValueRange() noexcept = default;
@@ -328,45 +331,42 @@ class CexObjectData {
   ///
   /// The possible values is an inexact approximation for the set of values for
   /// each array location.
-  std::vector<CexValueData> possibleContents;
+  SparseStorage<CexValueData> possibleContents;
 
   /// exactContents - An array of exact values for the object.
   ///
   /// The exact values are a conservative approximation for the set of values
   /// for each array location.
-  std::vector<CexValueData> exactContents;
+  SparseStorage<CexValueData> exactContents;
 
   CexObjectData(const CexObjectData &);  // DO NOT IMPLEMENT
   void operator=(const CexObjectData &); // DO NOT IMPLEMENT
 
 public:
-  CexObjectData(uint64_t size) : possibleContents(size), exactContents(size) {
-    for (uint64_t i = 0; i != size; ++i) {
-      possibleContents[i] = ValueRange(0, 255);
-      exactContents[i] = ValueRange(0, 255);
-    }
-  }
+  CexObjectData(uint64_t size)
+      : possibleContents(size, ValueRange(0, 255)),
+        exactContents(size, ValueRange(0, 255)) {}
 
   const CexValueData getPossibleValues(size_t index) const {
-    return possibleContents[index];
+    return possibleContents.load(index);
   }
   void setPossibleValues(size_t index, CexValueData values) {
-    possibleContents[index] = values;
+    possibleContents.store(index, values);
   }
   void setPossibleValue(size_t index, unsigned char value) {
-    possibleContents[index] = CexValueData(value);
+    possibleContents.store(index, CexValueData(value));
   }
 
   const CexValueData getExactValues(size_t index) const {
-    return exactContents[index];
+    return exactContents.load(index);
   }
   void setExactValues(size_t index, CexValueData values) {
-    exactContents[index] = values;
+    exactContents.store(index, values);
   }
 
   /// getPossibleValue - Return some possible value.
   unsigned char getPossibleValue(size_t index) const {
-    const CexValueData &cvd = possibleContents[index];
+    CexValueData cvd = possibleContents.load(index);
     return cvd.min() + (cvd.max() - cvd.min()) / 2;
   }
 };
@@ -400,13 +400,8 @@ protected:
     // If the index is out of range, we cannot assign it a value, since that
     // value cannot be part of the assignment.
     ref<ConstantExpr> constantArraySize = dyn_cast<ConstantExpr>(array.size);
-    if (!constantArraySize) {
-      klee_error(
-          "FIXME: Arrays of symbolic sizes are unsupported in FastCex\n");
-      std::abort();
-    }
 
-    if (index >= constantArraySize->getZExtValue()) {
+    if (!constantArraySize || index >= constantArraySize->getZExtValue()) {
       return ReadExpr::create(UpdateList(&array, 0),
                               ConstantExpr::alloc(index, array.getDomain()));
     }
@@ -430,13 +425,8 @@ protected:
     // If the index is out of range, we cannot assign it a value, since that
     // value cannot be part of the assignment.
     ref<ConstantExpr> constantArraySize = dyn_cast<ConstantExpr>(array.size);
-    if (!constantArraySize) {
-      klee_error(
-          "FIXME: Arrays of symbolic sizes are unsupported in FastCex\n");
-      std::abort();
-    }
 
-    if (index >= constantArraySize->getZExtValue()) {
+    if (!constantArraySize || index >= constantArraySize->getZExtValue()) {
       return ReadExpr::create(UpdateList(&array, 0),
                               ConstantExpr::alloc(index, array.getDomain()));
     }
@@ -483,9 +473,7 @@ public:
 
     ref<ConstantExpr> constantArraySize = dyn_cast<ConstantExpr>(A->size);
     if (!constantArraySize) {
-      klee_error(
-          "FIXME: Arrays of symbolic sizes are unsupported in FastCex\n");
-      std::abort();
+      constantArraySize = ConstantExpr::create(0, A->size->getWidth());
     }
 
     if (!Entry)

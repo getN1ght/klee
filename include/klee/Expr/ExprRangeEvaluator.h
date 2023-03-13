@@ -263,6 +263,9 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     }
     break;
   }
+  case Expr::ZExt: {
+    return evaluate(e->getKid(0));
+  }
 
   case Expr::Ne:
   case Expr::Ugt:
