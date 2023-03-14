@@ -19,8 +19,8 @@
 #include "klee/Solver/IncompleteSolver.h"
 #include "klee/Support/Debug.h"
 #include "klee/Support/ErrorHandling.h"
-#include "klee/Support/IntEvaluation.h" // FIXME: Use APInt
 
+#include "llvm/ADT/APInt.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
@@ -31,85 +31,95 @@
 using namespace klee;
 
 // Hacker's Delight, pgs 58-63
-static uint64_t minOR(uint64_t a, uint64_t b, uint64_t c, uint64_t d) {
-  uint64_t temp, m = ((uint64_t)1) << 63;
-  while (m) {
-    if (~a & c & m) {
-      temp = (a | m) & -m;
-      if (temp <= b) {
+static llvm::APInt minOR(llvm::APInt a, llvm::APInt b, llvm::APInt c,
+                         llvm::APInt d) {
+  assert(a.getBitWidth() == c.getBitWidth());
+
+  llvm::APInt m =
+      llvm::APInt::getOneBitSet(a.getBitWidth(), a.getBitWidth() - 1);
+  while (!m.isNullValue()) {
+    if (!(a.byteSwap() & c & m).isNullValue()) {
+      llvm::APInt temp = (a | m) & -m;
+      if (temp.ule(b)) {
         a = temp;
         break;
       }
-    } else if (a & ~c & m) {
-      temp = (c | m) & -m;
-      if (temp <= d) {
+    } else if (!(a & c.byteSwap() & m).isNullValue()) {
+      llvm::APInt temp = (c | m) & -m;
+      if (temp.ule(d)) {
         c = temp;
         break;
       }
     }
-    m >>= 1;
+    m = m.lshr(1);
   }
 
   return a | c;
 }
-static uint64_t maxOR(uint64_t a, uint64_t b, uint64_t c, uint64_t d) {
-  uint64_t temp, m = ((uint64_t)1) << 63;
+static llvm::APInt maxOR(llvm::APInt a, llvm::APInt b, llvm::APInt c, llvm::APInt d) {
+  llvm::APInt m =
+      llvm::APInt::getOneBitSet(a.getBitWidth(), a.getBitWidth() - 1);
 
-  while (m) {
-    if (b & d & m) {
-      temp = (b - m) | (m - 1);
-      if (temp >= a) {
+  while (!m.isNullValue()) {
+    if (!(b & d & m).isNullValue()) {
+      llvm::APInt temp = (b - m) | (m - 1);
+      if (temp.uge(a)) {
         b = temp;
         break;
       }
       temp = (d - m) | (m - 1);
-      if (temp >= c) {
+      if (temp.uge(c)) {
         d = temp;
         break;
       }
     }
-    m >>= 1;
+    m = m.lshr(1);
   }
 
   return b | d;
 }
-static uint64_t minAND(uint64_t a, uint64_t b, uint64_t c, uint64_t d) {
-  uint64_t temp, m = ((uint64_t)1) << 63;
-  while (m) {
-    if (~a & ~c & m) {
-      temp = (a | m) & -m;
-      if (temp <= b) {
+
+static llvm::APInt minAND(llvm::APInt a, llvm::APInt b, llvm::APInt c, llvm::APInt d) {
+  llvm::APInt m =
+      llvm::APInt::getOneBitSet(a.getBitWidth(), a.getBitWidth() - 1);
+
+  while (!m.isNullValue()) {
+    if ((a.byteSwap() & c.byteSwap() & m).isNullValue()) {
+      llvm::APInt temp = (a | m) & -m;
+      if (temp.ule(b)) {
         a = temp;
         break;
       }
       temp = (c | m) & -m;
-      if (temp <= d) {
+      if (temp.ule(d)) {
         c = temp;
         break;
       }
     }
-    m >>= 1;
+    m = m.lshr(1);
   }
 
   return a & c;
 }
-static uint64_t maxAND(uint64_t a, uint64_t b, uint64_t c, uint64_t d) {
-  uint64_t temp, m = ((uint64_t)1) << 63;
-  while (m) {
-    if (b & ~d & m) {
-      temp = (b & ~m) | (m - 1);
-      if (temp >= a) {
+static llvm::APInt maxAND(llvm::APInt a, llvm::APInt b, llvm::APInt c, llvm::APInt d) {
+  llvm::APInt m =
+      llvm::APInt::getOneBitSet(a.getBitWidth(), a.getBitWidth() - 1);
+
+  while (!m.isNullValue()) {
+    if ((b & d.byteSwap() & m).isNullValue()) {
+      llvm::APInt temp = (b & ~m) | (m - 1);
+      if (temp.uge(a)) {
         b = temp;
         break;
       }
-    } else if (~b & d & m) {
-      temp = (d & ~m) | (m - 1);
-      if (temp >= c) {
+    } else if (!(b.byteSwap() & d & m).isNullValue()) {
+      llvm::APInt temp = (d & m.byteSwap()) | (m - 1);
+      if (temp.uge(c)) {
         d = temp;
         break;
       }
     }
-    m >>= 1;
+    m = m.lshr(1);
   }
 
   return b & d;
@@ -121,17 +131,15 @@ class ValueRange {
 private:
   llvm::APInt m_min, m_max;
 
-  // std::uint64_t m_min = 1, m_max = 0;
-
 public:
   ValueRange() noexcept = default;
   ValueRange(const ref<ConstantExpr> &ce) {
     // FIXME: Support large widths.
     m_min = m_max = ce->getLimitedValue();
   }
-  explicit ValueRange(std::uint64_t value) noexcept
+  explicit ValueRange(const llvm::APInt &value) noexcept
       : m_min(value), m_max(value) {}
-  ValueRange(std::uint64_t _min, std::uint64_t _max) noexcept
+  ValueRange(const llvm::APInt &_min, const llvm::APInt &_max) noexcept
       : m_min(_min), m_max(_max) {}
   ValueRange(const ValueRange &other) noexcept = default;
   ValueRange &operator=(const ValueRange &other) noexcept = default;
@@ -146,8 +154,8 @@ public:
     }
   }
 
-  bool isEmpty() const noexcept { return m_min > m_max; }
-  bool contains(std::uint64_t value) const {
+  bool isEmpty() const noexcept { return m_min.ugt(m_max); }
+  bool contains(const llvm::APInt &value) const {
     return this->intersects(ValueRange(value));
   }
   bool intersects(const ValueRange &b) const {
@@ -155,24 +163,28 @@ public:
   }
 
   bool isFullRange(unsigned bits) const noexcept {
-    return m_min == 0 && m_max == bits64::maxValueOfNBits(bits);
+    return m_min == 0 && m_max == llvm::APInt::getAllOnesValue(bits);
   }
 
   ValueRange set_intersection(const ValueRange &b) const {
-    return ValueRange(std::max(m_min, b.m_min), std::min(m_max, b.m_max));
+    return ValueRange(llvm::APIntOps::umax(m_min, b.m_min),
+                      llvm::APIntOps::umin(m_max, b.m_max));
   }
   ValueRange set_union(const ValueRange &b) const {
-    return ValueRange(std::min(m_min, b.m_min), std::max(m_max, b.m_max));
+    return ValueRange(llvm::APIntOps::umin(m_min, b.m_min),
+                      llvm::APIntOps::umax(m_max, b.m_max));
   }
   ValueRange set_difference(const ValueRange &b) const {
-    if (b.isEmpty() || b.m_min > m_max || b.m_max < m_min) { // no intersection
+    if (b.isEmpty() || b.m_min.ugt(m_max) ||
+        b.m_max.ult(m_min)) { // no intersection
       return *this;
-    } else if (b.m_min <= m_min && b.m_max >= m_max) { // empty
-      return ValueRange(1, 0);
-    } else if (b.m_min <= m_min) { // one range out
+    } else if (b.m_min.ule(m_min) && b.m_max.uge(m_max)) { // empty
+      return ValueRange(llvm::APInt::getOneBitSet(m_min.getBitWidth(), 0),
+                        llvm::APInt::getNullValue(m_min.getBitWidth()));
+    } else if (b.m_min.ule(m_min)) { // one range out
       // cannot overflow because b.m_max < m_max
       return ValueRange(b.m_max + 1, m_max);
-    } else if (b.m_max >= m_max) {
+    } else if (b.m_max.uge(m_max)) {
       // cannot overflow because b.min > m_min
       return ValueRange(m_min, b.m_min - 1);
     } else {
@@ -190,7 +202,7 @@ public:
                         maxAND(m_min, m_max, b.m_min, b.m_max));
     }
   }
-  ValueRange binaryAnd(std::uint64_t b) const {
+  ValueRange binaryAnd(const llvm::APInt &b) const {
     return binaryAnd(ValueRange(b));
   }
   ValueRange binaryOr(ValueRange b) const {
@@ -203,15 +215,18 @@ public:
                         maxOR(m_min, m_max, b.m_min, b.m_max));
     }
   }
-  ValueRange binaryOr(std::uint64_t b) const { return binaryOr(ValueRange(b)); }
+  ValueRange binaryOr(const llvm::APInt &b) const { return binaryOr(ValueRange(b)); }
   ValueRange binaryXor(ValueRange b) const {
     if (isFixed() && b.isFixed()) {
       return ValueRange(m_min ^ b.m_min);
     } else {
-      std::uint64_t t = m_max | b.m_max;
-      while (!bits64::isPowerOfTwo(t))
-        t = bits64::withoutRightmostBit(t);
-      return ValueRange(0, (t << 1) - 1);
+      llvm::APInt t = m_max | b.m_max;
+      if (!t.isPowerOf2()) {
+        t = llvm::APInt::getOneBitSet(t.getBitWidth(),
+                                      t.getBitWidth() - t.countLeadingZeros());
+      }
+      return ValueRange(llvm::APInt::getNullValue(t.getBitWidth()),
+                        (t << 1) - 1);
     }
   }
 
@@ -219,7 +234,7 @@ public:
     return ValueRange(m_min << bits, m_max << bits);
   }
   ValueRange binaryShiftRight(unsigned bits) const {
-    return ValueRange(m_min >> bits, m_max >> bits);
+    return ValueRange(m_min.lshr(bits), m_max.lshr(bits));
   }
 
   ValueRange concat(const ValueRange &b, unsigned bits) const {
@@ -227,29 +242,29 @@ public:
   }
   ValueRange extract(std::uint64_t lowBit, std::uint64_t maxBit) const {
     return binaryShiftRight(lowBit).binaryAnd(
-        bits64::maxValueOfNBits(maxBit - lowBit));
+        llvm::APInt::getAllOnesValue(maxBit - lowBit));
   }
 
   ValueRange add(const ValueRange &b, unsigned width) const {
-    return ValueRange(0, bits64::maxValueOfNBits(width));
+    return ValueRange(llvm::APInt::getNullValue(width), llvm::APInt::getAllOnesValue(width));
   }
   ValueRange sub(const ValueRange &b, unsigned width) const {
-    return ValueRange(0, bits64::maxValueOfNBits(width));
+    return ValueRange(llvm::APInt::getNullValue(width), llvm::APInt::getAllOnesValue(width));
   }
   ValueRange mul(const ValueRange &b, unsigned width) const {
-    return ValueRange(0, bits64::maxValueOfNBits(width));
+    return ValueRange(llvm::APInt::getNullValue(width), llvm::APInt::getAllOnesValue(width));
   }
   ValueRange udiv(const ValueRange &b, unsigned width) const {
-    return ValueRange(0, bits64::maxValueOfNBits(width));
+    return ValueRange(llvm::APInt::getNullValue(width), llvm::APInt::getAllOnesValue(width));
   }
   ValueRange sdiv(const ValueRange &b, unsigned width) const {
-    return ValueRange(0, bits64::maxValueOfNBits(width));
+    return ValueRange(llvm::APInt::getNullValue(width), llvm::APInt::getAllOnesValue(width));
   }
   ValueRange urem(const ValueRange &b, unsigned width) const {
-    return ValueRange(0, bits64::maxValueOfNBits(width));
+    return ValueRange(llvm::APInt::getNullValue(width), llvm::APInt::getAllOnesValue(width));
   }
   ValueRange srem(const ValueRange &b, unsigned width) const {
-    return ValueRange(0, bits64::maxValueOfNBits(width));
+    return ValueRange(llvm::APInt::getNullValue(width), llvm::APInt::getAllOnesValue(width));
   }
 
   // use min() to get value if true (XXX should we add a method to
@@ -261,11 +276,11 @@ public:
   }
   bool operator!=(const ValueRange &b) const noexcept { return !(*this == b); }
 
-  bool mustEqual(const std::uint64_t b) const noexcept {
+  bool mustEqual(const llvm::APInt &b) const noexcept {
     return m_min == m_max && m_min == b;
   }
-  bool mayEqual(const std::uint64_t b) const noexcept {
-    return m_min <= b && m_max >= b;
+  bool mayEqual(const llvm::APInt &b) const noexcept {
+    return m_min.ule(b) && m_max.uge(b);
   }
 
   bool mustEqual(const ValueRange &b) const noexcept {
@@ -273,18 +288,18 @@ public:
   }
   bool mayEqual(const ValueRange &b) const { return this->intersects(b); }
 
-  std::uint64_t min() const noexcept {
+  llvm::APInt min() const noexcept {
     assert(!isEmpty() && "cannot get minimum of empty range");
     return m_min;
   }
 
-  std::uint64_t max() const noexcept {
+  llvm::APInt max() const noexcept {
     assert(!isEmpty() && "cannot get maximum of empty range");
     return m_max;
   }
 
-  std::int64_t minSigned(unsigned bits) const {
-    assert((m_min >> bits) == 0 && (m_max >> bits) == 0 &&
+  llvm::APInt minSigned(unsigned bits) const {
+    assert((m_min.lshr(bits)) == 0 && (m_max.lshr(bits)) == 0 &&
            "range is outside given number of bits");
 
     // if max allows sign bit to be set then it can be smallest value,
@@ -292,15 +307,15 @@ public:
     // bit
 
     std::uint64_t smallest = (static_cast<std::uint64_t>(1) << (bits - 1));
-    if (m_max >= smallest) {
-      return ints::sext(smallest, 64, bits);
+    if (m_max.uge(smallest)) {
+      return m_max.sext(bits);
     } else {
       return m_min;
     }
   }
 
-  std::int64_t maxSigned(unsigned bits) const {
-    assert((m_min >> bits) == 0 && (m_max >> bits) == 0 &&
+  llvm::APInt maxSigned(unsigned bits) const {
+    assert((m_min.lshr(bits)) == 0 && (m_max.lshr(bits)) == 0 &&
            "range is outside given number of bits");
 
     std::uint64_t smallest = (static_cast<std::uint64_t>(1) << (bits - 1));
@@ -309,10 +324,11 @@ public:
     // max has sign bit then max is largest signed integer, otherwise
     // max is max
 
-    if (m_min < smallest && m_max >= smallest) {
-      return smallest - 1;
+    if (m_min.ult(smallest) && m_max.uge(smallest)) {
+      return llvm::APInt::getAllOnesValue(bits);
     } else {
-      return ints::sext(m_max, 64, bits);
+      // FIXME: THIS IS INCORRECT ???
+      return m_max.sext(bits);
     }
   }
 };
@@ -344,16 +360,20 @@ class CexObjectData {
 
 public:
   CexObjectData(uint64_t size)
-      : possibleContents(size, ValueRange(0, 255)),
-        exactContents(size, ValueRange(0, 255)) {}
+      : possibleContents(size,
+                         ValueRange(llvm::APInt::getNullValue(CHAR_BIT),
+                                    llvm::APInt::getAllOnesValue(CHAR_BIT))),
+        exactContents(size,
+                      ValueRange(llvm::APInt::getNullValue(CHAR_BIT),
+                                 llvm::APInt::getAllOnesValue(CHAR_BIT))) {}
 
   const CexValueData getPossibleValues(size_t index) const {
     return possibleContents.load(index);
   }
-  void setPossibleValues(size_t index, CexValueData values) {
+  void setPossibleValues(size_t index, const CexValueData &values) {
     possibleContents.store(index, values);
   }
-  void setPossibleValue(size_t index, unsigned char value) {
+  void setPossibleValue(size_t index, const llvm::APInt &value) {
     possibleContents.store(index, CexValueData(value));
   }
 
@@ -365,9 +385,9 @@ public:
   }
 
   /// getPossibleValue - Return some possible value.
-  unsigned char getPossibleValue(size_t index) const {
+  llvm::APInt getPossibleValue(size_t index) const {
     CexValueData cvd = possibleContents.load(index);
-    return cvd.min() + (cvd.max() - cvd.min()) / 2;
+    return cvd.min() + (cvd.max() - cvd.min()).lshr(1);
   }
 };
 
@@ -381,16 +401,18 @@ public:
     // Check for a concrete read of a constant array.
     if (array.isConstantArray() && index.isFixed()) {
       if (isa<ConstantSource>(array.source) &&
-          index.min() < array.constantValues.size()) {
-        return ValueRange(array.constantValues[index.min()]->getZExtValue(8));
+          index.min().getZExtValue() < array.constantValues.size()) {
+        return ValueRange(array.constantValues[index.min().getZExtValue()]->getAPValue());
       } else if (ref<ConstantWithSymbolicSizeSource>
                      constantWithSymbolicSizeSource =
                          dyn_cast<ConstantWithSymbolicSizeSource>(
                              array.source)) {
-        return ValueRange(constantWithSymbolicSizeSource->defaultValue);
+        return ValueRange(llvm::APInt(
+            CHAR_BIT, constantWithSymbolicSizeSource->defaultValue));
       }
     }
-    return ValueRange(0, 255);
+    return ValueRange(llvm::APInt::getNullValue(CHAR_BIT),
+                      llvm::APInt::getAllOnesValue(CHAR_BIT));
   }
 };
 
@@ -409,7 +431,9 @@ protected:
     std::map<const Array *, CexObjectData *>::iterator it =
         objects.find(&array);
     return ConstantExpr::alloc(
-        (it == objects.end() ? 127 : it->second->getPossibleValue(index)),
+        (it == objects.end()
+             ? 127
+             : it->second->getPossibleValue(index).getZExtValue()),
         array.getRange());
   }
 
@@ -442,7 +466,7 @@ protected:
       return ReadExpr::create(UpdateList(&array, 0),
                               ConstantExpr::alloc(index, array.getDomain()));
 
-    return ConstantExpr::alloc(cvd.min(), array.getRange());
+    return ConstantExpr::create(cvd.min().getZExtValue(), array.getRange());
   }
 
 public:
@@ -482,12 +506,12 @@ public:
     return *Entry;
   }
 
-  void propogatePossibleValue(ref<Expr> e, uint64_t value) {
-    propogatePossibleValues(e, CexValueData(value, value));
+  void propogatePossibleValue(ref<Expr> e, const llvm::APInt &value) {
+    propogatePossibleValues(e, CexValueData(value));
   }
 
-  void propogateExactValue(ref<Expr> e, uint64_t value) {
-    propogateExactValues(e, CexValueData(value, value));
+  void propogateExactValue(ref<Expr> e, const llvm::APInt &value) {
+    propogateExactValues(e, CexValueData(value));
   }
 
   void propogatePossibleValues(ref<Expr> e, CexValueData range) {
@@ -542,7 +566,7 @@ public:
       SelectExpr *se = cast<SelectExpr>(e);
       ValueRange cond = evalRangeForExpr(se->cond);
       if (cond.isFixed()) {
-        if (cond.min()) {
+        if (cond.min().getBoolValue()) {
           propogatePossibleValues(se->trueExpr, range);
         } else {
           propogatePossibleValues(se->falseExpr, range);
@@ -611,7 +635,8 @@ public:
       CastExpr *ce = cast<CastExpr>(e);
       unsigned inBits = ce->src->getWidth();
       ValueRange input = range.set_intersection(
-          ValueRange(0, bits64::maxValueOfNBits(inBits)));
+          ValueRange(llvm::APInt::getNullValue(inBits),
+                     llvm::APInt::getAllOnesValue(inBits)));
       propogatePossibleValues(ce->src, input);
       break;
     }
@@ -625,7 +650,7 @@ public:
       ValueRange output = range.set_difference(ValueRange(
           1 << (inBits - 1), (bits64::maxValueOfNBits(outBits) -
                               bits64::maxValueOfNBits(inBits - 1) - 1)));
-      ValueRange input = output.binaryAnd(bits64::maxValueOfNBits(inBits));
+      ValueRange input = output.binaryAnd(llvm::APInt::getAllOnesValue(inBits));
       propogatePossibleValues(ce->src, input);
       break;
     }
@@ -635,20 +660,17 @@ public:
     case Expr::Add: {
       BinaryExpr *be = cast<BinaryExpr>(e);
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(be->left)) {
-        // FIXME: Don't depend on width.
-        if (CE->getWidth() <= 64) {
-          // FIXME: Why do we ever propogate empty ranges? It doesn't make
-          // sense.
-          if (range.isEmpty())
-            break;
+        // FIXME: Why do we ever propogate empty ranges? It doesn't make
+        // sense.
+        if (range.isEmpty())
+          break;
 
-          // C_0 + X \in [MIN, MAX) ==> X \in [MIN - C_0, MAX - C_0)
-          Expr::Width W = CE->getWidth();
-          CexValueData nrange(
-              ConstantExpr::alloc(range.min(), W)->Sub(CE)->getZExtValue(),
-              ConstantExpr::alloc(range.max(), W)->Sub(CE)->getZExtValue());
-          if (!nrange.isEmpty())
-            propogatePossibleValues(be->right, nrange);
+        // C_0 + X \in [MIN, MAX) ==> X \in [MIN - C_0, MAX - C_0)
+        Expr::Width W = CE->getWidth();
+        CexValueData nrange(range.min() - CE->getAPValue(),
+                            range.max() - CE->getAPValue());
+        if (!nrange.isEmpty()) {
+          propogatePossibleValues(be->right, nrange);
         }
       }
       break;
@@ -662,23 +684,31 @@ public:
           ValueRange right = evalRangeForExpr(be->right);
 
           if (!range.min()) {
-            if (left.mustEqual(0) || right.mustEqual(0)) {
+            if (left.mustEqual(llvm::APInt::getNullValue(be->getWidth())) ||
+                right.mustEqual(llvm::APInt::getNullValue(be->getWidth()))) {
               // all is well
             } else {
               // XXX heuristic, which order
 
-              propogatePossibleValue(be->left, 0);
+              propogatePossibleValue(
+                  be->left, llvm::APInt::getNullValue(be->left->getWidth()));
               left = evalRangeForExpr(be->left);
 
               // see if that worked
-              if (!left.mustEqual(1))
-                propogatePossibleValue(be->right, 0);
+              if (!left.mustEqual(llvm::APInt(be->left->getWidth(), 1))) {
+                propogatePossibleValue(
+                    be->right, llvm::APInt::getNullValue(be->left->getWidth()));
+              }
             }
           } else {
-            if (!left.mustEqual(1))
-              propogatePossibleValue(be->left, 1);
-            if (!right.mustEqual(1))
-              propogatePossibleValue(be->right, 1);
+            llvm::APInt leftAPIntOne = llvm::APInt(be->left->getWidth(), 1);
+            if (!left.mustEqual(leftAPIntOne)) {
+              propogatePossibleValue(be->left, leftAPIntOne);
+            }
+            llvm::APInt rightAPIntOne = llvm::APInt(be->right->getWidth(), 1);
+            if (!right.mustEqual(rightAPIntOne)) {
+              propogatePossibleValue(be->right, rightAPIntOne);
+            }
           }
         }
       } else {
@@ -694,25 +724,29 @@ public:
           ValueRange left = evalRangeForExpr(be->left);
           ValueRange right = evalRangeForExpr(be->right);
 
-          if (range.min()) {
-            if (left.mustEqual(1) || right.mustEqual(1)) {
+          llvm::APInt zeroAPInt =
+              llvm::APInt::getNullValue(be->left->getWidth());
+          llvm::APInt oneAPInt = llvm::APInt(be->left->getWidth(), 1);
+
+          if (range.min().getBoolValue()) {
+            if (left.mustEqual(oneAPInt) || right.mustEqual(oneAPInt)) {
               // all is well
             } else {
               // XXX heuristic, which order?
 
               // force left to value we need
-              propogatePossibleValue(be->left, 1);
+              propogatePossibleValue(be->left, oneAPInt);
               left = evalRangeForExpr(be->left);
 
               // see if that worked
-              if (!left.mustEqual(1))
-                propogatePossibleValue(be->right, 1);
+              if (!left.mustEqual(oneAPInt))
+                propogatePossibleValue(be->right, oneAPInt);
             }
           } else {
-            if (!left.mustEqual(0))
-              propogatePossibleValue(be->left, 0);
-            if (!right.mustEqual(0))
-              propogatePossibleValue(be->right, 0);
+            if (!left.mustEqual(zeroAPInt))
+              propogatePossibleValue(be->left, zeroAPInt);
+            if (!right.mustEqual(zeroAPInt))
+              propogatePossibleValue(be->right, zeroAPInt);
           }
         }
       } else {
@@ -730,25 +764,22 @@ public:
       BinaryExpr *be = cast<BinaryExpr>(e);
       if (range.isFixed()) {
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(be->left)) {
-          // FIXME: Handle large widths?
-          if (CE->getWidth() <= 64) {
-            uint64_t value = CE->getZExtValue();
-            if (range.min()) {
-              propogatePossibleValue(be->right, value);
-            } else {
-              CexValueData range;
-              if (value == 0) {
-                range =
-                    CexValueData(1, bits64::maxValueOfNBits(CE->getWidth()));
-              } else {
-                // FIXME: heuristic / lossy, could be better to pick larger
-                // range?
-                range = CexValueData(0, value - 1);
-              }
-              propogatePossibleValues(be->right, range);
-            }
+          llvm::APInt value = CE->getAPValue();
+          if (range.min().getBoolValue()) {
+            propogatePossibleValue(be->right, value);
           } else {
-            // XXX what now
+            CexValueData range;
+            if (value == 0) {
+              range =
+                  CexValueData(llvm::APInt(CE->getWidth(), 1),
+                               llvm::APInt::getAllOnesValue(CE->getWidth()));
+            } else {
+              // FIXME: heuristic / lossy, could be better to pick larger
+              // range?
+              range = CexValueData(llvm::APInt::getNullValue(CE->getWidth()),
+                                   value - 1);
+            }
+            propogatePossibleValues(be->right, range);
           }
         }
       }
@@ -757,7 +788,8 @@ public:
 
     case Expr::Not: {
       if (e->getWidth() == Expr::Bool && range.isFixed()) {
-        propogatePossibleValue(e->getKid(0), !range.min());
+        propogatePossibleValue(
+            e->getKid(0), llvm::APInt(e->getKid(0)->getWidth(), !range.min()));
       }
       break;
     }
@@ -771,20 +803,26 @@ public:
         ValueRange left = evalRangeForExpr(be->left);
         ValueRange right = evalRangeForExpr(be->right);
 
-        uint64_t maxValue = bits64::maxValueOfNBits(be->right->getWidth());
+        llvm::APInt maxValue = llvm::APInt::getAllOnesValue(be->right->getWidth());
 
         // XXX should deal with overflow (can lead to empty range)
 
         if (left.isFixed()) {
-          if (range.min()) {
+          if (!range.min().isNullValue()) {
             propogatePossibleValues(be->right,
                                     CexValueData(left.min() + 1, maxValue));
           } else {
-            propogatePossibleValues(be->right, CexValueData(0, left.min()));
+            propogatePossibleValues(
+                be->right,
+                CexValueData(llvm::APInt::getNullValue(be->right->getWidth()),
+                             left.min()));
           }
         } else if (right.isFixed()) {
-          if (range.min()) {
-            propogatePossibleValues(be->left, CexValueData(0, right.min() - 1));
+          if (!range.min().isNullValue()) {
+            propogatePossibleValues(
+                be->left,
+                CexValueData(llvm::APInt::getNullValue(be->right->getWidth()),
+                             right.min() - 1));
           } else {
             propogatePossibleValues(be->left,
                                     CexValueData(right.min(), maxValue));
@@ -806,23 +844,30 @@ public:
 
         // XXX should deal with overflow (can lead to empty range)
 
-        uint64_t maxValue = bits64::maxValueOfNBits(be->right->getWidth());
+        llvm::APInt maxValue = llvm::APInt::getAllOnesValue(be->right->getWidth());
         if (left.isFixed()) {
-          if (range.min()) {
+          if (!range.min().isNullValue()) {
             propogatePossibleValues(be->right,
                                     CexValueData(left.min(), maxValue));
           } else {
-            propogatePossibleValues(be->right, CexValueData(0, left.min() - 1));
+            propogatePossibleValues(
+                be->right,
+                CexValueData(llvm::APInt::getNullValue(be->right->getWidth()),
+                             left.min() - 1));
           }
         } else if (right.isFixed()) {
-          if (range.min()) {
-            propogatePossibleValues(be->left, CexValueData(0, right.min()));
+          if (!range.min().isNullValue()) {
+            propogatePossibleValues(
+                be->left,
+                CexValueData(llvm::APInt::getNullValue(be->right->getWidth()),
+                             right.min()));
           } else {
             propogatePossibleValues(be->left,
                                     CexValueData(right.min() + 1, maxValue));
           }
         } else {
           // XXX ???
+          // TODO: we can try to order it!
         }
       }
       break;
@@ -873,20 +918,21 @@ public:
 
       // We reached the initial array write, update the exact range if possible.
       if (index.isFixed()) {
+        // FIXME: ???
         if (array->isConstantArray()) {
           // Verify the range.
-          propogateExactValues(array->constantValues[index.min()], range);
+          propogateExactValues(array->constantValues[index.min().getZExtValue()], range);
         } else {
-          CexValueData cvd = cod.getExactValues(index.min());
-          if (range.min() > cvd.min()) {
-            assert(range.min() <= cvd.max());
+          CexValueData cvd = cod.getExactValues(index.min().getZExtValue());
+          if (range.min().ugt(cvd.min())) {
+            assert(range.min().ule(cvd.max()));
             cvd = CexValueData(range.min(), cvd.max());
           }
-          if (range.max() < cvd.max()) {
-            assert(range.max() >= cvd.min());
+          if (range.max().ult(cvd.max())) {
+            assert(range.max().uge(cvd.min()));
             cvd = CexValueData(cvd.min(), range.max());
           }
-          cod.setExactValues(index.min(), cvd);
+          cod.setExactValues(index.min().getZExtValue(), cvd);
         }
       }
       break;
@@ -934,17 +980,17 @@ public:
       BinaryExpr *be = cast<BinaryExpr>(e);
       if (range.isFixed()) {
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(be->left)) {
-          // FIXME: Handle large widths?
-          if (CE->getWidth() <= 64) {
-            uint64_t value = CE->getZExtValue();
-            if (range.min()) {
-              // If the equality is true, then propogate the value.
-              propogateExactValue(be->right, value);
-            } else {
-              // If the equality is false and the comparison is of booleans,
-              // then we can infer the value to propogate.
-              if (be->right->getWidth() == Expr::Bool)
-                propogateExactValue(be->right, !value);
+          uint64_t value = CE->getZExtValue();
+          if (range.min().getBoolValue()) {
+            // If the equality is true, then propogate the value.
+            propogateExactValue(be->right,
+                                llvm::APInt(be->right->getWidth(), value));
+          } else {
+            // If the equality is false and the comparison is of booleans,
+            // then we can infer the value to propogate.
+            if (be->right->getWidth() == Expr::Bool) {
+              propogateExactValue(be->right,
+                                  llvm::APInt(be->right->getWidth(), !value));
             }
           }
         }
@@ -955,7 +1001,9 @@ public:
     // If a boolean not, and the result is known, propagate it
     case Expr::Not: {
       if (e->getWidth() == Expr::Bool && range.isFixed()) {
-        propogateExactValue(e->getKid(0), !range.min());
+        llvm::APInt propValue =
+            llvm::APInt(e->getWidth(), range.min().getBoolValue());
+        propogateExactValue(e->getKid(0), propValue);
       }
       break;
     }
@@ -1065,12 +1113,14 @@ FastCexSolver::~FastCexSolver() {}
 static bool propogateValues(const Query &query, CexData &cd, bool checkExpr,
                             bool &isValid) {
   for (const auto &constraint : query.constraints) {
-    cd.propogatePossibleValue(constraint, 1);
-    cd.propogateExactValue(constraint, 1);
+    cd.propogatePossibleValue(constraint, llvm::APInt(constraint->getWidth(), 1));
+    cd.propogateExactValue(constraint, llvm::APInt(constraint->getWidth(), 1));
   }
   if (checkExpr) {
-    cd.propogatePossibleValue(query.expr, 0);
-    cd.propogateExactValue(query.expr, 0);
+    cd.propogatePossibleValue(
+        query.expr, llvm::APInt::getNullValue(query.expr->getWidth()));
+    cd.propogateExactValue(query.expr,
+                           llvm::APInt::getNullValue(query.expr->getWidth()));
   }
 
   KLEE_DEBUG(cd.dump());
