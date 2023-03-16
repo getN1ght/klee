@@ -647,9 +647,12 @@ public:
       CastExpr *ce = cast<CastExpr>(e);
       unsigned inBits = ce->src->getWidth();
       unsigned outBits = ce->width;
-      ValueRange output = range.set_difference(ValueRange(
-          1 << (inBits - 1), (bits64::maxValueOfNBits(outBits) -
-                              bits64::maxValueOfNBits(inBits - 1) - 1)));
+
+      ValueRange output = range.set_difference(
+          ValueRange(llvm::APInt::getOneBitSet(outBits, inBits - 1),
+                     (llvm::APInt::getAllOnesValue(outBits) -
+                      llvm::APInt::getLowBitsSet(outBits, inBits - 1) - 1)));
+
       ValueRange input = output.binaryAnd(llvm::APInt::getAllOnesValue(inBits));
       propogatePossibleValues(ce->src, input);
       break;
