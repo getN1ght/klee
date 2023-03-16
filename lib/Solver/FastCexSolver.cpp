@@ -37,14 +37,14 @@ static llvm::APInt minOR(llvm::APInt a, llvm::APInt b, llvm::APInt c,
 
   llvm::APInt m =
       llvm::APInt::getOneBitSet(a.getBitWidth(), a.getBitWidth() - 1);
-  while (!m.isNullValue()) {
-    if (!(a.byteSwap() & c & m).isNullValue()) {
+  while (m.getBoolValue()) {
+    if ((a.reverseBits() & c & m).getBoolValue()) {
       llvm::APInt temp = (a | m) & -m;
       if (temp.ule(b)) {
         a = temp;
         break;
       }
-    } else if (!(a & c.byteSwap() & m).isNullValue()) {
+    } else if ((a & c.reverseBits() & m).getBoolValue()) {
       llvm::APInt temp = (c | m) & -m;
       if (temp.ule(d)) {
         c = temp;
@@ -57,11 +57,13 @@ static llvm::APInt minOR(llvm::APInt a, llvm::APInt b, llvm::APInt c,
   return a | c;
 }
 static llvm::APInt maxOR(llvm::APInt a, llvm::APInt b, llvm::APInt c, llvm::APInt d) {
+  assert(a.getBitWidth() == c.getBitWidth());
+  
   llvm::APInt m =
       llvm::APInt::getOneBitSet(a.getBitWidth(), a.getBitWidth() - 1);
 
-  while (!m.isNullValue()) {
-    if (!(b & d & m).isNullValue()) {
+  while (m.getBoolValue()) {
+    if ((b & d & m).getBoolValue()) {
       llvm::APInt temp = (b - m) | (m - 1);
       if (temp.uge(a)) {
         b = temp;
@@ -80,11 +82,15 @@ static llvm::APInt maxOR(llvm::APInt a, llvm::APInt b, llvm::APInt c, llvm::APIn
 }
 
 static llvm::APInt minAND(llvm::APInt a, llvm::APInt b, llvm::APInt c, llvm::APInt d) {
+  assert(a.getBitWidth() == c.getBitWidth());
+
+  llvm::errs() << a << " " << b << " " << c << " " << d << "\n";
+
   llvm::APInt m =
       llvm::APInt::getOneBitSet(a.getBitWidth(), a.getBitWidth() - 1);
 
-  while (!m.isNullValue()) {
-    if ((a.byteSwap() & c.byteSwap() & m).isNullValue()) {
+  while (m.getBoolValue()) {
+    if ((~a & ~c & m).getBoolValue()) {
       llvm::APInt temp = (a | m) & -m;
       if (temp.ule(b)) {
         a = temp;
@@ -102,18 +108,20 @@ static llvm::APInt minAND(llvm::APInt a, llvm::APInt b, llvm::APInt c, llvm::API
   return a & c;
 }
 static llvm::APInt maxAND(llvm::APInt a, llvm::APInt b, llvm::APInt c, llvm::APInt d) {
+  assert(a.getBitWidth() == c.getBitWidth());
+
   llvm::APInt m =
       llvm::APInt::getOneBitSet(a.getBitWidth(), a.getBitWidth() - 1);
 
-  while (!m.isNullValue()) {
-    if ((b & d.byteSwap() & m).isNullValue()) {
+  while (m.getBoolValue()) {
+    if ((b & ~d & m).getBoolValue()) {
       llvm::APInt temp = (b & ~m) | (m - 1);
       if (temp.uge(a)) {
         b = temp;
         break;
       }
-    } else if (!(b.byteSwap() & d & m).isNullValue()) {
-      llvm::APInt temp = (d & m.byteSwap()) | (m - 1);
+    } else if ((~b & d & m).getBoolValue()) {
+      llvm::APInt temp = (d & ~m) | (m - 1);
       if (temp.uge(c)) {
         d = temp;
         break;
@@ -516,6 +524,7 @@ public:
 
   void propogatePossibleValues(ref<Expr> e, CexValueData range) {
     KLEE_DEBUG(llvm::errs() << "propogate: " << range << " for\n" << e << "\n");
+    llvm::errs() << "propogate: " << range << " for\n" << e << "\n";
 
     switch (e->getKind()) {
     case Expr::Constant:
@@ -653,7 +662,10 @@ public:
                      (llvm::APInt::getAllOnesValue(outBits) -
                       llvm::APInt::getLowBitsSet(outBits, inBits - 1) - 1)));
 
-      ValueRange input = output.binaryAnd(llvm::APInt::getAllOnesValue(inBits));
+      llvm::errs() << "Before AND" << output << "\n";
+      ValueRange input = output.binaryAnd(llvm::APInt::getAllOnesValue(outBits));
+      llvm::errs() << "After AND" << input << "\n";
+    
       propogatePossibleValues(ce->src, input);
       break;
     }
@@ -849,7 +861,7 @@ public:
 
         llvm::APInt maxValue = llvm::APInt::getAllOnesValue(be->right->getWidth());
         if (left.isFixed()) {
-          if (!range.min().isNullValue()) {
+          if (range.min().getBoolValue()) {
             propogatePossibleValues(be->right,
                                     CexValueData(left.min(), maxValue));
           } else {
@@ -859,7 +871,7 @@ public:
                              left.min() - 1));
           }
         } else if (right.isFixed()) {
-          if (!range.min().isNullValue()) {
+          if (range.min().getBoolValue()) {
             propogatePossibleValues(
                 be->left,
                 CexValueData(llvm::APInt::getNullValue(be->right->getWidth()),
@@ -1127,6 +1139,7 @@ static bool propogateValues(const Query &query, CexData &cd, bool checkExpr,
   }
 
   KLEE_DEBUG(cd.dump());
+  cd.dump();
 
   // Check the result.
   bool hasSatisfyingAssignment = true;
