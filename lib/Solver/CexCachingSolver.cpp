@@ -269,8 +269,17 @@ bool CexCachingSolver::getAssignment(const Query &query, Assignment *&result,
         klee_error("Generated assignment doesn't match query");
       }
   } else {
-    if (validityCore)
+    if (validityCore) {
       queryResult->tryGetValidityCore(*validityCore);
+      ValidityCore resultCore;
+      if (queryResult->tryGetValidityCore(resultCore)) {
+        bool isValid;
+        solver->impl->computeTruth(
+            Query(ConstraintSet(resultCore.constraints), resultCore.expr),
+            isValid);
+        assert(isValid);
+      }
+    }
     binding = (Assignment *)0;
   }
 
