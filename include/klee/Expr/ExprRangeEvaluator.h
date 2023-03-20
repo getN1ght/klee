@@ -123,7 +123,7 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     // XXX these should be unrolled to ensure nice inline
   case Expr::Concat: {
     const Expr *ep = e.get();
-    T res(0);
+    T res(ref<Expr>(ConstantExpr::create(0, 8)));
     for (unsigned i = 0; i < ep->getNumKids(); i++)
       res = res.concat(evaluate(ep->getKid(i)), 8);
     return res;
@@ -206,6 +206,8 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     const BinaryExpr *be = cast<BinaryExpr>(e);
     T left = evaluate(be->left);
     T right = evaluate(be->right);
+    llvm::errs() << left << " | " << right << "\n";
+    llvm::errs() << left.bitWidth() << " | " << right.bitWidth() << "\n";
 
     if (left.mustEqual(right)) {
       return T(llvm::APInt(Expr::Bool, 1));
@@ -266,7 +268,15 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     break;
   }
   case Expr::ZExt: {
-    return evaluate(e->getKid(0));
+    ref<CastExpr> ce = cast<CastExpr>(e);
+    T value = evaluate(e->getKid(0));
+    std::abort();
+  }
+  case Expr::SExt: {
+    ref<CastExpr> ce = cast<CastExpr>(e);
+    T value = evaluate(e->getKid(0));
+    unsigned width = ce->getWidth();
+    return T(value.m_min.sext(width), value.m_max.sext(width));
   }
 
   case Expr::Ne:
@@ -280,7 +290,8 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     break;
   }
 
-  return T(llvm::APInt(e->getWidth(), 0), llvm::APInt::getAllOnesValue(e->getWidth()));
+  return T(llvm::APInt(e->getWidth(), 0),
+           llvm::APInt::getAllOnesValue(e->getWidth()));
 }
 
 } // namespace klee
