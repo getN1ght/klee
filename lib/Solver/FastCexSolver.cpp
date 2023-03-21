@@ -199,8 +199,8 @@ public:
         b.m_max.ult(m_min)) { // no intersection
       return *this;
     } else if (b.m_min.ule(m_min) && b.m_max.uge(m_max)) { // empty
-      return ValueRange(llvm::APInt::getOneBitSet(m_min.getBitWidth(), 0),
-                        llvm::APInt::getNullValue(m_min.getBitWidth()));
+      return ValueRange(llvm::APInt::getOneBitSet(width, 0),
+                        llvm::APInt::getNullValue(width));
     } else if (b.m_min.ule(m_min)) { // one range out
       // cannot overflow because b.m_max < m_max
       return ValueRange(b.m_max + 1, m_max);
@@ -272,6 +272,7 @@ public:
         llvm::APInt::getAllOnesValue(m_min.getBitWidth()));
     newRange.m_min = newRange.m_min.trunc(maxBit - lowBit);
     newRange.m_max = newRange.m_max.trunc(maxBit - lowBit);
+    newRange.width = maxBit - lowBit;
     return newRange;
   }
 
@@ -555,7 +556,10 @@ public:
 
   void propogatePossibleValues(ref<Expr> e, CexValueData range) {
     KLEE_DEBUG(llvm::errs() << "propogate: " << range << " for\n" << e << "\n");
-    llvm::errs() << "propogate: " << range << " for\n" << e << "\n";
+    llvm::errs() << "propogate: " << range << " (" << range.bitWidth()
+                 << ") for\n"
+                 << e << "\n";
+    assert(range.bitWidth() == e->getWidth());
 
     switch (e->getKind()) {
     case Expr::Constant:
@@ -674,9 +678,17 @@ public:
     case Expr::ZExt: {
       CastExpr *ce = cast<CastExpr>(e);
       unsigned inBits = ce->src->getWidth();
+      unsigned outBits = ce->getWidth();
+
+      // Intersect with range of same bitness and truncate
+      // result to inBits (as llvm::APInt can not be compared
+      // if they have different width).
       ValueRange input = range.set_intersection(
-          ValueRange(llvm::APInt::getNullValue(inBits),
-                     llvm::APInt::getAllOnesValue(inBits)));
+          ValueRange(llvm::APInt::getNullValue(outBits),
+                     llvm::APInt::getLowBitsSet(outBits, inBits)));
+      input.m_min = input.m_min.trunc(inBits);
+      input.m_max = input.m_max.trunc(inBits);
+      input.width = inBits;
       propogatePossibleValues(ce->src, input);
       break;
     }
@@ -688,15 +700,13 @@ public:
       unsigned inBits = ce->src->getWidth();
       unsigned outBits = ce->width;
 
-      ValueRange output = range.set_difference(
+      ValueRange input = range.set_difference(
           ValueRange(llvm::APInt::getOneBitSet(outBits, inBits - 1),
                      (llvm::APInt::getAllOnesValue(outBits) -
                       llvm::APInt::getLowBitsSet(outBits, inBits - 1) - 1)));
-
-      llvm::errs() << "Before AND" << output << "\n";
-      ValueRange input =
-          output.binaryAnd(llvm::APInt::getAllOnesValue(outBits));
-      llvm::errs() << "After AND" << input << "\n";
+      input.m_max = input.m_max.trunc(inBits);
+      input.m_min = input.m_min.trunc(inBits);
+      input.width = inBits;
 
       propogatePossibleValues(ce->src, input);
       break;

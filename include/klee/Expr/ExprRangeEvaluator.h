@@ -122,11 +122,9 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
 
     // XXX these should be unrolled to ensure nice inline
   case Expr::Concat: {
-    const Expr *ep = e.get();
-    T res(ref<Expr>(ConstantExpr::create(0, 8)));
-    for (unsigned i = 0; i < ep->getNumKids(); i++)
-      res = res.concat(evaluate(ep->getKid(i)), 8);
-    return res;
+    ref<ConcatExpr> ce = cast<ConcatExpr>(e);
+    return evaluate(ce->getLeft())
+        .concat(evaluate(ce->getRight()), ce->getRight()->getWidth());
   }
 
     // Arithmetic
@@ -270,7 +268,8 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
   case Expr::ZExt: {
     ref<CastExpr> ce = cast<CastExpr>(e);
     T value = evaluate(e->getKid(0));
-    std::abort();
+    unsigned width = ce->getWidth();
+    return T(value.m_min.zext(width), value.m_max.zext(width));
   }
   case Expr::SExt: {
     ref<CastExpr> ce = cast<CastExpr>(e);
