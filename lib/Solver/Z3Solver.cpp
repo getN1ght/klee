@@ -441,13 +441,15 @@ bool Z3SolverImpl::internalRunSolver(
   Z3_solver_inc_ref(builder->ctx, theSolver);
   Z3_solver_set_params(builder->ctx, theSolver, solverParameters);
 
+  std::unordered_set<Z3ASTHandle, Z3ASTHandleHash, Z3ASTHandleCmp> deleted;
   for (unsigned idx = 0; idx < exprs.size(); ++idx) {
     Z3ASTHandle expr = exprs[idx];
     if (exprToTrack.count(expr)) {
       Z3_solver_assert_and_track(builder->ctx, theSolver, expr,
                                  exprToTrack[expr]);
       exprToTrack.erase(expr);
-    } else {
+      deleted.insert(expr);
+    } else if (deleted.count(expr) == 0) {
       Z3_solver_assert(builder->ctx, theSolver, expr);
     }
   }
