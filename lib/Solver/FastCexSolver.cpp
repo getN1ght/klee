@@ -262,8 +262,8 @@ public:
     return newRange.binaryOr(b);
   }
   ValueRange extract(std::uint64_t lowBit, std::uint64_t maxBit) const {
-    ValueRange newRange =
-        binaryShiftRight(lowBit).binaryAnd(llvm::APInt::getAllOnesValue(width));
+    ValueRange newRange = binaryShiftRight(width - maxBit)
+                              .binaryAnd(llvm::APInt::getAllOnesValue(width));
     newRange.m_min = newRange.m_min.trunc(maxBit - lowBit);
     newRange.m_max = newRange.m_max.trunc(maxBit - lowBit);
     newRange.width = maxBit - lowBit;
@@ -714,7 +714,6 @@ public:
           break;
 
         // C_0 + X \in [MIN, MAX) ==> X \in [MIN - C_0, MAX - C_0)
-        Expr::Width W = CE->getWidth();
         CexValueData nrange(range.min() - CE->getAPValue(),
                             range.max() - CE->getAPValue());
         if (!nrange.isEmpty()) {
@@ -1052,7 +1051,7 @@ public:
     case Expr::Not: {
       if (e->getWidth() == Expr::Bool && range.isFixed()) {
         llvm::APInt propValue =
-            llvm::APInt(e->getWidth(), range.min().getBoolValue());
+            llvm::APInt(e->getWidth(), !range.min().getBoolValue());
         propogateExactValue(e->getKid(0), propValue);
       }
       break;
