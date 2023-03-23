@@ -204,8 +204,6 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     const BinaryExpr *be = cast<BinaryExpr>(e);
     T left = evaluate(be->left);
     T right = evaluate(be->right);
-    llvm::errs() << left << " | " << right << "\n";
-    llvm::errs() << left.bitWidth() << " | " << right.bitWidth() << "\n";
 
     if (left.mustEqual(right)) {
       return T(llvm::APInt(Expr::Bool, 1));

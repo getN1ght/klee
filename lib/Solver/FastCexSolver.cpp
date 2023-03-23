@@ -84,10 +84,6 @@ static llvm::APInt maxOR(llvm::APInt a, llvm::APInt b, llvm::APInt c,
 
 static llvm::APInt minAND(llvm::APInt a, llvm::APInt b, llvm::APInt c,
                           llvm::APInt d) {
-  llvm::errs() << "[ " << a << " " << b << " ]; ";
-  llvm::errs() << "[ " << c << " " << d << " ]";
-  llvm::errs() << "\n";
-
   assert(a.getBitWidth() == c.getBitWidth());
 
   llvm::APInt m =
@@ -108,8 +104,6 @@ static llvm::APInt minAND(llvm::APInt a, llvm::APInt b, llvm::APInt c,
     }
     m = m.lshr(1);
   }
-
-  llvm::errs() << (a & c) << "\n";
 
   return a & c;
 }
@@ -268,8 +262,8 @@ public:
     return newRange.binaryOr(b);
   }
   ValueRange extract(std::uint64_t lowBit, std::uint64_t maxBit) const {
-    ValueRange newRange = binaryShiftRight(lowBit).binaryAnd(
-        llvm::APInt::getAllOnesValue(m_min.getBitWidth()));
+    ValueRange newRange =
+        binaryShiftRight(lowBit).binaryAnd(llvm::APInt::getAllOnesValue(width));
     newRange.m_min = newRange.m_min.trunc(maxBit - lowBit);
     newRange.m_max = newRange.m_max.trunc(maxBit - lowBit);
     newRange.width = maxBit - lowBit;
@@ -556,9 +550,6 @@ public:
 
   void propogatePossibleValues(ref<Expr> e, CexValueData range) {
     KLEE_DEBUG(llvm::errs() << "propogate: " << range << " for\n" << e << "\n");
-    llvm::errs() << "propogate: " << range << " (" << range.bitWidth()
-                 << ") for\n"
-                 << e << "\n";
     assert(range.bitWidth() == e->getWidth());
 
     switch (e->getKind()) {
@@ -655,11 +646,11 @@ public:
       // value, isolating for that range, and continuing.
     case Expr::Concat: {
       ConcatExpr *ce = cast<ConcatExpr>(e);
-      Expr::Width LSBWidth = ce->getKid(1)->getWidth();
-      Expr::Width MSBWidth = ce->getKid(1)->getWidth();
-      propogatePossibleValues(ce->getKid(0),
+      Expr::Width LSBWidth = ce->getLeft()->getWidth();
+      Expr::Width MSBWidth = ce->getRight()->getWidth();
+      propogatePossibleValues(ce->getLeft(), range.extract(0, LSBWidth));
+      propogatePossibleValues(ce->getRight(),
                               range.extract(LSBWidth, LSBWidth + MSBWidth));
-      propogatePossibleValues(ce->getKid(1), range.extract(0, LSBWidth));
       break;
     }
 
@@ -1040,17 +1031,16 @@ public:
       BinaryExpr *be = cast<BinaryExpr>(e);
       if (range.isFixed()) {
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(be->left)) {
-          uint64_t value = CE->getZExtValue();
           if (range.min().getBoolValue()) {
             // If the equality is true, then propogate the value.
-            propogateExactValue(be->right,
-                                llvm::APInt(be->right->getWidth(), value));
+            propogateExactValue(be->right, CE->getAPValue());
           } else {
             // If the equality is false and the comparison is of booleans,
             // then we can infer the value to propogate.
             if (be->right->getWidth() == Expr::Bool) {
-              propogateExactValue(be->right,
-                                  llvm::APInt(be->right->getWidth(), !value));
+              propogateExactValue(
+                  be->right,
+                  llvm::APInt(Expr::Bool, !CE->getAPValue().getBoolValue()));
             }
           }
         }
@@ -1185,7 +1175,6 @@ static bool propogateValues(const Query &query, CexData &cd, bool checkExpr,
   }
 
   KLEE_DEBUG(cd.dump());
-  cd.dump();
 
   // Check the result.
   bool hasSatisfyingAssignment = true;
