@@ -262,11 +262,14 @@ public:
     return newRange.binaryOr(b);
   }
   ValueRange extract(std::uint64_t lowBit, std::uint64_t maxBit) const {
-    ValueRange newRange = binaryShiftRight(width - maxBit)
-                              .binaryAnd(llvm::APInt::getAllOnesValue(width));
-    newRange.m_min = newRange.m_min.trunc(maxBit - lowBit);
-    newRange.m_max = newRange.m_max.trunc(maxBit - lowBit);
+    assert(!isEmpty());
+    ValueRange newRange =
+        binaryShiftRight(width - maxBit)
+            .binaryAnd(llvm::APInt::getLowBitsSet(width, maxBit - lowBit));
     newRange.width = maxBit - lowBit;
+    newRange.m_min = newRange.m_min.trunc(newRange.width);
+    newRange.m_max = newRange.m_max.trunc(newRange.width);
+    assert(!newRange.isEmpty());
     return newRange;
   }
 
