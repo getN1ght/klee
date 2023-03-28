@@ -554,12 +554,17 @@ public:
   void propogatePossibleValues(ref<Expr> e, CexValueData range) {
     KLEE_DEBUG(llvm::errs() << "propogate: " << range << " for\n" << e << "\n");
     assert(range.bitWidth() == e->getWidth());
+    llvm::errs() << "propogate: " << range << " for\n" << e << "\n";
 
     switch (e->getKind()) {
-    case Expr::Constant:
+    case Expr::Constant: {
+      ref<ConstantExpr> CE = cast<ConstantExpr>(e);
+      assert(range.intersects(ValueRange(CE->getAPValue())) &&
+             "Constant is out of range for propagation.");
       // rather a pity if the constant isn't in the range, but how can
       // we use this?
       break;
+    }
 
       // Special
 
@@ -826,8 +831,12 @@ public:
             } else {
               // FIXME: heuristic / lossy, could be better to pick larger
               // range?
-              range = CexValueData(llvm::APInt::getNullValue(CE->getWidth()),
-                                   value - 1);
+
+              // FIXME: choose both
+              // range = CexValueData(llvm::APInt::getNullValue(CE->getWidth()),
+              //                     value - 1);
+              // range = CexValueData(
+              //    value + 1, llvm::APInt::getAllOnesValue(CE->getWidth()));
             }
             propogatePossibleValues(be->right, range);
           }
@@ -1142,6 +1151,10 @@ public:
                             const std::vector<const Array *> &objects,
                             std::vector<SparseStorage<unsigned char>> &values,
                             bool &hasSolution);
+  bool computeValidity(const Query &, Solver::Validity &result);
+  bool check(const Query &query, ref<SolverResponse> &result);
+  bool computeValidityCore(const Query &query, ValidityCore &validityCore,
+                           bool &hasSolution);
 };
 
 FastCexSolver::FastCexSolver() {}
@@ -1177,6 +1190,7 @@ static bool propogateValues(const Query &query, CexData &cd, bool checkExpr,
   }
 
   KLEE_DEBUG(cd.dump());
+  cd.dump();
 
   // Check the result.
   bool hasSatisfyingAssignment = true;
@@ -1218,9 +1232,9 @@ FastCexSolver::computeTruth(const Query &query) {
   bool isValid;
   bool success = propogateValues(query, cd, true, isValid);
 
-  if (!success)
+  if (!success) {
     return IncompleteSolver::None;
-
+  }
   return isValid ? IncompleteSolver::MustBeTrue : IncompleteSolver::MayBeFalse;
 }
 
@@ -1294,6 +1308,20 @@ bool FastCexSolver::computeInitialValues(
   }
 
   return true;
+}
+
+bool FastCexSolver::check(const Query &query, ref<SolverResponse> &result) {
+  return false;
+}
+
+bool FastCexSolver::computeValidity(const Query &, Solver::Validity &result) {
+  return false;
+}
+
+bool FastCexSolver::computeValidityCore(const Query &query,
+                                        ValidityCore &validityCore,
+                                        bool &hasSolution) {
+  return false;
 }
 
 Solver *klee::createFastCexSolver(Solver *s) {

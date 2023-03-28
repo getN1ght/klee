@@ -78,6 +78,12 @@ public:
   computeInitialValues(const Query &, const std::vector<const Array *> &objects,
                        std::vector<SparseStorage<unsigned char>> &values,
                        bool &hasSolution) = 0;
+
+  virtual bool computeValidity(const Query &, Solver::Validity &result) = 0;
+  virtual bool check(const Query &query, ref<SolverResponse> &result) = 0;
+  virtual bool computeValidityCore(const Query &query,
+                                   ValidityCore &validityCore,
+                                   bool &hasSolution) = 0;
 };
 
 /// StagedSolver - Adapter class for staging an incomplete solver with
