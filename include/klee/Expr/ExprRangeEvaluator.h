@@ -265,15 +265,11 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
   }
   case Expr::ZExt: {
     ref<CastExpr> ce = cast<CastExpr>(e);
-    T value = evaluate(e->getKid(0));
-    unsigned width = ce->getWidth();
-    return T(value.m_min.zext(width), value.m_max.zext(width));
+    return evaluate(e->getKid(0)).zextOrTrunc(ce->getWidth());
   }
   case Expr::SExt: {
     ref<CastExpr> ce = cast<CastExpr>(e);
-    T value = evaluate(e->getKid(0));
-    unsigned width = ce->getWidth();
-    return T(value.m_min.sext(width), value.m_max.sext(width));
+    return evaluate(e->getKid(0)).sextOrTrunc(ce->getWidth());
   }
 
   case Expr::Ne:

@@ -137,8 +137,7 @@ static llvm::APInt maxAND(llvm::APInt a, llvm::APInt b, llvm::APInt c,
 ///
 
 class ValueRange {
-  // private:
-public:
+private:
   llvm::APInt m_min, m_max;
   unsigned width;
 
@@ -300,6 +299,20 @@ public:
   ValueRange srem(const ValueRange &b, unsigned width) const {
     return ValueRange(llvm::APInt::getNullValue(width),
                       llvm::APInt::getAllOnesValue(width));
+  }
+  ValueRange zextOrTrunc(unsigned newWidth) const {
+    ValueRange zextOrTruncRange;
+    zextOrTruncRange.m_min = m_min.zextOrTrunc(newWidth);
+    zextOrTruncRange.m_max = m_max.zextOrTrunc(newWidth);
+    zextOrTruncRange.width = newWidth;
+    return zextOrTruncRange;
+  }
+  ValueRange sextOrTrunc(unsigned newWidth) const {
+    ValueRange sextOrTruncRange;
+    sextOrTruncRange.m_min = m_min.sextOrTrunc(newWidth);
+    sextOrTruncRange.m_max = m_max.sextOrTrunc(newWidth);
+    sextOrTruncRange.width = newWidth;
+    return sextOrTruncRange;
   }
 
   // use min() to get value if true (XXX should we add a method to
@@ -682,12 +695,11 @@ public:
       // Intersect with range of same bitness and truncate
       // result to inBits (as llvm::APInt can not be compared
       // if they have different width).
-      ValueRange input = range.set_intersection(
-          ValueRange(llvm::APInt::getNullValue(outBits),
-                     llvm::APInt::getLowBitsSet(outBits, inBits)));
-      input.m_min = input.m_min.trunc(inBits);
-      input.m_max = input.m_max.trunc(inBits);
-      input.width = inBits;
+      ValueRange input = range
+                             .set_intersection(ValueRange(
+                                 llvm::APInt::getNullValue(outBits),
+                                 llvm::APInt::getLowBitsSet(outBits, inBits)))
+                             .zextOrTrunc(inBits);
       propogatePossibleValues(ce->src, input);
       break;
     }
@@ -699,13 +711,13 @@ public:
       unsigned inBits = ce->src->getWidth();
       unsigned outBits = ce->width;
 
-      ValueRange input = range.set_difference(
-          ValueRange(llvm::APInt::getOneBitSet(outBits, inBits - 1),
-                     (llvm::APInt::getAllOnesValue(outBits) -
-                      llvm::APInt::getLowBitsSet(outBits, inBits - 1) - 1)));
-      input.m_max = input.m_max.trunc(inBits);
-      input.m_min = input.m_min.trunc(inBits);
-      input.width = inBits;
+      ValueRange input =
+          range
+              .set_difference(ValueRange(
+                  llvm::APInt::getOneBitSet(outBits, inBits - 1),
+                  (llvm::APInt::getAllOnesValue(outBits) -
+                   llvm::APInt::getLowBitsSet(outBits, inBits - 1) - 1)))
+              .zextOrTrunc(inBits);
 
       propogatePossibleValues(ce->src, input);
       break;
