@@ -72,6 +72,7 @@ public:
 template <class T>
 T ExprRangeEvaluator<T>::evalRead(const UpdateList &ul, T index) {
   T res;
+  res.width = CHAR_BIT;
 
   for (const UpdateNode *un = ul.head.get(); un; un = un->next.get()) {
     T ui = evaluate(un->index);

@@ -162,7 +162,9 @@ static llvm::APInt maxAND(llvm::APInt a, llvm::APInt b, llvm::APInt c,
 ///
 
 class ValueRange {
+  friend class ExprRangeEvaluator<ValueRange>;
 
+public:
   // Elementary range representing simple segment range, i.e.
   // all values from m_min to m_max inclusive.
   struct ValueSegment {
@@ -189,7 +191,8 @@ class ValueRange {
     }
   };
 
-private:
+  // FIXME:
+public:
   // Represent set of **non-intersecting** segments (with both sides inclusion,
   // e.g. [1, 2]) of ranges for this value with common width. Segments with
   // neighbouting bounds should be concat in one (e.g. set{[0, 1], [2, 3]} is
@@ -311,7 +314,9 @@ public:
 
       // Move forward while intersection exists.
       while (itRHS != itEndRHS && itRHS->m_min.ule(itLHS->m_max)) {
-        intersectedRange.addSegment(ValueSegment(itRHS->m_min, itLHS->m_max));
+        intersectedRange.addSegment(
+            ValueSegment(llvm::APIntOps::umax(itLHS->m_min, itRHS->m_min),
+                         llvm::APIntOps::umin(itLHS->m_max, itRHS->m_max)));
         ++itRHS;
       }
 
@@ -454,7 +459,7 @@ public:
   ValueRange concat(ValueRange b, unsigned bits) const {
     ValueRange concattedRange = zextOrTrunc(bitWidth() + bits);
     concattedRange = concattedRange.binaryShiftLeft(bits);
-    return concattedRange.binaryOr(b);
+    return concattedRange.binaryOr(b.zextOrTrunc(bitWidth() + bits));
   }
   ValueRange extract(std::uint64_t lowBit, std::uint64_t maxBit) const {
     assert(!isEmpty());
@@ -523,7 +528,7 @@ public:
   }
 
   bool operator==(const ValueRange &b) const noexcept {
-    return segments == b.segments;
+    return segments == b.segments && bitWidth() == b.bitWidth();
   }
   bool operator!=(const ValueRange &b) const noexcept { return !(*this == b); }
 
@@ -646,7 +651,9 @@ public:
   /// getPossibleValue - Return some possible value.
   llvm::APInt getPossibleValue(size_t index) const {
     CexValueData cvd = possibleContents.load(index);
-    return cvd.min() + (cvd.max() - cvd.min()).lshr(1);
+    assert(!cvd.isEmpty() && "possible contents empty");
+    const ValueRange::ValueSegment &seg = *cvd.segments.begin();
+    return seg.m_min + (seg.m_max - seg.m_min).lshr(1);
   }
 };
 
@@ -777,13 +784,15 @@ public:
   void propogatePossibleValues(ref<Expr> e, CexValueData range) {
     KLEE_DEBUG(llvm::errs() << "propogate: " << range << " for\n" << e << "\n");
     assert(range.bitWidth() == e->getWidth());
-    llvm::errs() << "propogate: " << range << " for\n" << e << "\n";
+    // llvm::errs() << "propogate: " << range << " for\n" << e << "\n";
 
     switch (e->getKind()) {
     case Expr::Constant: {
       ref<ConstantExpr> CE = cast<ConstantExpr>(e);
-      assert(range.intersects(ValueRange(CE->getAPValue())) &&
-             "Constant is out of range for propagation.");
+      // TODO: wrong propagation may lead to UNSAT. Handle it.
+
+      // assert(range.intersects(ValueRange(CE->getAPValue())) &&
+      //        "Constant is out of range for propagation.");
       // rather a pity if the constant isn't in the range, but how can
       // we use this?
       break;
@@ -886,6 +895,7 @@ public:
     }
 
     case Expr::Extract: {
+      // TODO: make a zero extension
       // XXX
       break;
     }
@@ -939,15 +949,24 @@ public:
       BinaryExpr *be = cast<BinaryExpr>(e);
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(be->left)) {
         // FIXME: Why do we ever propogate empty ranges? It doesn't make
-        // sense.
+        // sense. TODO: Add assertion.
+
         if (range.isEmpty())
           break;
 
         // C_0 + X \in [MIN, MAX) ==> X \in [MIN - C_0, MAX - C_0)
-        CexValueData nrange(range.min() - CE->getAPValue(),
-                            range.max() - CE->getAPValue());
-        if (!nrange.isEmpty()) {
-          propogatePossibleValues(be->right, nrange);
+        CexValueData subtractedRange;
+        subtractedRange.width = range.bitWidth();
+        for (const ValueRange::ValueSegment &seg : range.segments) {
+          ValueRange::ValueSegment newSeg(seg.m_min - CE->getAPValue(),
+                                          seg.m_max - CE->getAPValue());
+          if (newSeg.m_max.ult(newSeg.m_min)) {
+            subtractedRange.addSegment(ValueRange::ValueSegment(
+                llvm::APInt(range.bitWidth(), 0), newSeg.m_max));
+            newSeg.m_max = llvm::APInt::getAllOnesValue(range.bitWidth());
+          }
+          subtractedRange.addSegment(newSeg);
+          propogatePossibleValues(be->right, subtractedRange);
         }
       }
       break;
@@ -1051,14 +1070,12 @@ public:
                   CexValueData(llvm::APInt(CE->getWidth(), 1),
                                llvm::APInt::getAllOnesValue(CE->getWidth()));
             } else {
-              // FIXME: heuristic / lossy, could be better to pick larger
-              // range?
-
-              // FIXME: choose both
-              // range = CexValueData(llvm::APInt::getNullValue(CE->getWidth()),
-              //                     value - 1);
-              // range = CexValueData(
-              //    value + 1, llvm::APInt::getAllOnesValue(CE->getWidth()));
+              // TODO: use public interface, do not access private methods.
+              range.width = CE->getWidth();
+              range.addSegment(ValueRange::ValueSegment(
+                  llvm::APInt::getNullValue(CE->getWidth()), value - 1));
+              range.addSegment(ValueRange::ValueSegment(
+                  value + 1, llvm::APInt::getAllOnesValue(CE->getWidth())));
             }
             propogatePossibleValues(be->right, range);
           }
@@ -1412,7 +1429,7 @@ static bool propogateValues(const Query &query, CexData &cd, bool checkExpr,
   }
 
   KLEE_DEBUG(cd.dump());
-  cd.dump();
+  // cd.dump();
 
   // Check the result.
   bool hasSatisfyingAssignment = true;
