@@ -29,7 +29,7 @@ public:
   bool mayEqual(const uint64_t b);
   bool mayEqual(const ValueType &b);
 
-  bool isFullRange(unsigned width);
+  bool isFullRange();
 
   ValueType set_union(ValueType &);
   ValueType set_intersection(ValueType &);
@@ -80,7 +80,7 @@ T ExprRangeEvaluator<T>::evalRead(const UpdateList &ul, T index) {
       return res.set_union(evaluate(un->value));
     } else if (ui.mayEqual(index)) {
       res = res.set_union(evaluate(un->value));
-      if (res.isFullRange(8)) {
+      if (res.isFullRange()) {
         return res;
       }
     }

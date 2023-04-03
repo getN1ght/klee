@@ -171,6 +171,8 @@ class ValueRange {
     ValueSegment(llvm::APInt _m_min, llvm::APInt _m_max)
         : m_min(_m_min), m_max(_m_max) {}
 
+    bool isFixed() const { return m_min == m_max; }
+
     // Lexicographical comparison.
     bool operator<(const ValueSegment &rhs) const {
       if (m_min == rhs.m_min) {
@@ -192,7 +194,7 @@ private:
   // e.g. [1, 2]) of ranges for this value with common width. Segments with
   // neighbouting bounds should be concat in one (e.g. set{[0, 1], [2, 3]} is
   // forbidden, make set{[0, 3]} instead). Nested segments are also forbidden.
-  std::vector<ValueSegment> segments;
+  std::set<ValueSegment> segments;
 
   // Width of segments. Note that empty ValueRange does not have
   // width, so reading from this variable may lead to unspecified
@@ -200,20 +202,43 @@ private:
   unsigned width;
 
   // Adds segment to ValueRange and unite with previos if they differ on 1.
-  // It should not intersect previously added segments.
+  // It can intersect previously added segments, so we will merge them in this
+  // case. It performs every operation in O(log(n)) amorthized.
   void addSegment(ValueSegment seg) {
-    if (segments.size() != 0) {
-      const ValueSegment &lastSeg = segments.back();
-      assert(seg.m_min.ugt(lastSeg.m_max) &&
-             "addition of intersecting segment to ValueRange");
-      assert(lastSeg.m_max != llvm::APInt::getMaxValue(bitWidth()) &&
-             "addition to full ValueRange");
-      if (lastSeg.m_max + 1 == seg.m_min) {
-        seg.m_min = lastSeg.m_min;
-        segments.pop_back();
+    typename std::set<ValueSegment>::iterator lowerSegment =
+        segments.upper_bound(seg);
+
+    // To handle such case make a step back.
+    // ...[m_min, m_max]...
+    //  [...]..[lower, upper]...
+    if (lowerSegment != segments.begin()) {
+      --lowerSegment;
+    }
+
+    // If current segment [s_min, s_max] satisfies the following conditions:
+    //  * s_max >= m_min - 1
+    //  * s_min <= m_max + 1
+    // then add it into one great segment, taking care about overflows.
+    std::vector<ValueSegment> eraseSegments;
+    for (; lowerSegment != segments.end() &&
+           lowerSegment->m_min.ule(seg.m_max.isMaxValue() ? seg.m_max
+                                                          : seg.m_max + 1);
+         ++lowerSegment) {
+      if (lowerSegment->m_max.uge(seg.m_min.getBoolValue() ? seg.m_min - 1
+                                                           : seg.m_min)) {
+        eraseSegments.push_back(*lowerSegment);
       }
     }
-    segments.emplace_back(seg);
+
+    if (!eraseSegments.empty()) {
+      seg.m_min = llvm::APIntOps::umin(seg.m_min, eraseSegments.front().m_min);
+      seg.m_max = llvm::APIntOps::umax(seg.m_max, eraseSegments.back().m_max);
+    }
+
+    for (const ValueSegment &seg : eraseSegments) {
+      segments.erase(seg);
+    }
+    segments.insert(seg);
   }
 
 public:
@@ -274,10 +299,10 @@ public:
     intersectedRange.width = bitWidth();
 
     // Use 2 pointers algorithm to achieve O(n) solution.
-    for (std::vector<ValueSegment>::const_iterator itLHS = segments.cbegin(),
-                                                   itEndLHS = segments.cend(),
-                                                   itRHS = b.segments.cbegin(),
-                                                   itEndRHS = b.segments.cend();
+    for (std::set<ValueSegment>::const_iterator itLHS = segments.cbegin(),
+                                                itEndLHS = segments.cend(),
+                                                itRHS = b.segments.cbegin(),
+                                                itEndRHS = b.segments.cend();
          itLHS != itEndLHS; ++itLHS) {
       // Move iterator from rhs ValueRange forward until meet intersection.
       while (itRHS != itEndRHS && itRHS->m_max.ult(itLHS->m_min)) {
@@ -303,51 +328,10 @@ public:
   ValueRange set_union(const ValueRange &b) const {
     assert(bitWidth() == b.bitWidth());
 
-    ValueRange unitedRange;
-    unitedRange.width = bitWidth();
-
-    bool segmentStarted = false;
-    llvm::APInt segmentBegin = llvm::APInt::getMaxValue(bitWidth());
-    llvm::APInt segmentEnd = llvm::APInt(bitWidth(), 0);
-
-    // Use 2 pointers algorithm to achieve O(n) solution.
-    for (std::vector<ValueSegment>::const_iterator itLHS = segments.cbegin(),
-                                                   itEndLHS = segments.cend(),
-                                                   itRHS = b.segments.cbegin(),
-                                                   itEndRHS = b.segments.cend();
-         itLHS != itEndLHS || itRHS != itEndRHS;) {
-      if (!segmentStarted) {
-        // At least one iterator is not end according to the cycle condition.
-        if (itLHS != itEndLHS && itLHS->m_min.ule(segmentBegin)) {
-          segmentBegin = itLHS->m_min;
-          segmentEnd = itLHS->m_max;
-        }
-        if (itRHS != itEndRHS && itRHS->m_min.ule(segmentBegin)) {
-          segmentBegin = itRHS->m_min;
-          segmentEnd = itRHS->m_max;
-        }
-        segmentStarted = true;
-      }
-
-      // Try to move intersection forward. If is is not possible, then
-      // finish this sigmenet and check if we can union it with previous.
-      if (itLHS != itEndLHS && itLHS->m_min.ule(segmentEnd)) {
-        segmentEnd = llvm::APIntOps::umax(segmentEnd, itLHS->m_max);
-        ++itLHS;
-      } else if (itRHS != itEndRHS && itRHS->m_min.ule(segmentEnd)) {
-        segmentEnd = llvm::APIntOps::umax(segmentEnd, itRHS->m_max);
-        ++itRHS;
-      } else {
-        // If this segment differs from last added on 1, unite them.
-        unitedRange.addSegment(ValueSegment(segmentBegin, segmentEnd));
-
-        // Set up initial values for borders.
-        segmentBegin = llvm::APInt::getMaxValue(bitWidth());
-        segmentEnd = llvm::APInt(bitWidth(), 0);
-        segmentStarted = false;
-      }
+    ValueRange unitedRange = *this;
+    for (const ValueSegment &seg : b.segments) {
+      unitedRange.addSegment(seg);
     }
-
     return unitedRange;
   }
 
@@ -395,6 +379,7 @@ public:
         }
       }
     }
+    return andedRange;
   }
 
   ValueRange binaryAnd(const llvm::APInt &b) const {
@@ -403,8 +388,8 @@ public:
 
   ValueRange binaryOr(ValueRange b) const {
     assert(!isEmpty() && !b.isEmpty() && "XXX");
-    ValueRange andedRange;
-    andedRange.width = bitWidth();
+    ValueRange oredRange;
+    oredRange.width = bitWidth();
 
     for (const ValueSegment &segLHS : segments) {
       for (const ValueSegment &segRHS : b.segments) {
@@ -413,10 +398,11 @@ public:
         llvm::APInt rBound =
             maxOR(segLHS.m_min, segLHS.m_max, segRHS.m_min, segRHS.m_max);
         if (lBound.ule(rBound)) {
-          andedRange.addSegment(ValueSegment(lBound, rBound));
+          oredRange.addSegment(ValueSegment(lBound, rBound));
         }
       }
     }
+    return oredRange;
   }
 
   ValueRange binaryOr(const llvm::APInt &b) const {
@@ -424,49 +410,60 @@ public:
   }
 
   ValueRange binaryXor(ValueRange b) const {
-    if (isFixed() && b.isFixed()) {
-      return ValueRange(m_min ^ b.m_min);
-    } else {
-      llvm::APInt t = m_max | b.m_max;
-      if (!t.isPowerOf2()) {
-        t = llvm::APInt::getOneBitSet(t.getBitWidth(),
-                                      t.getBitWidth() - t.countLeadingZeros());
+    assert(bitWidth() == b.bitWidth());
+    // TODO: we can make a more precise approximation here
+    // using one more algorithm from the book mentioned above.
+
+    ValueRange xoredRange;
+    xoredRange.width = bitWidth();
+    for (const ValueSegment &segA : segments) {
+      for (const ValueSegment &segB : b.segments) {
+        llvm::APInt t = segA.m_max | segB.m_max;
+        if (!t.isPowerOf2()) {
+          t = llvm::APInt::getOneBitSet(
+              t.getBitWidth(), t.getBitWidth() - t.countLeadingZeros());
+        }
+        xoredRange.addSegment(ValueSegment(
+            llvm::APInt::getNullValue(t.getBitWidth()), (t << 1) - 1));
       }
-      return ValueRange(llvm::APInt::getNullValue(t.getBitWidth()),
-                        (t << 1) - 1);
     }
+    return xoredRange;
   }
 
   ValueRange binaryShiftLeft(unsigned bits) const {
     ValueRange shiftedRange;
     shiftedRange.width = bitWidth();
     for (const ValueSegment &seg : segments) {
-      // FIXME: continue here...
+      shiftedRange.addSegment(
+          ValueSegment(seg.m_min.shl(bits), seg.m_max.shl(bits)));
     }
-    return ValueRange(m_min << bits, m_max << bits);
+    return shiftedRange;
   }
+
   ValueRange binaryShiftRight(unsigned bits) const {
-    return ValueRange(m_min.lshr(bits), m_max.lshr(bits));
+    ValueRange shiftedRange;
+    shiftedRange.width = bitWidth();
+    for (const ValueSegment &seg : segments) {
+      ValueSegment newShiftedSeg(seg.m_min.lshr(bits), seg.m_max.lshr(bits));
+      shiftedRange.addSegment(
+          ValueSegment(seg.m_min.lshr(bits), seg.m_max.lshr(bits)));
+    }
+    return shiftedRange;
   }
 
   ValueRange concat(ValueRange b, unsigned bits) const {
-    ValueRange newRange =
-        ValueRange(m_min.zext(bitWidth() + bits), m_max.zext(bitWidth() + bits))
-            .binaryShiftLeft(bits);
-    b.m_min = b.m_min.zext(bitWidth() + bits);
-    b.m_max = b.m_max.zext(bitWidth() + bits);
-    return newRange.binaryOr(b);
+    ValueRange concattedRange = zextOrTrunc(bitWidth() + bits);
+    concattedRange = concattedRange.binaryShiftLeft(bits);
+    return concattedRange.binaryOr(b);
   }
   ValueRange extract(std::uint64_t lowBit, std::uint64_t maxBit) const {
     assert(!isEmpty());
-    ValueRange newRange =
+    ValueRange extractRange =
         binaryShiftRight(width - maxBit)
             .binaryAnd(llvm::APInt::getLowBitsSet(width, maxBit - lowBit));
-    newRange.width = maxBit - lowBit;
-    newRange.m_min = newRange.m_min.trunc(newRange.width);
-    newRange.m_max = newRange.m_max.trunc(newRange.width);
-    assert(!newRange.isEmpty());
-    return newRange;
+    extractRange = extractRange.zextOrTrunc(maxBit - lowBit);
+    assert(!extractRange.isEmpty());
+    return extractRange;
   }
 
   ValueRange add(const ValueRange &b, unsigned width) const {
@@ -497,26 +494,32 @@ public:
     return ValueRange(llvm::APInt::getNullValue(width),
                       llvm::APInt::getAllOnesValue(width));
   }
+
   ValueRange zextOrTrunc(unsigned newWidth) const {
     ValueRange zextOrTruncRange;
-    zextOrTruncRange.m_min = m_min.zextOrTrunc(newWidth);
-    zextOrTruncRange.m_max = m_max.zextOrTrunc(newWidth);
     zextOrTruncRange.width = newWidth;
+    for (const ValueSegment &seg : segments) {
+      ValueSegment newSeg(seg.m_min.zextOrTrunc(newWidth),
+                          seg.m_max.zextOrTrunc(newWidth));
+      zextOrTruncRange.addSegment(newSeg);
+    }
     return zextOrTruncRange;
   }
   ValueRange sextOrTrunc(unsigned newWidth) const {
     ValueRange sextOrTruncRange;
-    sextOrTruncRange.m_min = m_min.sextOrTrunc(newWidth);
-    sextOrTruncRange.m_max = m_max.sextOrTrunc(newWidth);
     sextOrTruncRange.width = newWidth;
+    for (const ValueSegment &seg : segments) {
+      ValueSegment newSeg(seg.m_min.sextOrTrunc(newWidth),
+                          seg.m_max.sextOrTrunc(newWidth));
+      sextOrTruncRange.addSegment(newSeg);
+    }
     return sextOrTruncRange;
   }
 
   // use min() to get value if true (XXX should we add a method to
   // make code clearer?)
   bool isFixed() const noexcept {
-    return segments.size() == 1 &&
-           segments.begin()->m_min == segments.begin()->m_max;
+    return segments.size() == 1 && segments.begin()->isFixed();
   }
 
   bool operator==(const ValueRange &b) const noexcept {
@@ -524,28 +527,35 @@ public:
   }
   bool operator!=(const ValueRange &b) const noexcept { return !(*this == b); }
 
-  bool mustEqual(const llvm::APInt &b) const noexcept {
-    return m_min == m_max && m_min == b;
-  }
+  bool mayEqual(const ValueRange &b) const { return this->intersects(b); }
   bool mayEqual(const llvm::APInt &b) const noexcept {
-    return m_min.ule(b) && m_max.uge(b);
+    return mayEqual(ValueRange(b));
   }
 
   bool mustEqual(const ValueRange &b) const noexcept {
-    return isFixed() && b.isFixed() && m_min == b.m_min;
+    return isFixed() && b.isFixed() && segments == b.segments;
   }
-  bool mayEqual(const ValueRange &b) const { return this->intersects(b); }
+  bool mustEqual(const llvm::APInt &b) const noexcept {
+    return mustEqual(ValueRange(b));
+  }
 
+  // Getter for minimal value of this range from
+  // ALL segments inside. This means, that min() from
+  // { [0, 1], [2, 3] } is 1.
   llvm::APInt min() const noexcept {
     assert(!isEmpty() && "cannot get minimum of empty range");
-    return m_min;
+    return segments.begin()->m_min;
   }
 
+  // Getter for maximal value of this range from
+  // ALL segments inside. This means, that max() from
+  // { [0, 1], [2, 3] } is 3.
   llvm::APInt max() const noexcept {
     assert(!isEmpty() && "cannot get maximum of empty range");
-    return m_max;
+    return (--segments.end())->m_max;
   }
 
+  // TODO: do we still need bits here?
   llvm::APInt minSigned(unsigned bits) const {
     // if max allows sign bit to be set then it can be smallest value,
     // otherwise since the range is not empty, min cannot have a sign
@@ -553,10 +563,10 @@ public:
 
     llvm::APInt smallest = llvm::APInt::getSignedMinValue(bits);
 
-    if (m_max.uge(smallest)) {
-      return m_max.sext(bits);
+    if (max().uge(smallest)) {
+      return max().sext(bits);
     } else {
-      return m_min;
+      return min();
     }
   }
 
@@ -570,14 +580,14 @@ public:
     // max has sign bit then max is largest signed integer, otherwise
     // max is max
 
-    if (m_min.ult(smallest) && m_max.uge(smallest)) {
+    if (min().ult(smallest) && max().uge(smallest)) {
       return smallest - 1;
     } else {
       // width are not equal here; if this width is shorter, then
       // we will return sign extended max, otherwise we need to find
       // signed max value of first n bits
 
-      return m_max.sext(bits);
+      return max().sext(bits);
     }
   }
 };
