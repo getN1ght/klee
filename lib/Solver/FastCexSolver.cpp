@@ -471,14 +471,35 @@ public:
     return extractRange;
   }
 
-  ValueRange add(const ValueRange &b, unsigned width) const {
-    return ValueRange(llvm::APInt::getNullValue(width),
-                      llvm::APInt::getAllOnesValue(width));
+  ValueRange add(const ValueRange &b) const {
+    ValueRange addedRange;
+    addedRange.width = bitWidth();
+    for (const ValueSegment &segA : segments) {
+      for (const ValueSegment &segB : b.segments) {
+        ValueSegment segNew(segA.m_min + segB.m_min, segA.m_max + segB.m_max);
+
+        // If maximum overflows and minimum not, then we will add ranges
+        // [new_min, 111..111], [0, new_max].
+        if (segNew.m_max.ult(segA.m_max) && segNew.m_min.uge(segA.m_min)) {
+          addedRange.addSegment(ValueRange::ValueSegment(
+              llvm::APInt(bitWidth(), 0), segNew.m_max));
+          segNew.m_max = llvm::APInt::getAllOnesValue(bitWidth());
+        }
+        addedRange.addSegment(segNew);
+      }
+    }
+    return addedRange;
   }
-  ValueRange sub(const ValueRange &b, unsigned width) const {
-    return ValueRange(llvm::APInt::getNullValue(width),
-                      llvm::APInt::getAllOnesValue(width));
+
+  ValueRange sub(const ValueRange &b) const {
+    ValueRange subtractRange;
+    subtractRange.width = bitWidth();
+    for (const ValueSegment &seg : b.segments) {
+      subtractRange.addSegment(ValueSegment(0 - seg.m_max, 0 - seg.m_min));
+    }
+    return add(subtractRange);
   }
+
   ValueRange mul(const ValueRange &b, unsigned width) const {
     return ValueRange(llvm::APInt::getNullValue(width),
                       llvm::APInt::getAllOnesValue(width));
@@ -763,6 +784,8 @@ public:
     CexObjectData *&Entry = objects[A];
 
     ref<ConstantExpr> constantArraySize = dyn_cast<ConstantExpr>(A->size);
+
+    // TODO: zero sized array?
     if (!constantArraySize) {
       constantArraySize = ConstantExpr::create(0, A->size->getWidth());
     }
@@ -790,9 +813,9 @@ public:
     case Expr::Constant: {
       ref<ConstantExpr> CE = cast<ConstantExpr>(e);
       // TODO: wrong propagation may lead to UNSAT. Handle it.
-
       // assert(range.intersects(ValueRange(CE->getAPValue())) &&
       //        "Constant is out of range for propagation.");
+
       // rather a pity if the constant isn't in the range, but how can
       // we use this?
       break;
@@ -815,9 +838,27 @@ public:
                 dyn_cast<ConstantExpr>(array->size)) {
           uint64_t index = CE->getZExtValue();
 
+          // ReadExpr updateList
+          // getInitialValue() -> array
+          //
+          // write concrete_idx ref<Expr>(range[a, b])
+          //
+          // CexValueData cvd = cod.getPossibleValues(index);
+
+          // TODO: index in range
           if (index < constantArraySize->getZExtValue()) {
             // If the range is fixed, just set that; even if it conflicts with
-            // the previous range it should be a better guess.
+            // the previous range it should be a better guess. TODO: leads to
+            // UNSAT?
+
+            // It would be nice to add ranges from new writes to this arrays to
+            // make them once.
+            // for (ref<UpdateNode> un = re->updates.head; un != nullptr;
+            //      un = un->next) {
+            //   // For writes at constant idxs it is ok. But what if index is
+            //   // symbolic?
+            // }
+
             if (range.isFixed()) {
               cod.setPossibleValue(index, range.min());
             } else {
@@ -895,7 +936,9 @@ public:
     }
 
     case Expr::Extract: {
-      // TODO: make a zero extension
+      ExtractExpr *ee = cast<ExtractExpr>(e);
+      // TODO:
+      // propogatePossibleValues(ee->expr);
       // XXX
       break;
     }
@@ -949,10 +992,16 @@ public:
       BinaryExpr *be = cast<BinaryExpr>(e);
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(be->left)) {
         // FIXME: Why do we ever propogate empty ranges? It doesn't make
-        // sense. TODO: Add assertion.
+        // sense.
 
+        // TODO: Add assertion. This should not happen.
         if (range.isEmpty())
           break;
+
+        // [10 > a + b] <- propagate 1; [a + b] <- propagate [0, 9]
+        // a <- [ [0, 1] ]              | b <- [1, 128]
+        //
+        // b <- [ [0, 9] , [255, 255] ] | a <-
 
         // C_0 + X \in [MIN, MAX) ==> X \in [MIN - C_0, MAX - C_0)
         CexValueData subtractedRange;
@@ -1008,6 +1057,7 @@ public:
           }
         }
       } else {
+        // TODO: propogation of full ranges?
         // XXX
       }
       break;
@@ -1023,7 +1073,6 @@ public:
           llvm::APInt zeroAPInt =
               llvm::APInt::getNullValue(be->left->getWidth());
           llvm::APInt oneAPInt = llvm::APInt(be->left->getWidth(), 1);
-
           if (range.min().getBoolValue()) {
             if (left.mustEqual(oneAPInt) || right.mustEqual(oneAPInt)) {
               // all is well
@@ -1046,6 +1095,7 @@ public:
           }
         }
       } else {
+        // TODO: propogation of ranges <= given range
         // XXX
       }
       break;
@@ -1081,6 +1131,7 @@ public:
           }
         }
       }
+      // else { TODO: propogate full range? }
       break;
     }
 

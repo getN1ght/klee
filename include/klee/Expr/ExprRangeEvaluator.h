@@ -39,8 +39,8 @@ public:
   ValueType binaryOr(ValueType &);
   ValueType binaryXor(ValueType &);
   ValueType concat(ValueType &, unsigned width);
-  ValueType add(ValueType &, unsigned width);
-  ValueType sub(ValueType &, unsigned width);
+  ValueType add(ValueType &);
+  ValueType sub(ValueType &);
   ValueType mul(ValueType &, unsigned width);
   ValueType udiv(ValueType &, unsigned width);
   ValueType sdiv(ValueType &, unsigned width);
@@ -132,13 +132,11 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
 
   case Expr::Add: {
     const BinaryExpr *be = cast<BinaryExpr>(e);
-    unsigned width = be->left->getWidth();
-    return evaluate(be->left).add(evaluate(be->right), width);
+    return evaluate(be->left).add(evaluate(be->right));
   }
   case Expr::Sub: {
     const BinaryExpr *be = cast<BinaryExpr>(e);
-    unsigned width = be->left->getWidth();
-    return evaluate(be->left).sub(evaluate(be->right), width);
+    return evaluate(be->left).sub(evaluate(be->right));
   }
   case Expr::Mul: {
     const BinaryExpr *be = cast<BinaryExpr>(e);
