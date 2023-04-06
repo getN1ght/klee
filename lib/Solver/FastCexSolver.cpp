@@ -998,11 +998,6 @@ public:
         if (range.isEmpty())
           break;
 
-        // [10 > a + b] <- propagate 1; [a + b] <- propagate [0, 9]
-        // a <- [ [0, 1] ]              | b <- [1, 128]
-        //
-        // b <- [ [0, 9] , [255, 255] ] | a <-
-
         // C_0 + X \in [MIN, MAX) ==> X \in [MIN - C_0, MAX - C_0)
         CexValueData subtractedRange;
         subtractedRange.width = range.bitWidth();

@@ -1,0 +1,6 @@
+# RUN: %kleaver --use-fast-cex-solver --solver-backend=dummy %s > %t
+# RUN: grep INVALID %t
+
+array arr1[4] : w32 -> w8 = symbolic
+
+(query [] (Ule 128 (Read w8 0 arr1)))
