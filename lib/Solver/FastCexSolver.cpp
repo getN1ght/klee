@@ -15,6 +15,7 @@
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprEvaluator.h"
 #include "klee/Expr/ExprRangeEvaluator.h"
+#include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/ExprVisitor.h"
 #include "klee/Solver/IncompleteSolver.h"
 #include "klee/Support/Debug.h"
@@ -160,6 +161,147 @@ static llvm::APInt maxAND(llvm::APInt a, llvm::APInt b, llvm::APInt c,
 }
 
 ///
+
+struct PartialOrder {
+  ExprHashMap<std::vector<ref<Expr>>> ult;
+  ExprHashMap<std::vector<ref<Expr>>> ule;
+  ExprHashMap<std::vector<ref<Expr>>> ugt;
+  ExprHashMap<std::vector<ref<Expr>>> uge;
+  ExprHashMap<std::vector<ref<Expr>>> slt;
+  ExprHashMap<std::vector<ref<Expr>>> sle;
+  ExprHashMap<std::vector<ref<Expr>>> sgt;
+  ExprHashMap<std::vector<ref<Expr>>> sge;
+  ExprHashMap<std::vector<ref<Expr>>> eq;
+  ExprHashMap<std::vector<ref<Expr>>> ne;
+
+  void add(ref<Expr> e) {
+    ref<CmpExpr> cmp = dyn_cast<CmpExpr>(e);
+    if (!cmp) {
+      return;
+    }
+
+    ExprHashMap<std::vector<ref<Expr>>> *des;
+
+    switch (cmp->getKind()) {
+    case Expr::Kind::Ult:
+      des = &ult;
+      break;
+    case Expr::Kind::Ule:
+      des = &ule;
+      break;
+    case Expr::Kind::Ugt:
+      des = &ugt;
+      break;
+    case Expr::Kind::Uge:
+      des = &uge;
+      break;
+    case Expr::Kind::Slt:
+      des = &slt;
+      break;
+    case Expr::Kind::Sle:
+      des = &sle;
+      break;
+    case Expr::Kind::Sgt:
+      des = &sgt;
+      break;
+    case Expr::Kind::Sge:
+      des = &sge;
+      break;
+    case Expr::Kind::Eq:
+      des = &eq;
+      break;
+    case Expr::Kind::Ne:
+      des = &ne;
+      break;
+    default:
+      return;
+    }
+    (*des)[cmp->left].push_back(cmp->right);
+  }
+};
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const PartialOrder &po) {
+  auto dumpExprs = [&](const std::vector<ref<Expr>> &v) {
+    ExprHashSet vhs(v.begin(), v.end());
+    for (ref<Expr> e : vhs) {
+      os << "    " << e << "\n";
+    }
+    os << "\n";
+  };
+
+  if (po.eq.size()) {
+    os << "---- eqs: ----\n";
+    for (auto &it : po.eq) {
+      os << "> " << it.first << "\n";
+      dumpExprs(it.second);
+    }
+  }
+  if (po.ne.size()) {
+    os << "---- neqs: ----\n";
+    for (auto &it : po.ne) {
+      os << "> " << it.first << "\n";
+      dumpExprs(it.second);
+    }
+  }
+  if (po.sge.size()) {
+    os << "---- sges: ----\n";
+    for (auto &it : po.sge) {
+      os << "> " << it.first << "\n";
+      dumpExprs(it.second);
+    }
+  }
+  if (po.sgt.size()) {
+    os << "---- sgts: ----\n";
+    for (auto &it : po.sgt) {
+      os << "> " << it.first << "\n";
+      dumpExprs(it.second);
+    }
+  }
+  if (po.sle.size()) {
+    os << "---- sles: ----\n";
+    for (auto &it : po.sle) {
+      os << "> " << it.first << "\n";
+      dumpExprs(it.second);
+    }
+  }
+  if (po.slt.size()) {
+    os << "---- slts: ----\n";
+    for (auto &it : po.slt) {
+      os << "> " << it.first << "\n";
+      dumpExprs(it.second);
+    }
+  }
+  if (po.uge.size()) {
+    os << "---- uges: ----\n";
+    for (auto &it : po.uge) {
+      os << "> " << it.first << "\n";
+      dumpExprs(it.second);
+    }
+  }
+  if (po.ugt.size()) {
+    os << "---- ugts: ----\n";
+    for (auto &it : po.ugt) {
+      os << "> " << it.first << "\n";
+      dumpExprs(it.second);
+    }
+  }
+  if (po.ule.size()) {
+    os << "---- ules: ----\n";
+    for (auto &it : po.ule) {
+      os << "> " << it.first << "\n";
+      dumpExprs(it.second);
+    }
+  }
+  if (po.ult.size()) {
+    os << "---- ults: ----\n";
+    for (auto &it : po.ult) {
+      os << "> " << it.first << "\n";
+      dumpExprs(it.second);
+    }
+  }
+  os << "===========================\n\n";
+  return os;
+}
 
 class ValueRange {
   friend class ExprRangeEvaluator<ValueRange>;
@@ -910,8 +1052,10 @@ public:
         // one of the ranges happens to already be a subset of the
         // required range then it may be preferable to force the
         // condition to that side.
-        propogatePossibleValues(se->trueExpr, range);
-        propogatePossibleValues(se->falseExpr, range);
+
+        // FIXME:
+        // propogatePossibleValues(se->trueExpr, range);
+        // propogatePossibleValues(se->falseExpr, range);
       }
       break;
     }
@@ -1462,20 +1606,34 @@ FastCexSolver::~FastCexSolver() {}
 /// \return - True if the propogation was able to prove validity or invalidity.
 static bool propogateValues(const Query &query, CexData &cd, bool checkExpr,
                             bool &isValid) {
+  PartialOrder po;
   for (const auto &constraint : query.constraints) {
     cd.propogatePossibleValue(constraint,
                               llvm::APInt(constraint->getWidth(), 1));
+    for (ref<Expr> e : normalize(constraint)) {
+      po.add(e);
+    }
+
     cd.propogateExactValue(constraint, llvm::APInt(constraint->getWidth(), 1));
   }
   if (checkExpr) {
     cd.propogatePossibleValue(
         query.expr, llvm::APInt::getNullValue(query.expr->getWidth()));
+
+    if (ref<CmpExpr> cmp = dyn_cast<CmpExpr>(query.expr)) {
+      for (ref<Expr> e : normalize(Expr::createFromKind(
+               negateKind(cmp->getKind()), {cmp->left, cmp->right}))) {
+        po.add(e);
+      }
+    }
+
     cd.propogateExactValue(query.expr,
                            llvm::APInt::getNullValue(query.expr->getWidth()));
   }
 
+  llvm::errs() << po << "\n";
+
   KLEE_DEBUG(cd.dump());
-  // cd.dump();
 
   // Check the result.
   bool hasSatisfyingAssignment = true;

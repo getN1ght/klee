@@ -212,3 +212,143 @@ klee::createNonOverflowingSumExpr(const std::vector<ref<Expr>> &terms) {
   }
   return sum;
 }
+
+// TODO: FOR EXPERIMENTS
+Expr::Kind klee::oppositeKind(Expr::Kind kind) {
+  // Unsigned
+  if (kind == Expr::Kind::Uge) {
+    return Expr::Kind::Ule;
+  }
+  if (kind == Expr::Kind::Ule) {
+    return Expr::Kind::Uge;
+  }
+  if (kind == Expr::Kind::Ult) {
+    return Expr::Kind::Ugt;
+  }
+  if (kind == Expr::Kind::Ugt) {
+    return Expr::Kind::Ult;
+  }
+
+  // Signed
+  if (kind == Expr::Kind::Sge) {
+    return Expr::Kind::Sle;
+  }
+  if (kind == Expr::Kind::Sle) {
+    return Expr::Kind::Sge;
+  }
+  if (kind == Expr::Kind::Slt) {
+    return Expr::Kind::Sgt;
+  }
+  if (kind == Expr::Kind::Sgt) {
+    return Expr::Kind::Slt;
+  }
+  return kind;
+}
+
+// TODO: FOR EXPERIMENTS
+Expr::Kind klee::negateKind(Expr::Kind kind) {
+  // Unsigned
+  if (kind == Expr::Kind::Uge) {
+    return Expr::Kind::Ult;
+  }
+  if (kind == Expr::Kind::Ule) {
+    return Expr::Kind::Ugt;
+  }
+  if (kind == Expr::Kind::Ult) {
+    return Expr::Kind::Uge;
+  }
+  if (kind == Expr::Kind::Ugt) {
+    return Expr::Kind::Ule;
+  }
+
+  // Signed
+  if (kind == Expr::Kind::Sge) {
+    return Expr::Kind::Slt;
+  }
+  if (kind == Expr::Kind::Sle) {
+    return Expr::Kind::Sgt;
+  }
+  if (kind == Expr::Kind::Slt) {
+    return Expr::Kind::Sge;
+  }
+  if (kind == Expr::Kind::Sgt) {
+    return Expr::Kind::Sle;
+  }
+
+  // Equality
+  if (kind == Expr::Kind::Eq) {
+    return Expr::Kind::Ne;
+  }
+  if (kind == Expr::Kind::Ne) {
+    return Expr::Kind::Eq;
+  }
+
+  return kind;
+}
+
+std::vector<ref<Expr>> klee::normalize(ref<Expr> e) {
+  std::vector<ref<Expr>> result;
+  ref<CmpExpr> cmp = dyn_cast<CmpExpr>(e);
+  if (!cmp) {
+    return result;
+  }
+
+  std::vector<ref<Expr>> lhs, rhs;
+  std::function<void(bool, ref<Expr>, std::vector<ref<Expr>> &,
+                     std::vector<ref<Expr>> &)>
+      gatherTerms = [&](bool s, ref<Expr> e, std::vector<ref<Expr>> &l,
+                        std::vector<ref<Expr>> &r) {
+        switch (e->getKind()) {
+        case Expr::Kind::Add:
+          gatherTerms(s, e->getKid(0), l, r);
+          gatherTerms(s, e->getKid(1), l, r);
+        case Expr::Kind::Sub:
+          gatherTerms(s, e->getKid(0), l, r);
+          gatherTerms(s ^ 1, e->getKid(1), l, r);
+        // case Expr::Kind::ZExt:
+        // case Expr::Kind::SExt:
+        default:
+          (s ? l : r).push_back(e);
+        }
+      };
+
+  gatherTerms(true, cmp->left, lhs, rhs);
+  gatherTerms(true, cmp->right, rhs, lhs);
+
+  std::sort(lhs.begin(), lhs.end());
+  std::sort(rhs.begin(), rhs.end());
+
+  ref<Expr> rsum = ConstantExpr::create(0, e->getKid(0)->getWidth());
+  ref<Expr> lsum = ConstantExpr::create(0, e->getKid(0)->getWidth());
+  for (ref<Expr> r : rhs) {
+    rsum = AddExpr::create(r, rsum);
+  }
+  for (ref<Expr> l : lhs) {
+    lsum = AddExpr::create(l, lsum);
+  }
+
+  for (unsigned i = 0; i < lhs.size(); ++i) {
+    ref<Expr> cur = rsum;
+    for (unsigned j = 0; j < lhs.size(); ++j) {
+      if (i == j) {
+        continue;
+      }
+      cur = SubExpr::create(cur, lhs[j]);
+    }
+    result.push_back(Expr::createFromKind(cmp->getKind(), {lhs[i], cur}));
+  }
+
+  for (unsigned i = 0; i < rhs.size(); ++i) {
+    ref<Expr> cur = lsum;
+    for (unsigned j = 0; j < rhs.size(); ++j) {
+      if (i == j) {
+        continue;
+      }
+      cur = SubExpr::create(cur, rhs[j]);
+    }
+    result.push_back(
+        Expr::createFromKind(oppositeKind(cmp->getKind()), {rhs[i], cur}));
+  }
+
+  return result;
+}

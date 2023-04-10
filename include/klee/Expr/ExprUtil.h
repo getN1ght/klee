@@ -50,6 +50,11 @@ bool isReadFromSymbolicArray(ref<Expr> e);
 
 ref<Expr> createNonOverflowingSumExpr(const std::vector<ref<Expr>> &terms);
 
+std::vector<ref<Expr>> normalize(ref<Expr>);
+
+Expr::Kind oppositeKind(Expr::Kind kind);
+Expr::Kind negateKind(Expr::Kind kind);
+
 class ConstantArrayFinder : public ExprVisitor {
 protected:
   ExprVisitor::Action visitRead(const ReadExpr &re);
