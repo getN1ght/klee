@@ -302,11 +302,11 @@ std::vector<ref<Expr>> klee::normalize(ref<Expr> e) {
         case Expr::Kind::Add:
           gatherTerms(s, e->getKid(0), l, r);
           gatherTerms(s, e->getKid(1), l, r);
+          break;
         case Expr::Kind::Sub:
           gatherTerms(s, e->getKid(0), l, r);
           gatherTerms(s ^ 1, e->getKid(1), l, r);
-        // case Expr::Kind::ZExt:
-        // case Expr::Kind::SExt:
+          break;
         default:
           (s ? l : r).push_back(e);
         }

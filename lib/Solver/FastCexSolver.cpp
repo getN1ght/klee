@@ -1631,6 +1631,15 @@ static bool propogateValues(const Query &query, CexData &cd, bool checkExpr,
                            llvm::APInt::getNullValue(query.expr->getWidth()));
   }
 
+  for (auto &fit : po.ule) {
+    auto frng = cd.evalRangeForExpr(fit.first);
+    llvm::errs() << frng << '\n';
+    for (auto sit : fit.second) {
+      auto srng = cd.evalRangeForExpr(sit);
+      llvm::errs() << srng << '\n';
+    }
+  }
+
   llvm::errs() << po << "\n";
 
   KLEE_DEBUG(cd.dump());
