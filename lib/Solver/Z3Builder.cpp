@@ -20,6 +20,8 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
 
+#include <cstdlib>
+
 using namespace klee;
 
 namespace klee {
