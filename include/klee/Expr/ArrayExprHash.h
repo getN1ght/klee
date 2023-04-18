@@ -46,11 +46,11 @@ struct UpdateNodeCmpFn {
 
 template <class T> class ArrayExprHash {
 public:
-  ArrayExprHash(){};
+  ArrayExprHash() = default;
   // Note: Extend the class and overload the destructor if the objects of type T
   // that are to be hashed need to be explicitly destroyed
   // As an example, see class STPArrayExprHash
-  virtual ~ArrayExprHash(){};
+  virtual ~ArrayExprHash() = default;
 
   bool lookupArrayExpr(const Array *array, T &exp) const;
   void hashArrayExpr(const Array *array, T &exp);

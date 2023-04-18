@@ -31,10 +31,12 @@ klee_add_component(kleaverSolver
   STPSolver.cpp
   ValidatingSolver.cpp
   Z3Builder.cpp
+  Z3LIABuilder.cpp
   Z3BitvectorBuilder.cpp
   Z3CoreBuilder.cpp
   Z3HashConfig.cpp
   Z3Solver.cpp
+  Z3TheoryArray.cpp
 )
 
 set(LLVM_COMPONENTS
