@@ -37,6 +37,7 @@ klee_add_component(kleaverSolver
   Z3HashConfig.cpp
   Z3Solver.cpp
   Z3TheoryArray.cpp
+  Z3TheoryBitVec.cpp
 )
 
 set(LLVM_COMPONENTS

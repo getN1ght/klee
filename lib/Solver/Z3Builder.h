@@ -114,7 +114,6 @@ struct Z3ASTHandleCmp {
 class Z3ArrayExprHash : public ArrayExprHash<Z3ASTHandle> {
 
   friend class Z3Builder;
-
 public:
   Z3ArrayExprHash() = default;
   virtual ~Z3ArrayExprHash();
@@ -141,7 +140,12 @@ public:
 
   Z3ASTHandle construct(const ref<Expr> &expr);
 
-  virtual ~Z3Builder() = default;
+  bool autoClearConstructCache;
+  std::string z3LogInteractionFile;
+  explicit Z3Builder(bool autoClearConstructCache,
+            const char *z3LogInteractionFileArg);
+
+  virtual ~Z3Builder();
 };
 
 

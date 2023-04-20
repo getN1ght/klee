@@ -10,6 +10,7 @@ namespace klee {
 struct Z3Theory {
 protected:
   Z3_context ctx;
+
 public:
   explicit Z3Theory(Z3_context ctx) : ctx(ctx) {}
 
@@ -45,16 +46,16 @@ public:
                              const Z3ASTHandle &rhs) = 0;
   virtual Z3ASTHandle xorExpr(const Z3ASTHandle &lhs,
                               const Z3ASTHandle &rhs) = 0;
-  virtual Z3ASTHandle notExpr(const Z3ASTHandle &lhs,
-                              const Z3ASTHandle &rhs) = 0;
+  virtual Z3ASTHandle notExpr(const Z3ASTHandle &expr) = 0;
 
   // Propositional logic operations.
-  virtual Z3ASTHandle iteExpr(Z3ASTHandle condition, Z3ASTHandle whenTrue,
-                              Z3ASTHandle whenFalse) = 0;
+  virtual Z3ASTHandle iteExpr(const Z3ASTHandle &condition,
+                              const Z3ASTHandle &whenTrue,
+                              const Z3ASTHandle &whenFalse) = 0;
 
   // Zero extend operations.
-  virtual Z3ASTHandle zextExpr(Z3ASTHandle condition, uint64_t width) = 0;
-  virtual Z3ASTHandle sextExpr(Z3ASTHandle condition, uint64_t width) = 0;
+  virtual Z3ASTHandle zextExpr(const Z3ASTHandle &expr, uint64_t width) = 0;
+  virtual Z3ASTHandle sextExpr(const Z3ASTHandle &expr, uint64_t width) = 0;
 
   // Arithmetic operations.
   virtual Z3ASTHandle addExpr(const Z3ASTHandle &lhs,
@@ -72,8 +73,10 @@ public:
   virtual Z3ASTHandle readExpr(Z3ASTHandle array, Z3ASTHandle index) = 0;
   virtual Z3ASTHandle writeExpr(Z3ASTHandle array, Z3ASTHandle index,
                                 Z3ASTHandle value) = 0;
+
   virtual Z3ASTHandle extractExpr(Z3ASTHandle array, Z3ASTHandle index) = 0;
+  virtual Z3ASTHandle concatExpr(Z3ASTHandle array, Z3ASTHandle index) = 0;
 };
-}
+} // namespace klee
 
 #endif // KLEE_Z3THEORY_H

@@ -10,6 +10,8 @@
 #ifdef ENABLE_Z3
 #include "Z3Builder.h"
 
+#include "Z3Theory.h"
+
 #include "klee/ADT/Bits.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/SymbolicSource.h"
@@ -104,7 +106,7 @@ Z3Builder::~Z3Builder() {
   // Clear caches so exprs/sorts gets freed before the destroying context
   // they aren associated with.
   clearConstructCache();
-  _arr_hash.clear();
+  arrHash.clear();
   constant_array_assertions.clear();
   Z3_del_context(ctx);
   if (z3LogInteractionFile.length() > 0) {
@@ -392,7 +394,7 @@ Z3ASTHandle Z3Builder::constructActual(ref<Expr> e, int *width_out) {
   case Expr::Concat: {
     ConcatExpr *ce = cast<ConcatExpr>(e);
     unsigned numKids = ce->getNumKids();
-    Z3ASTHandle res = construct(ce->getKid(numKids - 1), 0);
+    Z3ASTHandle res = construct(ce->getKid(numKids - 1));
     for (int i = numKids - 2; i >= 0; i--) {
       res =
           Z3ASTHandle(Z3_mk_concat(ctx, construct(ce->getKid(i), 0), res), ctx);
