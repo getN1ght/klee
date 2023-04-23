@@ -34,6 +34,7 @@ klee_add_component(kleaverSolver
   Z3BitvectorBuilder.cpp
   Z3CoreBuilder.cpp
   Z3HashConfig.cpp
+  Z3LIABuilder.cpp
   Z3Solver.cpp
 )
 
