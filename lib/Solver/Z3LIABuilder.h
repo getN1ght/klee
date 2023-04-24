@@ -11,18 +11,31 @@ namespace llvm {
 namespace klee {
 
 class Z3ASTHandleLIA : public Z3ASTHandle {
-public:
-  const unsigned width;
-  const bool isSigned;
+private:
+  unsigned width;
+  bool isSigned;
 
+public:
   Z3ASTHandleLIA(const Z3_ast &node, const Z3_context &ctx, unsigned _width,
                  bool _isSigned)
       : Z3ASTHandle(node, ctx), width(_width), isSigned(_isSigned) {}
+
+  unsigned getWidth() const {
+    return width;
+  }
+  bool sign() const {
+    return isSigned;
+  }
 };
 
 class Z3LIABuilder : public Z3Builder {
 private:
   Z3SortHandle liaSort();
+
+  Z3ASTHandleLIA handleUnsignedOverflow(const Z3ASTHandleLIA &expr);
+  Z3ASTHandleLIA handleUnsignedUnderflow(const Z3ASTHandleLIA &expr);
+  Z3ASTHandleLIA handleSignedOverflow(const Z3ASTHandleLIA &expr);
+  Z3ASTHandleLIA handleSignedUnderflow(const Z3ASTHandleLIA &expr);
 
   Z3ASTHandleLIA liaUnsignedConst(const llvm::APInt &value);
   Z3ASTHandleLIA liaSignedConst(const llvm::APInt &value);
