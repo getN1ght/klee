@@ -19,6 +19,7 @@
 #include "Z3BitvectorBuilder.h"
 #include "Z3Builder.h"
 #include "Z3CoreBuilder.h"
+#include "Z3LIABuilder.h"
 #include "Z3Solver.h"
 
 #include "klee/ADT/SparseStorage.h"
@@ -372,91 +373,186 @@ bool Z3SolverImpl::internalRunSolver(
   std::unordered_map<Z3ASTHandle, Z3ASTHandle, Z3ASTHandleHash, Z3ASTHandleCmp>
       expr_to_track;
   std::unordered_set<Z3ASTHandle, Z3ASTHandleHash, Z3ASTHandleCmp> exprs;
-
-  for (auto const &constraint : query.constraints) {
-    Z3ASTHandle z3Constraint = builder->construct(constraint);
-    if (ProduceUnsatCore && validityCore) {
-      Z3ASTHandle p =
-          builder->buildFreshBoolConst(constraint->toString().c_str());
-      z3_ast_expr_to_klee_expr.insert({p, constraint});
-      z3_ast_expr_constraints.push_back(p);
-      expr_to_track[z3Constraint] = p;
-    }
-
-    Z3_goal_assert(builder->ctx, goal, z3Constraint);
-    exprs.insert(z3Constraint);
-
-    constant_arrays_in_query.visit(constraint);
-  }
-  ++stats::queries;
-  if (objects)
-    ++stats::queryCounterexamples;
-
-  Z3ASTHandle z3QueryExpr =
-      Z3ASTHandle(builder->construct(query.expr), builder->ctx);
-  constant_arrays_in_query.visit(query.expr);
-
-  for (auto const &constant_array : constant_arrays_in_query.results) {
-    assert(builder->constant_array_assertions.count(constant_array) == 1 &&
-           "Constant array found in query, but not handled by Z3Builder");
-    for (auto const &arrayIndexValueExpr :
-         builder->constant_array_assertions[constant_array]) {
-      Z3_goal_assert(builder->ctx, goal, arrayIndexValueExpr);
-      exprs.insert(arrayIndexValueExpr);
-    }
-  }
-
-  // KLEE Queries are validity queries i.e.
-  // ∀ X Constraints(X) → query(X)
-  // but Z3 works in terms of satisfiability so instead we ask the
-  // negation of the equivalent i.e.
-  // ∃ X Constraints(X) ∧ ¬ query(X)
-  Z3ASTHandle z3NotQueryExpr =
-      Z3ASTHandle(Z3_mk_not(builder->ctx, z3QueryExpr), builder->ctx);
-  Z3_goal_assert(builder->ctx, goal, z3NotQueryExpr);
-
-  // Assert an generated side constraints we have to this last so that all other
-  // constraints have been traversed so we have all the side constraints needed.
-  for (std::vector<Z3ASTHandle>::iterator it = builder->sideConstraints.begin(),
-                                          ie = builder->sideConstraints.end();
-       it != ie; ++it) {
-    Z3ASTHandle sideConstraint = *it;
-    Z3_goal_assert(builder->ctx, goal, sideConstraint);
-    exprs.insert(sideConstraint);
-  }
-
-  std::vector<const Array *> arrays = query.gatherArrays();
-  bool forceTactic = true;
-  for (const Array *array : arrays) {
-    if (isa<ConstantWithSymbolicSizeSource>(array->source)) {
-      forceTactic = false;
-      break;
-    }
-  }
-
   Z3_solver theSolver;
-  if (forceTactic && Z3_probe_apply(builder->ctx, probe, goal)) {
-    theSolver = Z3_mk_solver_for_logic(
-        builder->ctx, Z3_mk_string_symbol(builder->ctx, "QF_AUFBV"));
-  } else {
-    theSolver = Z3_mk_solver(builder->ctx);
-  }
-  Z3_solver_inc_ref(builder->ctx, theSolver);
-  Z3_solver_set_params(builder->ctx, theSolver, solverParameters);
 
-  for (std::unordered_set<Z3ASTHandle, Z3ASTHandleHash,
-                          Z3ASTHandleCmp>::iterator it = exprs.begin(),
-                                                    ie = exprs.end();
-       it != ie; ++it) {
-    Z3ASTHandle expr = *it;
-    if (expr_to_track.count(expr)) {
-      Z3_solver_assert_and_track(builder->ctx, theSolver, expr,
-                                 expr_to_track[expr]);
-    } else {
-      Z3_solver_assert(builder->ctx, theSolver, expr);
-    }
+  Z3Builder *liaBuilder = new Z3LIABuilder(false, nullptr);
+  bool useOldWay = false;
+
+#define check                                                                  \
+  {                                                                            \
+    if ((useOldWay = static_cast<Z3LIABuilder *>(liaBuilder)->isBroken))       \
+      break;                                                                   \
   }
-  Z3_solver_assert(builder->ctx, theSolver, z3NotQueryExpr);
+  do {
+    for (auto const &constraint : query.constraints) {
+      Z3ASTHandle z3Constraint = liaBuilder->construct(constraint);
+      check;
+      if (ProduceUnsatCore && validityCore) {
+        Z3ASTHandle p =
+            liaBuilder->buildFreshBoolConst(constraint->toString().c_str());
+        z3_ast_expr_to_klee_expr.insert({p, constraint});
+        z3_ast_expr_constraints.push_back(p);
+        expr_to_track[z3Constraint] = p;
+      }
+
+      Z3_goal_assert(liaBuilder->ctx, goal, z3Constraint);
+      exprs.insert(z3Constraint);
+
+      constant_arrays_in_query.visit(constraint);
+    }
+    ++stats::queries;
+    if (objects)
+      ++stats::queryCounterexamples;
+
+    Z3ASTHandle z3QueryExpr =
+        Z3ASTHandle(liaBuilder->construct(query.expr), liaBuilder->ctx);
+    check;
+
+    constant_arrays_in_query.visit(query.expr);
+
+    for (auto const &constant_array : constant_arrays_in_query.results) {
+      assert(liaBuilder->constant_array_assertions.count(constant_array) == 1 &&
+             "Constant array found in query, but not handled by Z3Builder");
+      for (auto const &arrayIndexValueExpr :
+           liaBuilder->constant_array_assertions[constant_array]) {
+        Z3_goal_assert(liaBuilder->ctx, goal, arrayIndexValueExpr);
+        exprs.insert(arrayIndexValueExpr);
+      }
+    }
+
+    // KLEE Queries are validity queries i.e.
+    // ∀ X Constraints(X) → query(X)
+    // but Z3 works in terms of satisfiability so instead we ask the
+    // negation of the equivalent i.e.
+    // ∃ X Constraints(X) ∧ ¬ query(X)
+    Z3ASTHandle z3NotQueryExpr =
+        Z3ASTHandle(Z3_mk_not(liaBuilder->ctx, z3QueryExpr), liaBuilder->ctx);
+    Z3_goal_assert(liaBuilder->ctx, goal, z3NotQueryExpr);
+
+    // Assert an generated side constraints we have to this last so that all
+    // other constraints have been traversed so we have all the side constraints
+    // needed.
+    for (std::vector<Z3ASTHandle>::iterator
+             it = liaBuilder->sideConstraints.begin(),
+             ie = liaBuilder->sideConstraints.end();
+         it != ie; ++it) {
+      Z3ASTHandle sideConstraint = *it;
+      Z3_goal_assert(liaBuilder->ctx, goal, sideConstraint);
+      exprs.insert(sideConstraint);
+    }
+
+    std::vector<const Array *> arrays = query.gatherArrays();
+
+    assert(Z3_probe_apply(liaBuilder->ctx, probe, goal));
+    theSolver = Z3_mk_solver_for_logic(
+        liaBuilder->ctx, Z3_mk_string_symbol(liaBuilder->ctx, "QF_ALIA"));
+
+    Z3_solver_inc_ref(liaBuilder->ctx, theSolver);
+    Z3_solver_set_params(liaBuilder->ctx, theSolver, solverParameters);
+
+    for (std::unordered_set<Z3ASTHandle, Z3ASTHandleHash,
+                            Z3ASTHandleCmp>::iterator it = exprs.begin(),
+                                                      ie = exprs.end();
+         it != ie; ++it) {
+      Z3ASTHandle expr = *it;
+      if (expr_to_track.count(expr)) {
+        Z3_solver_assert_and_track(liaBuilder->ctx, theSolver, expr,
+                                   expr_to_track[expr]);
+      } else {
+        Z3_solver_assert(liaBuilder->ctx, theSolver, expr);
+      }
+    }
+    Z3_solver_assert(liaBuilder->ctx, theSolver, z3NotQueryExpr);
+  } while (false);
+  delete liaBuilder;
+
+  if (useOldWay) {
+    for (auto const &constraint : query.constraints) {
+      Z3ASTHandle z3Constraint = builder->construct(constraint);
+      if (ProduceUnsatCore && validityCore) {
+        Z3ASTHandle p =
+            builder->buildFreshBoolConst(constraint->toString().c_str());
+        z3_ast_expr_to_klee_expr.insert({p, constraint});
+        z3_ast_expr_constraints.push_back(p);
+        expr_to_track[z3Constraint] = p;
+      }
+
+      Z3_goal_assert(builder->ctx, goal, z3Constraint);
+      exprs.insert(z3Constraint);
+
+      constant_arrays_in_query.visit(constraint);
+    }
+    ++stats::queries;
+    if (objects)
+      ++stats::queryCounterexamples;
+
+    Z3ASTHandle z3QueryExpr =
+        Z3ASTHandle(builder->construct(query.expr), builder->ctx);
+    constant_arrays_in_query.visit(query.expr);
+
+    for (auto const &constant_array : constant_arrays_in_query.results) {
+      assert(builder->constant_array_assertions.count(constant_array) == 1 &&
+             "Constant array found in query, but not handled by Z3Builder");
+      for (auto const &arrayIndexValueExpr :
+           builder->constant_array_assertions[constant_array]) {
+        Z3_goal_assert(builder->ctx, goal, arrayIndexValueExpr);
+        exprs.insert(arrayIndexValueExpr);
+      }
+    }
+
+    // KLEE Queries are validity queries i.e.
+    // ∀ X Constraints(X) → query(X)
+    // but Z3 works in terms of satisfiability so instead we ask the
+    // negation of the equivalent i.e.
+    // ∃ X Constraints(X) ∧ ¬ query(X)
+    Z3ASTHandle z3NotQueryExpr =
+        Z3ASTHandle(Z3_mk_not(builder->ctx, z3QueryExpr), builder->ctx);
+    Z3_goal_assert(builder->ctx, goal, z3NotQueryExpr);
+
+    // Assert an generated side constraints we have to this last so that all
+    // other constraints have been traversed so we have all the side constraints
+    // needed.
+    for (std::vector<Z3ASTHandle>::iterator
+             it = builder->sideConstraints.begin(),
+             ie = builder->sideConstraints.end();
+         it != ie; ++it) {
+      Z3ASTHandle sideConstraint = *it;
+      Z3_goal_assert(builder->ctx, goal, sideConstraint);
+      exprs.insert(sideConstraint);
+    }
+
+    std::vector<const Array *> arrays = query.gatherArrays();
+    bool forceTactic = true;
+    for (const Array *array : arrays) {
+      if (isa<ConstantWithSymbolicSizeSource>(array->source)) {
+        forceTactic = false;
+        break;
+      }
+    }
+
+    if (forceTactic && Z3_probe_apply(builder->ctx, probe, goal)) {
+      theSolver = Z3_mk_solver_for_logic(
+          builder->ctx, Z3_mk_string_symbol(builder->ctx, "QF_AUFBV"));
+    } else {
+      theSolver = Z3_mk_solver(builder->ctx);
+    }
+    Z3_solver_inc_ref(builder->ctx, theSolver);
+    Z3_solver_set_params(builder->ctx, theSolver, solverParameters);
+
+    for (std::unordered_set<Z3ASTHandle, Z3ASTHandleHash,
+                            Z3ASTHandleCmp>::iterator it = exprs.begin(),
+                                                      ie = exprs.end();
+         it != ie; ++it) {
+      Z3ASTHandle expr = *it;
+      if (expr_to_track.count(expr)) {
+        Z3_solver_assert_and_track(builder->ctx, theSolver, expr,
+                                   expr_to_track[expr]);
+      } else {
+        Z3_solver_assert(builder->ctx, theSolver, expr);
+      }
+    }
+    Z3_solver_assert(builder->ctx, theSolver, z3NotQueryExpr);
+  }
 
   if (dumpedQueriesFile) {
     *dumpedQueriesFile << "; start Z3 query\n";

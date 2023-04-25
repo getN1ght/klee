@@ -369,6 +369,7 @@ Z3ASTHandleLIA Z3LIABuilder::constructLIA(const ref<Expr> &e) {
 }
 
 Z3ASTHandle Z3LIABuilder::construct(ref<Expr> e, int *width_out) {
+  isBroken = false;
   Z3ASTHandleLIA result = constructLIA(e);
   if (width_out) {
     *width_out = result.getWidth();
@@ -474,6 +475,8 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     if (expr.getWidth() == 1) {
       return liaNot(expr);
     } else {
+      isBroken = true;
+      return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
     }
   }
 
@@ -484,6 +487,8 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     if (left.getWidth() == 1) {
       return liaAnd(left, right);
     } else {
+      isBroken = true;
+      return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
     }
   }
 
@@ -494,6 +499,8 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     if (left.getWidth() == 1) {
       return liaOr(left, right);
     } else {
+      isBroken = true;
+      return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
     }
   }
 
@@ -506,6 +513,8 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
       // XXX check for most efficient?
       return liaXor(left, right);
     } else {
+      isBroken = true;
+      return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
     }
   }
     // Comparison
@@ -562,8 +571,10 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
   case Expr::SRem:
   case Expr::Shl:
   case Expr::LShr:
-  case Expr::AShr:
   case Expr::Extract:
+  case Expr::AShr:
+    isBroken = true;
+    return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
 // unused due to canonicalization
 #if 0
   case Expr::Ne:
