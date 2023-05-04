@@ -15,13 +15,15 @@ Z3LIABuilder::handleUnsignedOverflow(const Z3ASTHandleLIA &expr) {
   // assumes: expr \in [-(2**w)+1, 2**(w+1)-2]
   // gives:   sum = (a + b >= 2**w) ? (a + b - 2**w) : (a + b);
   Z3ASTHandleLIA maxUnsignedInt =
-      liaUnsignedConst(llvm::APInt::getMaxValue(expr.getWidth() + 1));
-  Z3_ast condition = Z3_mk_ge(ctx, expr, maxUnsignedInt);
+      liaUnsignedConst(llvm::APInt::getHighBitsSet(expr.getWidth() + 1, 1));
+  Z3ASTHandleLIA condition = {Z3_mk_ge(ctx, expr, maxUnsignedInt), ctx, 1,
+                              false};
 
   Z3_ast subArgs[] = {expr, maxUnsignedInt};
-  Z3_ast ite = Z3_mk_ite(ctx, condition, Z3_mk_sub(ctx, 2, subArgs), expr);
-
-  return {ite, ctx, expr.getWidth(), false};
+  Z3ASTHandleLIA subHandleLIA = {Z3_mk_sub(ctx, 2, subArgs), ctx,
+                                 expr.getWidth(), false};
+  return {Z3_mk_ite(ctx, condition, subHandleLIA, expr), ctx, expr.getWidth(),
+          false};
 }
 
 Z3ASTHandleLIA
@@ -35,12 +37,14 @@ Z3LIABuilder::handleUnsignedUnderflow(const Z3ASTHandleLIA &expr) {
       liaUnsignedConst(llvm::APInt::getHighBitsSet(expr.getWidth() + 1, 1));
   llvm::APInt nullValue = llvm::APInt::getNullValue(expr.getWidth());
 
-  Z3_ast condition = Z3_mk_lt(ctx, expr, liaUnsignedConst(nullValue));
+  Z3ASTHandleLIA condition = {Z3_mk_lt(ctx, expr, liaUnsignedConst(nullValue)),
+                              ctx, 1, false};
 
   Z3_ast addArgs[] = {expr, maxUnsignedInt};
-  Z3_ast ite = Z3_mk_ite(ctx, condition, Z3_mk_add(ctx, 2, addArgs), expr);
-
-  return {ite, ctx, expr.getWidth(), false};
+  Z3ASTHandleLIA addHandleLIA = {Z3_mk_add(ctx, 2, addArgs), ctx,
+                                 expr.getWidth(), false};
+  return {Z3_mk_ite(ctx, condition, addHandleLIA, expr), ctx, expr.getWidth(),
+          false};
 }
 
 Z3ASTHandleLIA Z3LIABuilder::handleSignedOverflow(const Z3ASTHandleLIA &expr) {
@@ -51,13 +55,14 @@ Z3ASTHandleLIA Z3LIABuilder::handleSignedOverflow(const Z3ASTHandleLIA &expr) {
   // gives:   sum = (a+b > 2**(w-1)-1) ? (2**(w-1)-1-(a+b)) : (a+b)
   Z3ASTHandleLIA maxSignedInt =
       liaSignedConst(llvm::APInt::getMaxValue(expr.getWidth()));
-  Z3_ast condition = Z3_mk_gt(ctx, expr, maxSignedInt);
+  Z3ASTHandleLIA condition = {Z3_mk_gt(ctx, expr, maxSignedInt), ctx, 1, false};
 
   Z3_ast overflowASTArgs[] = {maxSignedInt, expr};
-  Z3_ast preparedExpr = Z3_mk_sub(ctx, 2, overflowASTArgs);
+  Z3ASTHandleLIA preparedExpr = {Z3_mk_sub(ctx, 2, overflowASTArgs), ctx,
+                                 expr.getWidth(), true};
 
   return {Z3_mk_ite(ctx, condition, preparedExpr, expr), ctx, expr.getWidth(),
-          expr.sign()};
+          true};
 }
 
 Z3ASTHandleLIA Z3LIABuilder::handleSignedUnderflow(const Z3ASTHandleLIA &expr) {
@@ -68,15 +73,17 @@ Z3ASTHandleLIA Z3LIABuilder::handleSignedUnderflow(const Z3ASTHandleLIA &expr) {
   // gives:   sum = (a+b < -2**(w-1) ? -2**(w-1)-(a+b) : a+b)
   Z3ASTHandleLIA minSignedInt =
       liaSignedConst(llvm::APInt::getSignedMinValue(expr.getWidth()));
-  Z3_ast condition = Z3_mk_lt(ctx, expr, minSignedInt);
+  Z3ASTHandleLIA condition = {Z3_mk_lt(ctx, expr, minSignedInt), ctx, 1, false};
 
   Z3_ast overflowASTArgs[] = {minSignedInt, expr};
 
-  Z3_ast preparedExpr =
-      Z3_mk_unary_minus(ctx, Z3_mk_sub(ctx, 2, overflowASTArgs));
+  Z3ASTHandleLIA subExpr = {Z3_mk_sub(ctx, 2, overflowASTArgs), ctx,
+                            expr.getWidth(), true};
+  Z3ASTHandleLIA preparedExpr = {Z3_mk_unary_minus(ctx, subExpr), ctx,
+                                 expr.getWidth(), false};
 
   return {Z3_mk_ite(ctx, condition, preparedExpr, expr), ctx, expr.getWidth(),
-          expr.sign()};
+          true};
 }
 
 Z3ASTHandleLIA Z3LIABuilder::castToSigned(const Z3ASTHandleLIA &expr) {
@@ -94,11 +101,11 @@ Z3ASTHandleLIA Z3LIABuilder::castToUnsigned(const Z3ASTHandleLIA &expr) {
   }
 
   Z3ASTHandleLIA unsignedExpr = {expr, ctx, expr.getWidth(), false};
-  return handleUnsignedUnderflow(expr);
+  return handleUnsignedUnderflow(unsignedExpr);
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaUnsignedConst(const llvm::APInt &value) {
-  std::string valueString = value.toString(10, true);
+  std::string valueString = value.toString(10, false);
   Z3_string s = valueString.c_str();
   return {Z3_mk_numeral(ctx, s, liaSort()), ctx, value.getBitWidth(), false};
 }
@@ -143,8 +150,7 @@ Z3ASTHandleLIA Z3LIABuilder::liaAddExpr(const Z3ASTHandleLIA &lhs,
     // signed + unsigned
     // unsigned + unsigned
     const Z3_ast args[] = {castToUnsigned(lhs), castToUnsigned(rhs)};
-    Z3ASTHandleLIA sumExpr(Z3_mk_add(ctx, 2, args), ctx, lhs.getWidth(),
-                           lhs.sign());
+    Z3ASTHandleLIA sumExpr(Z3_mk_add(ctx, 2, args), ctx, lhs.getWidth(), false);
 
     return handleUnsignedOverflow(sumExpr);
   } else {
@@ -152,8 +158,7 @@ Z3ASTHandleLIA Z3LIABuilder::liaAddExpr(const Z3ASTHandleLIA &lhs,
     // overflow or underflow?
     // is this way better or make a cast to unsigned?
     const Z3_ast args[] = {lhs, rhs};
-    Z3ASTHandleLIA sumExpr(Z3_mk_add(ctx, 2, args), ctx, lhs.getWidth(),
-                           lhs.sign());
+    Z3ASTHandleLIA sumExpr(Z3_mk_add(ctx, 2, args), ctx, lhs.getWidth(), true);
     return handleSignedUnderflow(handleSignedOverflow(sumExpr));
   }
 }
@@ -278,11 +283,10 @@ Z3ASTHandleLIA Z3LIABuilder::liaGetInitialArray(const Array *root) {
             dyn_cast<ConstantWithSymbolicSizeSource>(root->source)) {
       array_expr = liaBuildConstantArray(
           unique_name.c_str(),
-          llvm::APInt(root->getDomain(),
+          llvm::APInt(root->getRange(),
                       constantWithSymbolicSizeSource->defaultValue));
     } else {
-      array_expr =
-          liaBuildArray(unique_name.c_str(), root->getDomain());
+      array_expr = liaBuildArray(unique_name.c_str(), root->getRange());
     }
 
     if (root->isConstantArray() && constant_array_assertions.count(root) == 0) {
@@ -290,8 +294,7 @@ Z3ASTHandleLIA Z3LIABuilder::liaGetInitialArray(const Array *root) {
       for (unsigned i = 0, e = root->constantValues.size(); i != e; ++i) {
         // construct(= (select i root) root->value[i]) to be asserted in
         // Z3Solver.cpp
-        Z3ASTHandleLIA array_value =
-            constructLIA(root->constantValues[i]);
+        Z3ASTHandleLIA array_value = constructLIA(root->constantValues[i]);
         array_assertions.push_back(liaEq(
             liaReadExpr(array_expr,
                         liaUnsignedConst(llvm::APInt(root->getDomain(), i))),
@@ -317,8 +320,7 @@ Z3ASTHandleLIA Z3LIABuilder::liaGetArrayForUpdate(const Array *root,
 
     if (!hashed) {
       un_expr = liaWriteExpr(liaGetArrayForUpdate(root, un->next.get()),
-                             constructLIA(un->index),
-                             constructLIA(un->value));
+                             constructLIA(un->index), constructLIA(un->value));
 
       arrHashLIA.hashUpdateNodeExpr(un, un_expr);
     }
@@ -330,7 +332,7 @@ Z3ASTHandleLIA Z3LIABuilder::liaGetArrayForUpdate(const Array *root,
 Z3ASTHandleLIA Z3LIABuilder::liaBuildArray(const char *name, unsigned width) {
   Z3SortHandle t = getArraySort(liaSort(), liaSort());
   Z3_symbol s = Z3_mk_string_symbol(ctx, const_cast<char *>(name));
-  return { Z3_mk_const(ctx, s, t), ctx, width, false };
+  return {Z3_mk_const(ctx, s, t), ctx, width, false};
 }
 
 Z3ASTHandleLIA
@@ -377,7 +379,6 @@ Z3ASTHandle Z3LIABuilder::construct(ref<Expr> e, int *width_out) {
   return result;
 }
 
-
 /** if *width_out!=1 then result is a bitvector,
     otherwise it is a bool */
 Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
@@ -389,7 +390,7 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     // Coerce to bool if necessary.
     if (CE->getWidth() == 1)
       return CE->isTrue() ? Z3ASTHandleLIA{Z3_mk_true(ctx), ctx, 1, false}
-                          : Z3ASTHandleLIA{Z3_mk_true(ctx), ctx, 0, false};
+                          : Z3ASTHandleLIA{Z3_mk_false(ctx), ctx, 0, false};
 
     return liaUnsignedConst(CE->getAPValue());
   }

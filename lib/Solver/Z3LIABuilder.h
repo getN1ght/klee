@@ -18,7 +18,9 @@ public:
   Z3ASTHandleLIA() = default;
   Z3ASTHandleLIA(const Z3_ast &node, const Z3_context &ctx, unsigned _width,
                  bool _isSigned)
-      : Z3ASTHandle(node, ctx), width(_width), isSigned(_isSigned) {}
+      : Z3ASTHandle(node, ctx), width(_width), isSigned(_isSigned) {
+    llvm::errs() << Z3_ast_to_string(ctx, node) << "\n\n";
+  }
 
   unsigned getWidth() const { return width; }
   bool sign() const { return isSigned; }

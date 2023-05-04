@@ -356,13 +356,6 @@ bool Z3SolverImpl::internalRunSolver(
   // TODO: Investigate using a custom tactic as described in
   // https://github.com/klee/klee/issues/653
 
-  Z3_goal goal = Z3_mk_goal(builder->ctx, false, false, false);
-  Z3_goal_inc_ref(builder->ctx, goal);
-
-  // TODO: make a RAII
-  Z3_probe probe = Z3_mk_probe(builder->ctx, "is-qfaufbv");
-  Z3_probe_inc_ref(builder->ctx, probe);
-
   runStatusCode = SOLVER_RUN_STATUS_FAILURE;
 
   ConstantArrayFinder constant_arrays_in_query;
@@ -375,15 +368,18 @@ bool Z3SolverImpl::internalRunSolver(
   std::unordered_set<Z3ASTHandle, Z3ASTHandleHash, Z3ASTHandleCmp> exprs;
   Z3_solver theSolver;
 
-  Z3Builder *liaBuilder = new Z3LIABuilder(false, nullptr);
+  Z3Builder *liaBuilder = new Z3LIABuilder(true, nullptr);
+  Z3Builder *snapBuilder = builder;
+
   bool useOldWay = false;
 
 #define check                                                                  \
   {                                                                            \
     if ((useOldWay = static_cast<Z3LIABuilder *>(liaBuilder)->isBroken))       \
-      break;                                                                   \
+      goto oldWay;                                                             \
   }
-  do {
+
+  if (!useOldWay) {
     for (auto const &constraint : query.constraints) {
       Z3ASTHandle z3Constraint = liaBuilder->construct(constraint);
       check;
@@ -395,7 +391,6 @@ bool Z3SolverImpl::internalRunSolver(
         expr_to_track[z3Constraint] = p;
       }
 
-      Z3_goal_assert(liaBuilder->ctx, goal, z3Constraint);
       exprs.insert(z3Constraint);
 
       constant_arrays_in_query.visit(constraint);
@@ -415,7 +410,6 @@ bool Z3SolverImpl::internalRunSolver(
              "Constant array found in query, but not handled by Z3Builder");
       for (auto const &arrayIndexValueExpr :
            liaBuilder->constant_array_assertions[constant_array]) {
-        Z3_goal_assert(liaBuilder->ctx, goal, arrayIndexValueExpr);
         exprs.insert(arrayIndexValueExpr);
       }
     }
@@ -427,7 +421,7 @@ bool Z3SolverImpl::internalRunSolver(
     // ∃ X Constraints(X) ∧ ¬ query(X)
     Z3ASTHandle z3NotQueryExpr =
         Z3ASTHandle(Z3_mk_not(liaBuilder->ctx, z3QueryExpr), liaBuilder->ctx);
-    Z3_goal_assert(liaBuilder->ctx, goal, z3NotQueryExpr);
+    check;
 
     // Assert an generated side constraints we have to this last so that all
     // other constraints have been traversed so we have all the side constraints
@@ -437,13 +431,11 @@ bool Z3SolverImpl::internalRunSolver(
              ie = liaBuilder->sideConstraints.end();
          it != ie; ++it) {
       Z3ASTHandle sideConstraint = *it;
-      Z3_goal_assert(liaBuilder->ctx, goal, sideConstraint);
       exprs.insert(sideConstraint);
     }
 
     std::vector<const Array *> arrays = query.gatherArrays();
 
-    assert(Z3_probe_apply(liaBuilder->ctx, probe, goal));
     theSolver = Z3_mk_solver_for_logic(
         liaBuilder->ctx, Z3_mk_string_symbol(liaBuilder->ctx, "QF_ALIA"));
 
@@ -462,11 +454,24 @@ bool Z3SolverImpl::internalRunSolver(
         Z3_solver_assert(liaBuilder->ctx, theSolver, expr);
       }
     }
+    llvm::errs() << Z3_ast_to_string(liaBuilder->ctx, z3NotQueryExpr) << "\n";
+
     Z3_solver_assert(liaBuilder->ctx, theSolver, z3NotQueryExpr);
-  } while (false);
-  delete liaBuilder;
+    builder = liaBuilder;
+  }
+
+oldWay:
 
   if (useOldWay) {
+    expr_to_track.clear();
+    exprs.clear();
+
+    // TODO: make a RAII
+    Z3_goal goal = Z3_mk_goal(builder->ctx, false, false, false);
+    Z3_goal_inc_ref(builder->ctx, goal);
+    Z3_probe probe = Z3_mk_probe(builder->ctx, "is-qfaufbv");
+    Z3_probe_inc_ref(builder->ctx, probe);
+
     for (auto const &constraint : query.constraints) {
       Z3ASTHandle z3Constraint = builder->construct(constraint);
       if (ProduceUnsatCore && validityCore) {
@@ -552,6 +557,9 @@ bool Z3SolverImpl::internalRunSolver(
       }
     }
     Z3_solver_assert(builder->ctx, theSolver, z3NotQueryExpr);
+
+    Z3_goal_dec_ref(builder->ctx, goal);
+    Z3_probe_dec_ref(builder->ctx, probe);
   }
 
   if (dumpedQueriesFile) {
@@ -618,8 +626,6 @@ bool Z3SolverImpl::internalRunSolver(
     Z3_ast_vector_dec_ref(builder->ctx, assertions);
   }
 
-  Z3_goal_dec_ref(builder->ctx, goal);
-  Z3_probe_dec_ref(builder->ctx, probe);
   Z3_solver_dec_ref(builder->ctx, theSolver);
 
   // Clear the builder's cache to prevent memory usage exploding.
@@ -629,6 +635,9 @@ bool Z3SolverImpl::internalRunSolver(
   // ``builder->construct()``.
   builder->clearConstructCache();
   builder->clearSideConstraints();
+  delete liaBuilder;
+  builder = snapBuilder;
+
   if (runStatusCode == SolverImpl::SOLVER_RUN_STATUS_SUCCESS_SOLVABLE ||
       runStatusCode == SolverImpl::SOLVER_RUN_STATUS_SUCCESS_UNSOLVABLE) {
     if (hasSolution) {
