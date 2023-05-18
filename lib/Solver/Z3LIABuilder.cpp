@@ -364,7 +364,9 @@ Z3ASTHandleLIA Z3LIABuilder::constructLIA(const ref<Expr> &e) {
       return it->second;
     } else {
       Z3ASTHandleLIA res = constructActualLIA(e);
-      constructedLIA.insert(std::make_pair(e, res));
+      if (!isBroken) {
+        constructedLIA.insert(std::make_pair(e, res));
+      }
       return res;
     }
   }
@@ -420,11 +422,11 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
   case Expr::Concat: {
     ref<ConcatExpr> ce = cast<ConcatExpr>(e);
     int numKids = static_cast<int>(ce->getNumKids());
-    Z3ASTHandleLIA res = constructLIA(ce->getKid(numKids - 1));
+    Z3ASTHandleLIA res = constructLIA(ce->getKid(0));
 
-    for (int i = numKids - 2; i >= 0; i--) {
+    for (int i = 1; i < numKids; ++i) {
       Z3ASTHandleLIA kidExpr = constructLIA(ce->getKid(i));
-      res = liaConcatExpr(kidExpr, res);
+      res = liaConcatExpr(res, kidExpr);
     }
     return res;
   }

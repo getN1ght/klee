@@ -11,15 +11,25 @@ namespace klee {
 
 class Z3ASTHandleLIA : public Z3ASTHandle {
 private:
-  unsigned width;
-  bool isSigned;
+  unsigned width = 0;
+  bool isSigned = false;
 
 public:
-  Z3ASTHandleLIA() = default;
+  Z3ASTHandleLIA() : Z3ASTHandle() {}
   Z3ASTHandleLIA(const Z3_ast &node, const Z3_context &ctx, unsigned _width,
                  bool _isSigned)
-      : Z3ASTHandle(node, ctx), width(_width), isSigned(_isSigned) {
-    llvm::errs() << Z3_ast_to_string(ctx, node) << "\n\n";
+      : Z3ASTHandle(node, ctx), width(_width), isSigned(_isSigned) {}
+
+  Z3ASTHandleLIA(const Z3ASTHandleLIA &b)
+      : Z3ASTHandle(b), width(b.width), isSigned(b.isSigned) {}
+
+  Z3ASTHandleLIA &operator=(const Z3ASTHandleLIA &b) {
+    Z3ASTHandle::operator=(b);
+
+    width = b.width;
+    isSigned = b.isSigned;
+
+    return *this;
   }
 
   unsigned getWidth() const { return width; }
@@ -38,6 +48,18 @@ public:
     _array_hash.clear();
   }
   void clearUpdates() { _update_node_hash.clear(); }
+};
+
+struct Z3ASTHandleLIAHash {
+  unsigned operator()(const Z3ASTHandleLIA &e) const {
+    return const_cast<Z3ASTHandleLIA *>(&e)->hash();
+  }
+};
+
+struct Z3ASTHandleLIACmp {
+  bool operator()(const Z3ASTHandleLIA &a, const Z3ASTHandleLIA &b) const {
+    return a == b && a.getWidth() == b.getWidth() && a.sign() == b.sign();
+  }
 };
 
 class Z3LIABuilder : public Z3Builder {

@@ -66,6 +66,7 @@ namespace klee {
 class Z3SolverImpl : public SolverImpl {
 private:
   Z3Builder *builder;
+  Z3Builder *liaBuilder;
   Z3BuilderType builderType;
   time::Span timeout;
   SolverRunStatus runStatusCode;
@@ -125,6 +126,7 @@ public:
 
 Z3SolverImpl::Z3SolverImpl(Z3BuilderType type)
     : builderType(type), runStatusCode(SOLVER_RUN_STATUS_FAILURE) {
+  liaBuilder = new Z3LIABuilder(true, nullptr);
   switch (type) {
   case KLEE_CORE:
     builder = new Z3CoreBuilder(
@@ -182,6 +184,7 @@ Z3SolverImpl::Z3SolverImpl(Z3BuilderType type)
 Z3SolverImpl::~Z3SolverImpl() {
   Z3_params_dec_ref(builder->ctx, solverParameters);
   delete builder;
+  delete liaBuilder;
 }
 
 Z3Solver::Z3Solver(Z3BuilderType type) : Solver(new Z3SolverImpl(type)) {}
@@ -358,7 +361,6 @@ bool Z3SolverImpl::internalRunSolver(
 
   runStatusCode = SOLVER_RUN_STATUS_FAILURE;
 
-  ConstantArrayFinder constant_arrays_in_query;
   std::vector<Z3ASTHandle> z3_ast_expr_constraints;
   std::unordered_map<Z3ASTHandle, ref<Expr>, Z3ASTHandleHash, Z3ASTHandleCmp>
       z3_ast_expr_to_klee_expr;
@@ -368,21 +370,30 @@ bool Z3SolverImpl::internalRunSolver(
   std::unordered_set<Z3ASTHandle, Z3ASTHandleHash, Z3ASTHandleCmp> exprs;
   Z3_solver theSolver;
 
-  Z3Builder *liaBuilder = new Z3LIABuilder(true, nullptr);
   Z3Builder *snapBuilder = builder;
 
   bool useOldWay = false;
 
 #define check                                                                  \
   {                                                                            \
-    if ((useOldWay = static_cast<Z3LIABuilder *>(liaBuilder)->isBroken))       \
+    if ((useOldWay = static_cast<Z3LIABuilder *>(liaBuilder)->isBroken)) {     \
+      z3_ast_expr_to_klee_expr.clear();                                        \
+      z3_ast_expr_constraints.clear();                                         \
+      expr_to_track.clear();                                                   \
+      exprs.clear();                                                           \
       goto oldWay;                                                             \
+    }                                                                          \
   }
 
+  query.dump();
+
   if (!useOldWay) {
+    ConstantArrayFinder constant_arrays_in_query;
+
     for (auto const &constraint : query.constraints) {
       Z3ASTHandle z3Constraint = liaBuilder->construct(constraint);
       check;
+
       if (ProduceUnsatCore && validityCore) {
         Z3ASTHandle p =
             liaBuilder->buildFreshBoolConst(constraint->toString().c_str());
@@ -454,7 +465,6 @@ bool Z3SolverImpl::internalRunSolver(
         Z3_solver_assert(liaBuilder->ctx, theSolver, expr);
       }
     }
-    llvm::errs() << Z3_ast_to_string(liaBuilder->ctx, z3NotQueryExpr) << "\n";
 
     Z3_solver_assert(liaBuilder->ctx, theSolver, z3NotQueryExpr);
     builder = liaBuilder;
@@ -463,8 +473,7 @@ bool Z3SolverImpl::internalRunSolver(
 oldWay:
 
   if (useOldWay) {
-    expr_to_track.clear();
-    exprs.clear();
+    ConstantArrayFinder constant_arrays_in_query;
 
     // TODO: make a RAII
     Z3_goal goal = Z3_mk_goal(builder->ctx, false, false, false);
@@ -587,6 +596,7 @@ oldWay:
   ::Z3_lbool satisfiable = Z3_solver_check(builder->ctx, theSolver);
   runStatusCode = handleSolverResponse(theSolver, satisfiable, objects, values,
                                        usedArrayBytes, hasSolution);
+
   if (ProduceUnsatCore && validityCore && satisfiable == Z3_L_FALSE) {
     ExprHashSet unsatCore;
     Z3_ast_vector z3_unsat_core =
@@ -633,10 +643,13 @@ oldWay:
   // we allow Z3_ast expressions to be shared from an entire
   // ``Query`` rather than only sharing within a single call to
   // ``builder->construct()``.
+
+  builder = snapBuilder;
+
   builder->clearConstructCache();
   builder->clearSideConstraints();
-  delete liaBuilder;
-  builder = snapBuilder;
+  liaBuilder->clearConstructCache();
+  liaBuilder->clearSideConstraints();
 
   if (runStatusCode == SolverImpl::SOLVER_RUN_STATUS_SUCCESS_SOLVABLE ||
       runStatusCode == SolverImpl::SOLVER_RUN_STATUS_SUCCESS_UNSOLVABLE) {
