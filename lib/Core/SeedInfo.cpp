@@ -79,7 +79,7 @@ void SeedInfo::patchSeed(const ExecutionState &state, ref<Expr> condition,
     ReadExpr *re = it->get();
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(re->index)) {
       directReads.insert(
-          std::make_pair(re->updates.root, (unsigned)CE->getZExtValue(32)));
+          std::make_pair(re->updates.root, (unsigned)CE->getZExtValue(64)));
     }
   }
 

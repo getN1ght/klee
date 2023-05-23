@@ -58,7 +58,7 @@ public:
                            const ref<SymbolicSource> source,
                            const ref<ConstantExpr> *constantValuesBegin = 0,
                            const ref<ConstantExpr> *constantValuesEnd = 0,
-                           Expr::Width _domain = Expr::Int32,
+                           Expr::Width _domain = Expr::Int64,
                            Expr::Width _range = Expr::Int8);
 
 private:

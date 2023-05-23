@@ -476,8 +476,8 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(0),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
-      pathWriter(0), symPathWriter(0),
-      specialFunctionHandler(0), timers{time::Span(TimerInterval)},
+      pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
+      timers{time::Span(TimerInterval)},
       concretizationManager(new ConcretizationManager(EqualitySubstitution)),
       codeGraphDistance(new CodeGraphDistance()), replayKTest(0), replayPath(0),
       usingSeeds(0), atMemoryLimit(false), inhibitForking(false),
@@ -2938,7 +2938,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       offset = AddExpr::create(offset, Expr::createPointer(kgepi->offset));
     ref<Expr> address = AddExpr::create(base, offset);
     if (!isa<ConstantExpr>(address)) {
-      ref<Expr> extractedOffset = ExtractExpr::create(offset, 0, Expr::Int32);
+      ref<Expr> extractedOffset = ExtractExpr::create(offset, 0, Expr::Int64);
       if (state.isGEPExpr(base)) {
         state.gepExprBases[address] = state.gepExprBases[base];
         state.gepExprOffsets[address] =
@@ -3648,7 +3648,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       // which represents a cleanup, and expect it to handle it.
       // This is explicitly allowed by LLVM, see
       // https://llvm.org/docs/ExceptionHandling.html#id18
-      selectorValue = ConstantExpr::create(0, Expr::Int32);
+      selectorValue = ConstantExpr::create(0, Expr::Int64);
     }
 
     // we have to return a {i8*, i32}

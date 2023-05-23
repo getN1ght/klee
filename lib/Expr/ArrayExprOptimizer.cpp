@@ -69,33 +69,33 @@ ref<Expr> extendRead(const UpdateList &ul, const ref<Expr> index,
   case Expr::Int16:
     return ConcatExpr::create(
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(1, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(1, Expr::Int64), index)),
         ReadExpr::alloc(ul, index));
   case Expr::Int32:
     return ConcatExpr::create4(
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(3, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(3, Expr::Int64), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(2, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(2, Expr::Int64), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(1, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(1, Expr::Int64), index)),
         ReadExpr::alloc(ul, index));
   case Expr::Int64:
     return ConcatExpr::create8(
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(7, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(7, Expr::Int64), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(6, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(6, Expr::Int64), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(5, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(5, Expr::Int64), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(4, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(4, Expr::Int64), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(3, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(3, Expr::Int64), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(2, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(2, Expr::Int64), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(1, Expr::Int32), index)),
+            ul, AddExpr::create(ConstantExpr::create(1, Expr::Int64), index)),
         ReadExpr::alloc(ul, index));
   }
 }
@@ -448,8 +448,8 @@ ref<Expr> ExprOptimizer::buildConstantSelectExpr(
   ref<Expr> result;
 
   ref<Expr> actualIndex;
-  if (index->getWidth() > Expr::Int32) {
-    actualIndex = ExtractExpr::alloc(index, 0, Expr::Int32);
+  if (index->getWidth() > Expr::Int64) {
+    actualIndex = ExtractExpr::alloc(index, 0, Expr::Int64);
   } else {
     actualIndex = index;
   }

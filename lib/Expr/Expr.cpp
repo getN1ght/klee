@@ -65,36 +65,36 @@ ref<Expr> Expr::createTempRead(const Array *array, Expr::Width w,
     assert(0 && "invalid width");
   case Expr::Bool:
     return ZExtExpr::create(
-        ReadExpr::create(ul, ConstantExpr::alloc(off, Expr::Int32)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off, Expr::Int64)),
         Expr::Bool);
   case Expr::Int8:
-    return ReadExpr::create(ul, ConstantExpr::alloc(0, Expr::Int32));
+    return ReadExpr::create(ul, ConstantExpr::alloc(0, Expr::Int64));
   case Expr::Int16:
     return ConcatExpr::create(
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 1, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off, Expr::Int32)));
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 1, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off, Expr::Int64)));
   case Expr::Int32:
     return ConcatExpr::create4(
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 3, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 2, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 1, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off, Expr::Int32)));
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 3, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 2, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 1, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off, Expr::Int64)));
   case Expr::Int64:
     return ConcatExpr::create8(
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 7, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 6, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 5, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 4, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 3, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 2, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off + 1, Expr::Int32)),
-        ReadExpr::create(ul, ConstantExpr::alloc(off, Expr::Int32)));
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 7, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 6, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 5, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 4, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 3, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 2, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off + 1, Expr::Int64)),
+        ReadExpr::create(ul, ConstantExpr::alloc(off, Expr::Int64)));
 
   case Expr::Fl80: {
     ref<Expr> bytes[10];
     for (int i = 0; i < 10; ++i) {
       bytes[i] =
-          ReadExpr::create(ul, ConstantExpr::alloc(off + 9 - i, Expr::Int32));
+          ReadExpr::create(ul, ConstantExpr::alloc(off + 9 - i, Expr::Int64));
     }
     return ConcatExpr::createN(10, bytes);
   }
@@ -102,7 +102,7 @@ ref<Expr> Expr::createTempRead(const Array *array, Expr::Width w,
     ref<Expr> bytes[16];
     for (int i = 0; i < 16; ++i) {
       bytes[i] =
-          ReadExpr::create(ul, ConstantExpr::alloc(off + 15 - i, Expr::Int32));
+          ReadExpr::create(ul, ConstantExpr::alloc(off + 15 - i, Expr::Int64));
     }
     return ConcatExpr::createN(16, bytes);
   }

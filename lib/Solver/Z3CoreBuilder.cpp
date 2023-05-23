@@ -76,11 +76,11 @@ Z3ASTHandle Z3CoreBuilder::bvVarLeftShift(Z3ASTHandle expr, Z3ASTHandle shift) {
   // amount
   for (int i = width - 1; i >= 0; i--) {
     res =
-        iteExpr(eqExpr(shift, bvConst32(width, i)), bvLeftShift(expr, i), res);
+        iteExpr(eqExpr(shift, bvConst64(width, i)), bvLeftShift(expr, i), res);
   }
 
   // If overshifting, shift to zero
-  Z3ASTHandle ex = bvLtExpr(shift, bvConst32(getBVLength(shift), width));
+  Z3ASTHandle ex = bvLtExpr(shift, bvConst64(getBVLength(shift), width));
   res = iteExpr(ex, res, bvZero(width));
   return res;
 }
@@ -96,11 +96,11 @@ Z3ASTHandle Z3CoreBuilder::bvVarRightShift(Z3ASTHandle expr,
   // amount
   for (int i = width - 1; i >= 0; i--) {
     res =
-        iteExpr(eqExpr(shift, bvConst32(width, i)), bvRightShift(expr, i), res);
+        iteExpr(eqExpr(shift, bvConst64(width, i)), bvRightShift(expr, i), res);
   }
 
   // If overshifting, shift to zero
-  Z3ASTHandle ex = bvLtExpr(shift, bvConst32(getBVLength(shift), width));
+  Z3ASTHandle ex = bvLtExpr(shift, bvConst64(getBVLength(shift), width));
   res = iteExpr(ex, res, bvZero(width));
   return res;
 }
@@ -122,12 +122,12 @@ Z3ASTHandle Z3CoreBuilder::bvVarArithRightShift(Z3ASTHandle expr,
   // XXX more efficient to move the ite on the sign outside all exprs?
   // XXX more efficient to sign extend, right shift, then extract lower bits?
   for (int i = width - 2; i >= 0; i--) {
-    res = iteExpr(eqExpr(shift, bvConst32(width, i)),
+    res = iteExpr(eqExpr(shift, bvConst64(width, i)),
                   constructAShrByConstant(expr, i, signedBool), res);
   }
 
   // If overshifting, shift to zero
-  Z3ASTHandle ex = bvLtExpr(shift, bvConst32(getBVLength(shift), width));
+  Z3ASTHandle ex = bvLtExpr(shift, bvConst64(getBVLength(shift), width));
   res = iteExpr(ex, res, bvZero(width));
   return res;
 }

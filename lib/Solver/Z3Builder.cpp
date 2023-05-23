@@ -268,7 +268,7 @@ Z3ASTHandle Z3Builder::getInitialArray(const Array *root) {
         assert(width_out == (int)root->getRange() &&
                "Value doesn't match root range");
         array_assertions.push_back(
-            eqExpr(readExpr(array_expr, bvConst32(root->getDomain(), i)),
+            eqExpr(readExpr(array_expr, bvConst64(root->getDomain(), i)),
                    array_value));
       }
       constant_array_assertions[root] = std::move(array_assertions);

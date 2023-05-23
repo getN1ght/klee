@@ -41,7 +41,7 @@ IndependentElementSet::IndependentElementSet(ref<Expr> e) {
         // if index constant, then add to set of constraints operating
         // on that array (actually, don't add constraint, just set index)
         DenseSet<unsigned> &dis = elements[array];
-        dis.add((unsigned)CE->getZExtValue(32));
+        dis.add((unsigned)CE->getZExtValue(64));
       } else {
         elements_ty::iterator it2 = elements.find(array);
         if (it2 != elements.end())

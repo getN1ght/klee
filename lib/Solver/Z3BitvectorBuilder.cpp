@@ -102,13 +102,13 @@ Z3ASTHandle Z3BitvectorBuilder::bvVarLeftShift(Z3ASTHandle expr,
   // construct a big if-then-elif-elif-... with one case per possible shift
   // amount
   for (int i = width - 1; i >= 0; i--) {
-    res = iteExpr(eqExpr(shiftAsBv, bvConst32(width, i)),
+    res = iteExpr(eqExpr(shiftAsBv, bvConst64(width, i)),
                   bvLeftShift(exprAsBv, i), res);
   }
 
   // If overshifting, shift to zero
   Z3ASTHandle ex =
-      bvLtExpr(shiftAsBv, bvConst32(getBVLength(shiftAsBv), width));
+      bvLtExpr(shiftAsBv, bvConst64(getBVLength(shiftAsBv), width));
   res = iteExpr(ex, res, bvZero(width));
   return res;
 }
@@ -125,13 +125,13 @@ Z3ASTHandle Z3BitvectorBuilder::bvVarRightShift(Z3ASTHandle expr,
   // construct a big if-then-elif-elif-... with one case per possible shift
   // amount
   for (int i = width - 1; i >= 0; i--) {
-    res = iteExpr(eqExpr(shiftAsBv, bvConst32(width, i)),
+    res = iteExpr(eqExpr(shiftAsBv, bvConst64(width, i)),
                   bvRightShift(exprAsBv, i), res);
   }
 
   // If overshifting, shift to zero
   Z3ASTHandle ex =
-      bvLtExpr(shiftAsBv, bvConst32(getBVLength(shiftAsBv), width));
+      bvLtExpr(shiftAsBv, bvConst64(getBVLength(shiftAsBv), width));
   res = iteExpr(ex, res, bvZero(width));
   return res;
 }
@@ -155,13 +155,13 @@ Z3ASTHandle Z3BitvectorBuilder::bvVarArithRightShift(Z3ASTHandle expr,
   // XXX more efficient to move the ite on the sign outside all exprs?
   // XXX more efficient to sign extend, right shift, then extract lower bits?
   for (int i = width - 2; i >= 0; i--) {
-    res = iteExpr(eqExpr(shiftAsBv, bvConst32(width, i)),
+    res = iteExpr(eqExpr(shiftAsBv, bvConst64(width, i)),
                   constructAShrByConstant(exprAsBv, i, signedBool), res);
   }
 
   // If overshifting, shift to zero
   Z3ASTHandle ex =
-      bvLtExpr(shiftAsBv, bvConst32(getBVLength(shiftAsBv), width));
+      bvLtExpr(shiftAsBv, bvConst64(getBVLength(shiftAsBv), width));
   res = iteExpr(ex, res, bvZero(width));
   return res;
 }

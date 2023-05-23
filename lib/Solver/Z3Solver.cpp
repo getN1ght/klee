@@ -381,6 +381,7 @@ bool Z3SolverImpl::internalRunSolver(
       z3_ast_expr_constraints.clear();                                         \
       expr_to_track.clear();                                                   \
       exprs.clear();                                                           \
+      std::abort();                                                            \
       goto oldWay;                                                             \
     }                                                                          \
   }
