@@ -88,9 +88,18 @@ Z3ASTHandleLIA Z3LIABuilder::handleSignedUnderflow(const Z3ASTHandleLIA &expr) {
           true};
 }
 
+Z3ASTHandleLIA Z3LIABuilder::liaGetTrue() {
+  return {Z3_mk_true(ctx), ctx, 1, false};
+}
+
+Z3ASTHandleLIA Z3LIABuilder::liaGetFalse() {
+  return {Z3_mk_false(ctx), ctx, 1, false};
+}
+
 Z3ASTHandleLIA Z3LIABuilder::castToSigned(const Z3ASTHandleLIA &expr) {
-  if (Z3_get_sort_kind(ctx, Z3_get_sort(ctx, expr)) == Z3_BOOL_SORT) {
-    return liaIte(expr, liaSignedConst(llvm::APInt(1, 1)), liaSignedConst(llvm::APInt(1, 0)));
+  if (expr.isBoolean()) {
+    return liaIteExpr(expr, liaSignedConst(llvm::APInt(1, 1)),
+                      liaSignedConst(llvm::APInt(1, 0)));
   }
 
   if (expr.sign()) {
@@ -102,8 +111,9 @@ Z3ASTHandleLIA Z3LIABuilder::castToSigned(const Z3ASTHandleLIA &expr) {
 }
 
 Z3ASTHandleLIA Z3LIABuilder::castToUnsigned(const Z3ASTHandleLIA &expr) {
-  if (Z3_get_sort_kind(ctx, Z3_get_sort(ctx, expr)) == Z3_BOOL_SORT) {
-    return liaIte(expr, liaUnsignedConst(llvm::APInt(1, 1)), liaUnsignedConst(llvm::APInt(1, 0)));
+  if (expr.isBoolean()) {
+    return liaIteExpr(expr, liaUnsignedConst(llvm::APInt(1, 1)),
+                      liaUnsignedConst(llvm::APInt(1, 0)));
   }
 
   if (!expr.sign()) {
@@ -112,6 +122,16 @@ Z3ASTHandleLIA Z3LIABuilder::castToUnsigned(const Z3ASTHandleLIA &expr) {
 
   Z3ASTHandleLIA unsignedExpr = {expr, ctx, expr.getWidth(), false};
   return handleUnsignedUnderflow(unsignedExpr);
+}
+
+Z3ASTHandleLIA Z3LIABuilder::castToBool(const Z3ASTHandleLIA &expr) {
+  if (expr.isBoolean()) {
+    return expr;
+  }
+
+  assert(expr.getWidth() == 1);
+  return liaIteExpr(liaEq(expr, liaUnsignedConst(llvm::APInt(1, 0))),
+                    liaGetFalse(), liaGetTrue());
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaUnsignedConst(const llvm::APInt &value) {
@@ -216,7 +236,7 @@ Z3ASTHandleLIA Z3LIABuilder::liaSdivExpr(const Z3ASTHandleLIA &lhs,
 
 Z3ASTHandleLIA Z3LIABuilder::liaZextExpr(const Z3ASTHandleLIA &expr,
                                          unsigned width) {
-  return {expr, ctx, expr.getWidth(), expr.sign()};
+  return {castToUnsigned(expr), ctx, width, false};
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaSextExpr(const Z3ASTHandleLIA &expr,
@@ -224,29 +244,29 @@ Z3ASTHandleLIA Z3LIABuilder::liaSextExpr(const Z3ASTHandleLIA &expr,
   return {castToSigned(expr), ctx, width, true};
 }
 
-Z3ASTHandleLIA Z3LIABuilder::liaAnd(const Z3ASTHandleLIA &lhs,
-                                    const Z3ASTHandleLIA &rhs) {
+Z3ASTHandleLIA Z3LIABuilder::liaAndExpr(const Z3ASTHandleLIA &lhs,
+                                        const Z3ASTHandleLIA &rhs) {
   assert(lhs.getWidth() == rhs.getWidth() && lhs.getWidth() == 1);
-  Z3_ast args[] = {lhs, rhs};
+  Z3_ast args[] = {castToBool(lhs), castToBool(rhs)};
   return {Z3_mk_and(ctx, 2, args), ctx, 1, false};
 }
 
-Z3ASTHandleLIA Z3LIABuilder::liaOr(const Z3ASTHandleLIA &lhs,
-                                   const Z3ASTHandleLIA &rhs) {
+Z3ASTHandleLIA Z3LIABuilder::liaOrExpr(const Z3ASTHandleLIA &lhs,
+                                       const Z3ASTHandleLIA &rhs) {
   assert(lhs.getWidth() == rhs.getWidth() && lhs.getWidth() == 1);
-  Z3_ast args[] = {lhs, rhs};
+  Z3_ast args[] = {castToBool(lhs), castToBool(rhs)};
   return {Z3_mk_or(ctx, 2, args), ctx, 1, false};
 }
 
-Z3ASTHandleLIA Z3LIABuilder::liaXor(const Z3ASTHandleLIA &lhs,
-                                    const Z3ASTHandleLIA &rhs) {
+Z3ASTHandleLIA Z3LIABuilder::liaXorExpr(const Z3ASTHandleLIA &lhs,
+                                        const Z3ASTHandleLIA &rhs) {
   assert(lhs.getWidth() == rhs.getWidth() && lhs.getWidth() == 1);
-  return {Z3_mk_xor(ctx, lhs, rhs), ctx, 1, false};
+  return {Z3_mk_xor(ctx, castToBool(lhs), castToBool(rhs)), ctx, 1, false};
 }
 
-Z3ASTHandleLIA Z3LIABuilder::liaNot(const Z3ASTHandleLIA &expr) {
+Z3ASTHandleLIA Z3LIABuilder::liaNotExpr(const Z3ASTHandleLIA &expr) {
   assert(expr.getWidth() == 1);
-  return {Z3_mk_not(ctx, expr), ctx, 1, false};
+  return {Z3_mk_not(ctx, castToBool(expr)), ctx, 1, false};
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaEq(const Z3ASTHandleLIA &lhs,
@@ -254,16 +274,16 @@ Z3ASTHandleLIA Z3LIABuilder::liaEq(const Z3ASTHandleLIA &lhs,
   return {Z3_mk_eq(ctx, lhs, rhs), ctx, 1, false};
 }
 
-Z3ASTHandleLIA Z3LIABuilder::liaIte(const Z3ASTHandleLIA &condition,
-                                    const Z3ASTHandleLIA &whenTrue,
-                                    const Z3ASTHandleLIA &whenFalse) {
+Z3ASTHandleLIA Z3LIABuilder::liaIteExpr(const Z3ASTHandleLIA &condition,
+                                        const Z3ASTHandleLIA &whenTrue,
+                                        const Z3ASTHandleLIA &whenFalse) {
 
   if (whenTrue.sign() != whenFalse.sign()) {
-    return {Z3_mk_ite(ctx, condition, castToUnsigned(whenTrue),
+    return {Z3_mk_ite(ctx, castToBool(condition), castToUnsigned(whenTrue),
                       castToUnsigned(whenFalse)),
             ctx, whenTrue.getWidth(), false};
   }
-  return {Z3_mk_ite(ctx, condition, whenTrue, whenFalse), ctx,
+  return {Z3_mk_ite(ctx, castToBool(condition), whenTrue, whenFalse), ctx,
           whenTrue.getWidth(), whenTrue.sign()};
 }
 
@@ -321,7 +341,8 @@ Z3ASTHandleLIA Z3LIABuilder::liaGetInitialArray(const Array *root) {
 }
 
 Z3ASTHandle Z3LIABuilder::getInitialRead(const Array *root, unsigned index) {
-  return liaReadExpr(liaGetInitialArray(root), liaUnsignedConst(llvm::APInt(32, index)));
+  return liaReadExpr(liaGetInitialArray(root),
+                     liaUnsignedConst(llvm::APInt(32, index)));
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaGetArrayForUpdate(const Array *root,
@@ -393,11 +414,8 @@ Z3ASTHandle Z3LIABuilder::construct(ref<Expr> e, int *width_out) {
   if (width_out) {
     *width_out = result.getWidth();
   }
-  if (result.getWidth() == 1 &&
-      Z3_get_sort_kind(ctx, Z3_get_sort(ctx, result)) != Z3_BOOL_SORT) {
-    return liaIte(liaEq(result, liaUnsignedConst(llvm::APInt(1, 1))),
-                  Z3ASTHandleLIA{Z3_mk_true(ctx), ctx, 1, false},
-                  Z3ASTHandleLIA{Z3_mk_false(ctx), ctx, 0, false});
+  if (e->getWidth() == 1) {
+    return castToBool(result);
   }
 
   return result;
@@ -430,8 +448,10 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
         liaGetArrayForUpdate(re->updates.root, re->updates.head.get()),
         constructLIA(re->index));
 
-    sideConstraints.push_back(liaUleExpr(liaUnsignedConst(llvm::APInt(8, 0)), readExpr));
-    sideConstraints.push_back(liaUleExpr(readExpr, liaUnsignedConst(llvm::APInt::getMaxValue(8))));
+    sideConstraints.push_back(
+        liaUleExpr(liaUnsignedConst(llvm::APInt(CHAR_BIT, 0)), readExpr));
+    sideConstraints.push_back(liaUleExpr(
+        readExpr, liaUnsignedConst(llvm::APInt::getMaxValue(CHAR_BIT))));
 
     return readExpr;
   }
@@ -441,7 +461,7 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     Z3ASTHandleLIA cond = constructLIA(se->cond);
     Z3ASTHandleLIA tExpr = constructLIA(se->trueExpr);
     Z3ASTHandleLIA fExpr = constructLIA(se->falseExpr);
-    return liaIte(cond, tExpr, fExpr);
+    return liaIteExpr(cond, tExpr, fExpr);
   }
 
   case Expr::Concat: {
@@ -462,8 +482,8 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     ref<CastExpr> ce = cast<CastExpr>(e);
     Z3ASTHandleLIA src = constructLIA(ce->src);
     if (ce->getWidth() == 1) {
-      return liaIte(src, liaUnsignedConst(llvm::APInt(1, 1)),
-                    liaUnsignedConst(llvm::APInt(1, 0)));
+      return liaIteExpr(src, liaUnsignedConst(llvm::APInt(1, 1)),
+                        liaUnsignedConst(llvm::APInt(1, 0)));
     } else {
       return liaZextExpr(src, ce->getWidth());
     }
@@ -473,8 +493,8 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     ref<CastExpr> ce = cast<CastExpr>(e);
     Z3ASTHandleLIA src = constructLIA(ce->src);
     if (ce->getWidth() == 1) {
-      return liaIte(src, liaSignedConst(llvm::APInt(1, -1)),
-                    liaSignedConst(llvm::APInt(1, 0)));
+      return liaIteExpr(src, liaSignedConst(llvm::APInt(1, -1)),
+                        liaSignedConst(llvm::APInt(1, 0)));
     } else {
       return liaSextExpr(src, ce->getWidth());
     }
@@ -500,7 +520,7 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     ref<NotExpr> ne = cast<NotExpr>(e);
     Z3ASTHandleLIA expr = constructLIA(ne->expr);
     if (expr.getWidth() == 1) {
-      return liaNot(expr);
+      return liaNotExpr(expr);
     } else {
       isBroken = true;
       return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
@@ -512,7 +532,7 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     Z3ASTHandleLIA left = constructLIA(ae->left);
     Z3ASTHandleLIA right = constructLIA(ae->right);
     if (left.getWidth() == 1) {
-      return liaAnd(left, right);
+      return liaAndExpr(left, right);
     } else {
       isBroken = true;
       return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
@@ -524,7 +544,7 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     Z3ASTHandleLIA left = constructLIA(oe->left);
     Z3ASTHandleLIA right = constructLIA(oe->right);
     if (left.getWidth() == 1) {
-      return liaOr(left, right);
+      return liaOrExpr(left, right);
     } else {
       isBroken = true;
       return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
@@ -538,7 +558,7 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
 
     if (left.getWidth() == 1) {
       // XXX check for most efficient?
-      return liaXor(left, right);
+      return liaXorExpr(left, right);
     } else {
       isBroken = true;
       return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
@@ -552,11 +572,12 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     Z3ASTHandleLIA right = constructLIA(ee->right);
     if (left.getWidth() == 1) {
       if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(ee->left)) {
-        if (CE->isTrue())
-          return right;
-        return liaNot(right);
+        if (CE->isTrue()) {
+          return castToBool(right);
+        }
+        return liaNotExpr(right);
       } else {
-        return liaEq(left, right);
+        return liaEq(castToBool(left), castToBool(right));
       }
     } else {
       return liaEq(left, right);

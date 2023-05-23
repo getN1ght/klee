@@ -18,7 +18,9 @@ public:
   Z3ASTHandleLIA() : Z3ASTHandle() {}
   Z3ASTHandleLIA(const Z3_ast &node, const Z3_context &ctx, unsigned _width,
                  bool _isSigned)
-      : Z3ASTHandle(node, ctx), width(_width), isSigned(_isSigned) {}
+      : Z3ASTHandle(node, ctx), width(_width), isSigned(_isSigned) {
+    assert(!isBoolean() || width == 1);
+  }
 
   Z3ASTHandleLIA(const Z3ASTHandleLIA &b)
       : Z3ASTHandle(b), width(b.width), isSigned(b.isSigned) {}
@@ -34,6 +36,10 @@ public:
 
   unsigned getWidth() const { return width; }
   bool sign() const { return isSigned; }
+  bool isBoolean() const {
+    return Z3_get_sort_kind(context, Z3_get_sort(context, node)) ==
+           Z3_BOOL_SORT;
+  }
 };
 
 class Z3ArrayExprLIAHash : public ArrayExprHash<Z3ASTHandleLIA> {
@@ -69,14 +75,20 @@ private:
 
   Z3SortHandle liaSort();
 
-  Z3ASTHandleLIA liaAnd(const Z3ASTHandleLIA &lhs, const Z3ASTHandleLIA &rhs);
-  Z3ASTHandleLIA liaOr(const Z3ASTHandleLIA &lhs, const Z3ASTHandleLIA &rhs);
-  Z3ASTHandleLIA liaXor(const Z3ASTHandleLIA &lhs, const Z3ASTHandleLIA &rhs);
-  Z3ASTHandleLIA liaNot(const Z3ASTHandleLIA &expr);
+  Z3ASTHandleLIA liaGetTrue();
+  Z3ASTHandleLIA liaGetFalse();
 
-  Z3ASTHandleLIA liaIte(const Z3ASTHandleLIA &condition,
-                        const Z3ASTHandleLIA &whenTrue,
-                        const Z3ASTHandleLIA &whenFalse);
+  Z3ASTHandleLIA liaAndExpr(const Z3ASTHandleLIA &lhs,
+                            const Z3ASTHandleLIA &rhs);
+  Z3ASTHandleLIA liaOrExpr(const Z3ASTHandleLIA &lhs,
+                           const Z3ASTHandleLIA &rhs);
+  Z3ASTHandleLIA liaXorExpr(const Z3ASTHandleLIA &lhs,
+                            const Z3ASTHandleLIA &rhs);
+  Z3ASTHandleLIA liaNotExpr(const Z3ASTHandleLIA &expr);
+
+  Z3ASTHandleLIA liaIteExpr(const Z3ASTHandleLIA &condition,
+                            const Z3ASTHandleLIA &whenTrue,
+                            const Z3ASTHandleLIA &whenFalse);
 
   Z3ASTHandleLIA liaEq(const Z3ASTHandleLIA &lhs, const Z3ASTHandleLIA &rhs);
 
@@ -90,6 +102,7 @@ private:
 
   Z3ASTHandleLIA castToSigned(const Z3ASTHandleLIA &expr);
   Z3ASTHandleLIA castToUnsigned(const Z3ASTHandleLIA &expr);
+  Z3ASTHandleLIA castToBool(const Z3ASTHandleLIA &expr);
 
   Z3ASTHandleLIA liaUleExpr(const Z3ASTHandleLIA &lhs,
                             const Z3ASTHandleLIA &rhs);
@@ -211,8 +224,8 @@ public:
 
   Z3ASTHandle getInitialRead(const Array *root, unsigned index) override;
 
-  void clearConstructCache() override { 
-    constructedLIA.clear();  
+  void clearConstructCache() override {
+    constructedLIA.clear();
     constructed.clear();
   }
 };

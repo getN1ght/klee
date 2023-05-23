@@ -579,7 +579,6 @@ oldWay:
     dumpedQueriesFile->flush();
   }
 
-  
   std::unordered_map<const Array *, ExprHashSet> usedArrayBytes;
   for (auto constraint : query.constraints.withExpr(query.expr)) {
     std::vector<ref<ReadExpr>> reads;
