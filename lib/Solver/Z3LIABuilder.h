@@ -208,6 +208,13 @@ public:
   Z3LIABuilder(bool autoClearConstructCache, const char *z3LogInteractionFile)
       : Z3Builder(autoClearConstructCache, z3LogInteractionFile) {}
   Z3ASTHandle construct(ref<Expr> e, int *width_out) override;
+
+  Z3ASTHandle getInitialRead(const Array *root, unsigned index) override;
+
+  void clearConstructCache() override { 
+    constructedLIA.clear();  
+    constructed.clear();
+  }
 };
 } // namespace klee
 #endif // KLEE_Z3LIABUILDER_H

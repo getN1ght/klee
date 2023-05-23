@@ -385,8 +385,6 @@ bool Z3SolverImpl::internalRunSolver(
     }                                                                          \
   }
 
-  query.dump();
-
   if (!useOldWay) {
     ConstantArrayFinder constant_arrays_in_query;
 
@@ -581,9 +579,9 @@ oldWay:
     dumpedQueriesFile->flush();
   }
 
-  ConstraintSet allConstraints = query.constraints.withExpr(query.expr);
+  
   std::unordered_map<const Array *, ExprHashSet> usedArrayBytes;
-  for (auto constraint : allConstraints) {
+  for (auto constraint : query.constraints.withExpr(query.expr)) {
     std::vector<ref<ReadExpr>> reads;
     findReads(constraint, true, reads);
     for (auto readExpr : reads) {

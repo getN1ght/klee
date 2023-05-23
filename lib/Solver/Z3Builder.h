@@ -208,7 +208,7 @@ public:
   Z3ASTHandle getTrue();
   Z3ASTHandle getFalse();
   Z3ASTHandle buildFreshBoolConst(const char *name);
-  Z3ASTHandle getInitialRead(const Array *os, unsigned index);
+  virtual Z3ASTHandle getInitialRead(const Array *os, unsigned index);
 
   Z3ASTHandle construct(ref<Expr> e) {
     Z3ASTHandle res = construct(std::move(e), nullptr);
@@ -216,7 +216,7 @@ public:
       clearConstructCache();
     return res;
   }
-  void clearConstructCache() { constructed.clear(); }
+  virtual void clearConstructCache() { constructed.clear(); }
   void clearSideConstraints() { sideConstraints.clear(); }
 };
 } // namespace klee

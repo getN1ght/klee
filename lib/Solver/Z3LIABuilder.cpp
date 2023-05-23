@@ -89,6 +89,10 @@ Z3ASTHandleLIA Z3LIABuilder::handleSignedUnderflow(const Z3ASTHandleLIA &expr) {
 }
 
 Z3ASTHandleLIA Z3LIABuilder::castToSigned(const Z3ASTHandleLIA &expr) {
+  if (Z3_get_sort_kind(ctx, Z3_get_sort(ctx, expr)) == Z3_BOOL_SORT) {
+    return liaIte(expr, liaSignedConst(llvm::APInt(1, 1)), liaSignedConst(llvm::APInt(1, 0)));
+  }
+
   if (expr.sign()) {
     return expr;
   }
@@ -98,6 +102,10 @@ Z3ASTHandleLIA Z3LIABuilder::castToSigned(const Z3ASTHandleLIA &expr) {
 }
 
 Z3ASTHandleLIA Z3LIABuilder::castToUnsigned(const Z3ASTHandleLIA &expr) {
+  if (Z3_get_sort_kind(ctx, Z3_get_sort(ctx, expr)) == Z3_BOOL_SORT) {
+    return liaIte(expr, liaUnsignedConst(llvm::APInt(1, 1)), liaUnsignedConst(llvm::APInt(1, 0)));
+  }
+
   if (!expr.sign()) {
     return expr;
   }
@@ -107,24 +115,12 @@ Z3ASTHandleLIA Z3LIABuilder::castToUnsigned(const Z3ASTHandleLIA &expr) {
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaUnsignedConst(const llvm::APInt &value) {
-  if (value.getBitWidth() == 1) {
-    return value.getBoolValue()
-               ? Z3ASTHandleLIA{Z3_mk_true(ctx), ctx, 1, false}
-               : Z3ASTHandleLIA{Z3_mk_false(ctx), ctx, 0, false};
-  }
-
   std::string valueString = value.toString(10, false);
   Z3_string s = valueString.c_str();
   return {Z3_mk_numeral(ctx, s, liaSort()), ctx, value.getBitWidth(), false};
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaSignedConst(const llvm::APInt &value) {
-  if (value.getBitWidth() == 1) {
-    return value.getBoolValue()
-               ? Z3ASTHandleLIA{Z3_mk_true(ctx), ctx, 1, true}
-               : Z3ASTHandleLIA{Z3_mk_false(ctx), ctx, 0, true};
-  }
-
   std::string valueString = value.toString(10, true);
   Z3_string s = valueString.c_str();
   return {Z3_mk_numeral(ctx, s, liaSort()), ctx, value.getBitWidth(), true};
@@ -191,7 +187,7 @@ Z3ASTHandleLIA Z3LIABuilder::liaSubExpr(const Z3ASTHandleLIA &lhs,
     // signed + signed
     // overflow or underflow?
     // is this way better or make a cast to unsigned?
-    const Z3_ast args[] = {lhs, rhs};
+    const Z3_ast args[] = {castToSigned(lhs), castToSigned(rhs)};
     Z3ASTHandleLIA sumExpr(Z3_mk_sub(ctx, 2, args), ctx, lhs.getWidth(),
                            lhs.sign());
     return handleSignedUnderflow(handleSignedOverflow(sumExpr));
@@ -279,8 +275,9 @@ Z3ASTHandleLIA Z3LIABuilder::liaConcatExpr(const Z3ASTHandleLIA &lhs,
 
   Z3ASTHandleLIA shiftedLhs = {Z3_mk_mul(ctx, 2, args), ctx,
                                lhs.getWidth() + rhs.getWidth(), false};
+  Z3_ast sumArgs[] = {shiftedLhs, castToUnsigned(rhs)};
 
-  return liaAddExpr(shiftedLhs, castToUnsigned(rhs));
+  return {Z3_mk_add(ctx, 2, sumArgs), ctx, shiftedLhs.getWidth(), false};
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaGetInitialArray(const Array *root) {
@@ -321,6 +318,10 @@ Z3ASTHandleLIA Z3LIABuilder::liaGetInitialArray(const Array *root) {
   }
 
   return array_expr;
+}
+
+Z3ASTHandle Z3LIABuilder::getInitialRead(const Array *root, unsigned index) {
+  return liaReadExpr(liaGetInitialArray(root), liaUnsignedConst(llvm::APInt(32, index)));
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaGetArrayForUpdate(const Array *root,
@@ -392,6 +393,13 @@ Z3ASTHandle Z3LIABuilder::construct(ref<Expr> e, int *width_out) {
   if (width_out) {
     *width_out = result.getWidth();
   }
+  if (result.getWidth() == 1 &&
+      Z3_get_sort_kind(ctx, Z3_get_sort(ctx, result)) != Z3_BOOL_SORT) {
+    return liaIte(liaEq(result, liaUnsignedConst(llvm::APInt(1, 1))),
+                  Z3ASTHandleLIA{Z3_mk_true(ctx), ctx, 1, false},
+                  Z3ASTHandleLIA{Z3_mk_false(ctx), ctx, 0, false});
+  }
+
   return result;
 }
 
@@ -416,9 +424,16 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
   case Expr::Read: {
     ref<ReadExpr> re = cast<ReadExpr>(e);
     assert(re && re->updates.root);
-    return liaReadExpr(
+    // value received as read by index must be restricted
+
+    auto readExpr = liaReadExpr(
         liaGetArrayForUpdate(re->updates.root, re->updates.head.get()),
         constructLIA(re->index));
+
+    sideConstraints.push_back(liaUleExpr(liaUnsignedConst(llvm::APInt(8, 0)), readExpr));
+    sideConstraints.push_back(liaUleExpr(readExpr, liaUnsignedConst(llvm::APInt::getMaxValue(8))));
+
+    return readExpr;
   }
 
   case Expr::Select: {
@@ -450,7 +465,6 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
       return liaIte(src, liaUnsignedConst(llvm::APInt(1, 1)),
                     liaUnsignedConst(llvm::APInt(1, 0)));
     } else {
-      assert(ce->getWidth() < ce->getWidth());
       return liaZextExpr(src, ce->getWidth());
     }
   }
@@ -577,17 +591,16 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     return liaSleExpr(left, right);
   }
 
-  case Expr::Mul:
-  case Expr::UDiv:
-  case Expr::SDiv:
-  case Expr::URem:
-  case Expr::SRem:
-  case Expr::Shl:
-  case Expr::LShr:
-  case Expr::Extract:
-  case Expr::AShr:
-    isBroken = true;
-    return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
+  // case Expr::Mul:
+  // case Expr::UDiv:
+  // case Expr::SDiv:
+  // case Expr::URem:
+  // case Expr::SRem:
+  // case Expr::Shl:
+  // case Expr::LShr:
+  // case Expr::Extract:
+  // case Expr::AShr:
+
 // unused due to canonicalization
 #if 0
   case Expr::Ne:
@@ -598,6 +611,8 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
 #endif
 
   default:
-    assert(0 && "unhandled Expr type");
+    isBroken = true;
+    return liaUnsignedConst(llvm::APInt(e->getWidth(), 0));
+    // assert(0 && "unhandled Expr type");
   }
 }
