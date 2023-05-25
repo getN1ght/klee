@@ -72,15 +72,22 @@ private:
   SolverRunStatus runStatusCode;
   std::unique_ptr<llvm::raw_fd_ostream> dumpedQueriesFile;
   ::Z3_params solverParameters;
+  ::Z3_params liaSolverParameters;
+
   // Parameter symbols
   ::Z3_symbol timeoutParamStrSymbol;
+  ::Z3_symbol liaTimeoutParamStrSymbol;
+
   ::Z3_symbol unsatCoreParamStrSymbol;
+  ::Z3_symbol liaUnsatCoreParamStrSymbol;
 
   bool internalRunSolver(const Query &,
                          const std::vector<const Array *> *objects,
                          std::vector<SparseStorage<unsigned char>> *values,
                          ValidityCore *validityCore, bool &hasSolution);
   bool validateZ3Model(::Z3_solver &theSolver, ::Z3_model &theModel);
+
+  void initSolver(Z3BuilderType type);
 
 public:
   Z3SolverImpl(Z3BuilderType type);
@@ -96,14 +103,20 @@ public:
       timeoutInMilliSeconds = UINT_MAX;
     Z3_params_set_uint(builder->ctx, solverParameters, timeoutParamStrSymbol,
                        timeoutInMilliSeconds);
+    Z3_params_set_uint(liaBuilder->ctx, liaSolverParameters,
+                       liaTimeoutParamStrSymbol, timeoutInMilliSeconds);
   }
   void enableUnsatCore() {
     Z3_params_set_bool(builder->ctx, solverParameters, unsatCoreParamStrSymbol,
                        Z3_TRUE);
+    Z3_params_set_bool(liaBuilder->ctx, liaSolverParameters,
+                       liaUnsatCoreParamStrSymbol, Z3_TRUE);
   }
   void disableUnsatCore() {
     Z3_params_set_bool(builder->ctx, solverParameters, unsatCoreParamStrSymbol,
                        Z3_FALSE);
+    Z3_params_set_bool(liaBuilder->ctx, liaSolverParameters,
+                       liaUnsatCoreParamStrSymbol, Z3_FALSE);
   }
 
   bool computeTruth(const Query &, bool &isValid);
@@ -124,9 +137,10 @@ public:
   SolverRunStatus getOperationStatusCode();
 };
 
-Z3SolverImpl::Z3SolverImpl(Z3BuilderType type)
-    : builderType(type), runStatusCode(SOLVER_RUN_STATUS_FAILURE) {
-  liaBuilder = new Z3LIABuilder(true, nullptr);
+void Z3SolverImpl::initSolver(Z3BuilderType type) {
+  builderType = type;
+  runStatusCode = SOLVER_RUN_STATUS_FAILURE;
+  liaBuilder = new Z3LIABuilder(false, nullptr);
   switch (type) {
   case KLEE_CORE:
     builder = new Z3CoreBuilder(
@@ -145,13 +159,25 @@ Z3SolverImpl::Z3SolverImpl(Z3BuilderType type)
   }
   assert(builder && "unable to create Z3Builder");
   solverParameters = Z3_mk_params(builder->ctx);
+  liaSolverParameters = Z3_mk_params(liaBuilder->ctx);
+
   Z3_params_inc_ref(builder->ctx, solverParameters);
+  Z3_params_inc_ref(liaBuilder->ctx, liaSolverParameters);
+
   timeoutParamStrSymbol = Z3_mk_string_symbol(builder->ctx, "timeout");
+  liaTimeoutParamStrSymbol = Z3_mk_string_symbol(liaBuilder->ctx, "timeout");
+
   setCoreSolverTimeout(timeout);
   if (ProduceUnsatCore) {
     unsatCoreParamStrSymbol = Z3_mk_string_symbol(builder->ctx, "unsat_core");
+    liaUnsatCoreParamStrSymbol =
+        Z3_mk_string_symbol(liaBuilder->ctx, "unsat_core");
   }
+}
 
+Z3SolverImpl::Z3SolverImpl(Z3BuilderType type)
+    : builderType(type), runStatusCode(SOLVER_RUN_STATUS_FAILURE) {
+  initSolver(type);
   // HACK: This changes Z3's handling of the `to_ieee_bv` function so that
   // we get a signal bit pattern interpretation for NaN. At the time of writing
   // without this option Z3 sometimes generates models which don't satisfy the
@@ -183,6 +209,7 @@ Z3SolverImpl::Z3SolverImpl(Z3BuilderType type)
 
 Z3SolverImpl::~Z3SolverImpl() {
   Z3_params_dec_ref(builder->ctx, solverParameters);
+  Z3_params_dec_ref(liaBuilder->ctx, liaSolverParameters);
   delete builder;
   delete liaBuilder;
 }
@@ -345,6 +372,13 @@ bool Z3SolverImpl::internalRunSolver(
     std::vector<SparseStorage<unsigned char>> *values,
     ValidityCore *validityCore, bool &hasSolution) {
 
+  Z3_params_dec_ref(builder->ctx, solverParameters);
+  Z3_params_dec_ref(liaBuilder->ctx, liaSolverParameters);
+  delete builder;
+  delete liaBuilder;
+
+  initSolver(builderType);
+
   if (ProduceUnsatCore && validityCore) {
     enableUnsatCore();
   } else {
@@ -381,7 +415,7 @@ bool Z3SolverImpl::internalRunSolver(
       z3_ast_expr_constraints.clear();                                         \
       expr_to_track.clear();                                                   \
       exprs.clear();                                                           \
-      std::abort();                                                            \
+      /*std::abort();*/                                                        \
       goto oldWay;                                                             \
     }                                                                          \
   }
@@ -450,7 +484,7 @@ bool Z3SolverImpl::internalRunSolver(
         liaBuilder->ctx, Z3_mk_string_symbol(liaBuilder->ctx, "QF_ALIA"));
 
     Z3_solver_inc_ref(liaBuilder->ctx, theSolver);
-    Z3_solver_set_params(liaBuilder->ctx, theSolver, solverParameters);
+    Z3_solver_set_params(liaBuilder->ctx, theSolver, liaSolverParameters);
 
     for (std::unordered_set<Z3ASTHandle, Z3ASTHandleHash,
                             Z3ASTHandleCmp>::iterator it = exprs.begin(),
