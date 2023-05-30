@@ -406,7 +406,7 @@ bool Z3SolverImpl::internalRunSolver(
 
   Z3Builder *snapBuilder = builder;
 
-  bool useOldWay = false;
+  bool useOldWay = true;
 
 #define check                                                                  \
   {                                                                            \

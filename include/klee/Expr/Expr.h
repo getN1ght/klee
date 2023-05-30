@@ -1403,7 +1403,7 @@ public:
     const ConstantExpr &cb = static_cast<const ConstantExpr &>(b);
     if (getWidth() != cb.getWidth())
       return getWidth() < cb.getWidth() ? -1 : 1;
-    if (value == cb.value)
+    if (value == cb.value && mIsFloat == cb.mIsFloat)
       return 0;
     return value.ult(cb.value) ? -1 : 1;
   }

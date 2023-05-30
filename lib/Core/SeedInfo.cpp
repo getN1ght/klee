@@ -90,7 +90,7 @@ void SeedInfo::patchSeed(const ExecutionState &state, ref<Expr> condition,
     const Array *array = it->first;
     unsigned i = it->second;
     ref<Expr> read = ReadExpr::create(UpdateList(array, 0),
-                                      ConstantExpr::alloc(i, Expr::Int32));
+                                      ConstantExpr::alloc(i, Expr::Int64));
 
     // If not in bindings then this can't be a violation?
     Assignment::bindings_ty::iterator it2 = assignment.bindings.find(array);
@@ -136,7 +136,7 @@ void SeedInfo::patchSeed(const ExecutionState &state, ref<Expr> condition,
         state.constraints.getConcretization().evaluate(array->size));
     for (unsigned i = 0; i < arrayConstantSize->getZExtValue(); ++i) {
       ref<Expr> read = ReadExpr::create(UpdateList(array, 0),
-                                        ConstantExpr::alloc(i, Expr::Int32));
+                                        ConstantExpr::alloc(i, Expr::Int64));
       ref<Expr> isSeed = EqExpr::create(
           read, ConstantExpr::alloc(it->second.load(i), Expr::Int8));
       bool res;
