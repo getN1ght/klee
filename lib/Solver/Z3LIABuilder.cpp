@@ -342,7 +342,7 @@ Z3ASTHandleLIA Z3LIABuilder::liaGetInitialArray(const Array *root) {
 
 Z3ASTHandle Z3LIABuilder::getInitialRead(const Array *root, unsigned index) {
   return liaReadExpr(liaGetInitialArray(root),
-                     liaUnsignedConst(llvm::APInt(32, index)));
+                     liaUnsignedConst(llvm::APInt(root->getDomain(), index)));
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaGetArrayForUpdate(const Array *root,
@@ -467,6 +467,72 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
   case Expr::Concat: {
     ref<ConcatExpr> ce = cast<ConcatExpr>(e);
     int numKids = static_cast<int>(ce->getNumKids());
+
+    bool isSymcrete = true;
+    const Array *concatArray = nullptr;
+    int i = 0;
+    uint64_t prevIdx = ce->getWidth() / ce->getKid(0)->getWidth();
+
+    for (ref<ConcatExpr> ceIt = ce; ceIt && isSymcrete;
+         ceIt = dyn_cast<ConcatExpr>(ceIt->getRight())) {
+      auto check = [&](ref<ReadExpr> re) {
+        const Array *underlyingArray = re->updates.root;
+
+        if (concatArray == nullptr) {
+          concatArray = underlyingArray;
+          if (!underlyingArray->source->isSymcrete()) {
+            isSymcrete = false;
+            return;
+          }
+        }
+
+        if (underlyingArray != concatArray) {
+          isSymcrete = false;
+          return;
+        }
+
+        if (ref<ConstantExpr> ceIdx = dyn_cast<ConstantExpr>(re->index)) {
+          isSymcrete &= (ceIdx->getZExtValue() + 1 == prevIdx);
+          prevIdx = ceIdx->getZExtValue();
+        } else {
+          isSymcrete = false;
+        }
+      };
+
+      if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getLeft())) {
+        check(re);
+      } else {
+        isSymcrete = false;
+      }
+
+      if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getRight())) {
+        check(re);
+      }
+    }
+
+    if (isSymcrete) {
+      Z3ASTHandleLIA arrayInteger;
+      bool hashed = arrHashLIA.lookupArrayExpr(concatArray, arrayInteger);
+
+      if (!hashed) {
+        std::string unique_id = llvm::utostr(arrHashLIA._array_hash.size());
+        std::string unique_name = concatArray->getName() + unique_id;
+
+        Z3_symbol symbol = Z3_mk_string_symbol(ctx, unique_name.c_str());
+        arrayInteger = Z3ASTHandleLIA(Z3_mk_const(ctx, symbol, liaSort()), ctx,
+                                      ce->getWidth(), false);
+
+        sideConstraints.push_back(liaUleExpr(
+            liaUnsignedConst(llvm::APInt(ce->getWidth(), 0)), arrayInteger));
+        sideConstraints.push_back(liaUleExpr(
+            arrayInteger,
+            liaUnsignedConst(llvm::APInt::getMaxValue(ce->getWidth()))));
+        arrHashLIA.hashArrayExpr(concatArray, arrayInteger);
+      }
+
+      return arrayInteger;
+    }
+
     Z3ASTHandleLIA res = constructLIA(ce->getKid(0));
 
     for (int i = 1; i < numKids; ++i) {
@@ -612,15 +678,15 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     return liaSleExpr(left, right);
   }
 
-  // case Expr::Mul:
-  // case Expr::UDiv:
-  // case Expr::SDiv:
-  // case Expr::URem:
-  // case Expr::SRem:
-  // case Expr::Shl:
-  // case Expr::LShr:
-  // case Expr::Extract:
-  // case Expr::AShr:
+// case Expr::Mul:
+// case Expr::UDiv:
+// case Expr::SDiv:
+// case Expr::URem:
+// case Expr::SRem:
+// case Expr::Shl:
+// case Expr::LShr:
+// case Expr::Extract:
+// case Expr::AShr:
 
 // unused due to canonicalization
 #if 0

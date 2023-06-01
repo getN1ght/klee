@@ -69,10 +69,11 @@ struct Z3ASTHandleLIACmp {
 };
 
 class Z3LIABuilder : public Z3Builder {
-private:
+public:
   ExprHashMap<Z3ASTHandleLIA> constructedLIA;
   Z3ArrayExprLIAHash arrHashLIA;
 
+private:
   Z3SortHandle liaSort();
 
   Z3ASTHandleLIA liaGetTrue();

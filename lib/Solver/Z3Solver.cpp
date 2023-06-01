@@ -133,7 +133,7 @@ public:
       const std::vector<const Array *> *objects,
       std::vector<SparseStorage<unsigned char>> *values,
       const std::unordered_map<const Array *, ExprHashSet> &usedArrayBytes,
-      bool &hasSolution);
+      bool &hasSolution, bool isLIA);
   SolverRunStatus getOperationStatusCode();
 };
 
@@ -406,7 +406,7 @@ bool Z3SolverImpl::internalRunSolver(
 
   Z3Builder *snapBuilder = builder;
 
-  bool useOldWay = true;
+  bool useOldWay = false;
 
 #define check                                                                  \
   {                                                                            \
@@ -627,7 +627,7 @@ oldWay:
 
   ::Z3_lbool satisfiable = Z3_solver_check(builder->ctx, theSolver);
   runStatusCode = handleSolverResponse(theSolver, satisfiable, objects, values,
-                                       usedArrayBytes, hasSolution);
+                                       usedArrayBytes, hasSolution, !useOldWay);
 
   if (ProduceUnsatCore && validityCore && satisfiable == Z3_L_FALSE) {
     ExprHashSet unsatCore;
@@ -703,7 +703,7 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
     const std::vector<const Array *> *objects,
     std::vector<SparseStorage<unsigned char>> *values,
     const std::unordered_map<const Array *, ExprHashSet> &usedArrayBytes,
-    bool &hasSolution) {
+    bool &hasSolution, bool isLIA) {
   switch (satisfiable) {
   case Z3_L_TRUE: {
     hasSolution = true;
@@ -734,7 +734,29 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
              "Failed to get size");
 
       data.resize(arraySize);
-      if (usedArrayBytes.count(array)) {
+
+      if (isLIA && array->source->isSymcrete()) {
+        Z3_ast symcreteIntegerValue;
+        Z3ASTHandleLIA astLIA;
+
+        dynamic_cast<Z3LIABuilder *>(liaBuilder)
+            ->arrHashLIA.lookupArrayExpr(array, astLIA);
+
+        Z3_model_eval(builder->ctx, theModel, astLIA, Z3_TRUE,
+                      &symcreteIntegerValue);
+        Z3_inc_ref(builder->ctx, symcreteIntegerValue);
+
+        uint64_t value;
+        Z3_get_numeral_uint64(builder->ctx, symcreteIntegerValue, &value);
+
+        for (unsigned i = 0; i < sizeof(value); ++i) {
+          uint64_t base = 1ull << CHAR_BIT;
+          data.store(i, value % base);
+          value /= base;
+        }
+
+        Z3_dec_ref(builder->ctx, symcreteIntegerValue);
+      } else if (usedArrayBytes.count(array)) {
         std::unordered_set<uint64_t> offsetValues;
         for (ref<Expr> offsetExpr : usedArrayBytes.at(array)) {
           ::Z3_ast arrayElementOffsetExpr;
