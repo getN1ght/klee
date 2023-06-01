@@ -281,7 +281,12 @@ Z3ASTHandle Z3Builder::getInitialArray(const Array *root) {
 }
 
 Z3ASTHandle Z3Builder::getInitialRead(const Array *root, unsigned index) {
-  return readExpr(getInitialArray(root), bvConst64(64, index));
+  if (root->getDomain() == 32) {
+    return readExpr(getInitialArray(root), bvConst32(32, index));
+  } else if (root->getDomain() == 64) {
+    return readExpr(getInitialArray(root), bvConst64(64, index));
+  }
+  assert(false);
 }
 
 Z3ASTHandle Z3Builder::getArrayForUpdate(const Array *root,

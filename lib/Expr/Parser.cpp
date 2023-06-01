@@ -513,12 +513,14 @@ exit:
     Root = TheArrayCache.CreateArray(
         Label->Name,
         ConstantExpr::create(Size.get(), sizeof(uint64_t) * CHAR_BIT),
-        SourceBuilder::constant(), &Values[0], &Values[0] + Values.size());
+        SourceBuilder::constant(), &Values[0], &Values[0] + Values.size(),
+        DomainType.get(), RangeType.get());
   else
     Root = TheArrayCache.CreateArray(
         Label->Name,
         ConstantExpr::create(Size.get(), sizeof(uint64_t) * CHAR_BIT),
-        SourceBuilder::makeSymbolic());
+        SourceBuilder::makeSymbolic(), nullptr, nullptr, DomainType.get(),
+        RangeType.get());
   ArrayDecl *AD =
       new ArrayDecl(Label, Size.get(), DomainType.get(), RangeType.get(), Root);
 
@@ -1327,10 +1329,11 @@ VersionResult ParserImpl::ParseVersionSpecifier() {
   // Define update list to avoid use-of-undef errors.
   if (!Res.isValid()) {
     // FIXME: I'm not sure if this is right. Do we need a unique array here?
-    Res = VersionResult(true,
-                        UpdateList(TheArrayCache.CreateArray(
-                                       "", 0, SourceBuilder::makeSymbolic()),
-                                   NULL));
+    Res =
+        VersionResult(true, UpdateList(TheArrayCache.CreateArray(
+                                           "", 0, SourceBuilder::makeSymbolic(),
+                                           nullptr, nullptr, 32, 8),
+                                       NULL));
   }
 
   if (Label)
