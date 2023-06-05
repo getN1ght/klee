@@ -3,6 +3,8 @@
 #include "z3.h"
 #include "llvm/ADT/APInt.h"
 
+#include "klee/Expr/ExprUtil.h"
+
 using namespace klee;
 
 Z3SortHandle Z3LIABuilder::liaSort() { return {Z3_mk_int_sort(ctx), ctx}; }
@@ -408,6 +410,15 @@ Z3ASTHandleLIA Z3LIABuilder::constructLIA(const ref<Expr> &e) {
   }
 }
 
+void Z3LIABuilder::loadReads(const std::vector<ref<ReadExpr>> &reads) {
+  for (const ref<ReadExpr> &singleRead : reads) {
+    ref<Expr> idxExpr = singleRead->index;
+    if (ref<ConstantExpr> ce = dyn_cast<ConstantExpr>(idxExpr)) {
+      // readExprs[ce->getZExtValue()];
+    }
+  }
+}
+
 Z3ASTHandle Z3LIABuilder::construct(ref<Expr> e, int *width_out) {
   isBroken = false;
   Z3ASTHandleLIA result = constructLIA(e);
@@ -419,6 +430,54 @@ Z3ASTHandle Z3LIABuilder::construct(ref<Expr> e, int *width_out) {
   }
 
   return result;
+}
+
+static bool isReadFromImmutablePartOfArray(const ref<ConcatExpr> &ce) {
+  bool isReadFromImmutablePart = true;
+  const Array *concatArray = nullptr;
+  int i = 0;
+  uint64_t prevIdx = 0;
+
+  auto check = [&](ref<ReadExpr> re) {
+    const Array *underlyingArray = re->updates.root;
+
+    if (ref<ConstantExpr> ceIdx = dyn_cast<ConstantExpr>(re->index)) {
+      isReadFromImmutablePart &=
+          (ceIdx->getZExtValue() + 1 == prevIdx || concatArray == nullptr);
+      prevIdx = ceIdx->getZExtValue();
+    } else {
+      isReadFromImmutablePart = false;
+    }
+
+    if (concatArray == nullptr) {
+      concatArray = underlyingArray;
+
+      if (re->updates.head != nullptr) {
+        return false;
+      }
+    }
+
+    if (underlyingArray != concatArray) {
+      isReadFromImmutablePart = false;
+      return;
+    }
+  };
+
+  for (ref<ConcatExpr> ceIt = ce; ceIt && isReadFromImmutablePart;
+       ceIt = dyn_cast<ConcatExpr>(ceIt->getRight())) {
+
+    if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getLeft())) {
+      check(re);
+    } else {
+      isReadFromImmutablePart = false;
+    }
+
+    if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getRight())) {
+      check(re);
+    }
+  }
+
+  return isReadFromImmutablePart;
 }
 
 /** if *width_out!=1 then result is a bitvector,
@@ -468,49 +527,8 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     ref<ConcatExpr> ce = cast<ConcatExpr>(e);
     int numKids = static_cast<int>(ce->getNumKids());
 
-    bool isSymcrete = true;
-    const Array *concatArray = nullptr;
-    int i = 0;
-    uint64_t prevIdx = ce->getWidth() / ce->getKid(0)->getWidth();
-
-    for (ref<ConcatExpr> ceIt = ce; ceIt && isSymcrete;
-         ceIt = dyn_cast<ConcatExpr>(ceIt->getRight())) {
-      auto check = [&](ref<ReadExpr> re) {
-        const Array *underlyingArray = re->updates.root;
-
-        if (concatArray == nullptr) {
-          concatArray = underlyingArray;
-          if (!underlyingArray->source->isSymcrete()) {
-            isSymcrete = false;
-            return;
-          }
-        }
-
-        if (underlyingArray != concatArray) {
-          isSymcrete = false;
-          return;
-        }
-
-        if (ref<ConstantExpr> ceIdx = dyn_cast<ConstantExpr>(re->index)) {
-          isSymcrete &= (ceIdx->getZExtValue() + 1 == prevIdx);
-          prevIdx = ceIdx->getZExtValue();
-        } else {
-          isSymcrete = false;
-        }
-      };
-
-      if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getLeft())) {
-        check(re);
-      } else {
-        isSymcrete = false;
-      }
-
-      if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getRight())) {
-        check(re);
-      }
-    }
-
-    if (isSymcrete) {
+    if (isReadFromImmutablePartOfArray(ce)) {
+      const Array *concatArray = cast<ReadExpr>(ce->getLeft())->updates.root;
       Z3ASTHandleLIA arrayInteger;
       bool hashed = arrHashLIA.lookupArrayExpr(concatArray, arrayInteger);
 
