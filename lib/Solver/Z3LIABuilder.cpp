@@ -410,13 +410,182 @@ Z3ASTHandleLIA Z3LIABuilder::constructLIA(const ref<Expr> &e) {
   }
 }
 
-void Z3LIABuilder::loadReads(const std::vector<ref<ReadExpr>> &reads) {
-  for (const ref<ReadExpr> &singleRead : reads) {
-    ref<Expr> idxExpr = singleRead->index;
-    if (ref<ConstantExpr> ce = dyn_cast<ConstantExpr>(idxExpr)) {
-      // readExprs[ce->getZExtValue()];
+bool Z3LIABuilder::isContigousConstantRead(const ref<ConcatExpr> &ce) {
+  ref<Expr> lastRightSon = nullptr;
+  uint64_t lastIdx = 0;
+  const Array *concatArray = nullptr;
+
+  for (ref<ConcatExpr> ceIt = ce; ceIt;
+       ceIt = dyn_cast<ConcatExpr>(ceIt->getRight())) {
+    const Array *underlyingArray = nullptr;
+    uint64_t idx = 0;
+
+    if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getLeft())) {
+      underlyingArray = re->updates.root;
+      if (ref<ConstantExpr> idxExpr = dyn_cast<ConstantExpr>(re->index)) {
+        idx = idxExpr->getZExtValue();
+      } else {
+        return false;
+      }
+    } else {
+      return false;
+    }
+
+    if (concatArray == nullptr) {
+      underlyingArray = concatArray;
+    } else if (concatArray == underlyingArray) {
+      if (idx + 1 != lastIdx) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+    lastIdx = idx;
+
+    lastRightSon = ceIt->getRight();
+  }
+  return isa<ReadExpr>(lastRightSon);
+}
+
+static std::vector<const Array *> allArrays(const ref<ConcatExpr> &concat) {
+  std::vector<ref<ReadExpr>> readsInConcat;
+  findReads(concat, false, readsInConcat);
+  std::vector<const Array *> result;
+  for (ref<ReadExpr> read : readsInConcat) {
+    result.push_back(read->updates.root);
+  }
+  return result;
+}
+
+static const Array *anyArray(const ref<ConcatExpr> &concat) {
+  for (ref<ConcatExpr> ceIt = concat; ceIt;
+       ceIt = dyn_cast<ConcatExpr>(ceIt->getRight())) {
+    if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getLeft())) {
+      return re->updates.root;
     }
   }
+  return nullptr;
+}
+
+static ref<ConstantExpr>
+firstIdxFromConstantRead(const ref<ConcatExpr> &concat) {
+  std::vector<ref<ReadExpr>> readsInConcat;
+  findReads(concat, false, readsInConcat);
+  uint64_t result = -1;
+  for (ref<ReadExpr> read : readsInConcat) {
+    if (ref<ConstantExpr> ce = dyn_cast<ConstantExpr>(read->index)) {
+      result = std::min(result, ce->getZExtValue());
+    } else {
+      return nullptr;
+    }
+  }
+  return ConstantExpr::create(result, readsInConcat.front()->getWidth());
+}
+
+static ref<ConstantExpr> readsIn(const ref<ConcatExpr> &concat) {
+  if (ref<ReadExpr> re = dyn_cast<ReadExpr>(concat->getLeft())) {
+    if (concat->getWidth() % re->getWidth() != 0) {
+      return nullptr;
+    }
+    uint64_t numWidth = concat->getWidth() / re->getWidth();
+    return ConstantExpr::create(numWidth, concat->getWidth());
+  }
+  return nullptr;
+}
+
+void Z3LIABuilder::loadReads(const std::vector<ref<ConcatExpr>> &concats) {
+  readExprs.clear();
+  // which offsets should not be optimized
+  std::unordered_set<const Array *> toDelete;
+  std::unordered_map<const Array *, std::vector<uint64_t>> partToDelete;
+
+  for (const ref<ConcatExpr> &singleConcat : concats) {
+    const Array *array = anyArray(singleConcat);
+    /// either read from constant array or a corrupted concat
+    if (array == nullptr) {
+      assert(false && "this should not happen");
+      continue;
+    }
+
+    // If not, we need to find which indexes were used to read from
+    // to forbid oprimizations for that arrays.
+    if (!isContigousConstantRead(singleConcat)) {
+      for (const Array *array : allArrays(singleConcat)) {
+        toDelete.insert(array);
+      }
+      continue;
+    }
+
+    ref<ConstantExpr> firstIdx = firstIdxFromConstantRead(singleConcat);
+    ref<ConstantExpr> concatSize = readsIn(singleConcat);
+    assert(firstIdx && concatSize);
+
+    uint64_t firstIdxConst = firstIdx->getZExtValue();
+    uint64_t concatSizeConst = concatSize->getZExtValue();
+
+    if (!readExprs[array].emplace(firstIdxConst, concatSizeConst).second) {
+      partToDelete[array].push_back(firstIdxConst);
+    }
+  }
+
+  for (const Array *array : toDelete) {
+    readExprs.erase(array);
+  }
+
+  for (const auto &it : partToDelete) {
+    if (readExprs.count(it.first)) {
+      for (auto &itt : it.second) {
+        readExprs.at(it.first).erase(itt);
+      }
+    }
+  }
+}
+
+bool Z3LIABuilder::isNonOverlapping(const ref<ConcatExpr> &concat) {
+  if (!isContigousConstantRead(concat)) {
+    return false;
+  }
+
+  const Array *array = anyArray(concat);
+  ref<ConstantExpr> firstIdx = firstIdxFromConstantRead(concat);
+  ref<ConstantExpr> concatSize = readsIn(concat);
+  assert(firstIdx && concatSize);
+
+  uint64_t firstIdxConst = firstIdx->getZExtValue();
+  uint64_t concatSizeConst = concatSize->getZExtValue();
+
+  if (!readExprs.count(array)) {
+    return false;
+  }
+
+  const std::map<uint64_t, uint64_t> &atArray = readExprs.at(array);
+  auto itAtArray = atArray.lower_bound(firstIdxConst);
+  if (itAtArray == atArray.end()) {
+    // should find that array
+    return false;
+  }
+
+  if (itAtArray->first == firstIdxConst &&
+      itAtArray->second == concatSizeConst) {
+    // iterate forward
+    auto nextItAtArray = std::next(itAtArray);
+    if (nextItAtArray != atArray.end() &&
+        firstIdxConst + concatSizeConst + 1 >= std::next(itAtArray)->first) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+
+  // iterate backward to find all intersections
+  if (itAtArray != atArray.begin()) {
+    --itAtArray;
+    if (itAtArray->first + itAtArray->second + 1 >= firstIdxConst) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 Z3ASTHandle Z3LIABuilder::construct(ref<Expr> e, int *width_out) {
@@ -430,54 +599,6 @@ Z3ASTHandle Z3LIABuilder::construct(ref<Expr> e, int *width_out) {
   }
 
   return result;
-}
-
-static bool isReadFromImmutablePartOfArray(const ref<ConcatExpr> &ce) {
-  bool isReadFromImmutablePart = true;
-  const Array *concatArray = nullptr;
-  int i = 0;
-  uint64_t prevIdx = 0;
-
-  auto check = [&](ref<ReadExpr> re) {
-    const Array *underlyingArray = re->updates.root;
-
-    if (ref<ConstantExpr> ceIdx = dyn_cast<ConstantExpr>(re->index)) {
-      isReadFromImmutablePart &=
-          (ceIdx->getZExtValue() + 1 == prevIdx || concatArray == nullptr);
-      prevIdx = ceIdx->getZExtValue();
-    } else {
-      isReadFromImmutablePart = false;
-    }
-
-    if (concatArray == nullptr) {
-      concatArray = underlyingArray;
-
-      if (re->updates.head != nullptr) {
-        return false;
-      }
-    }
-
-    if (underlyingArray != concatArray) {
-      isReadFromImmutablePart = false;
-      return;
-    }
-  };
-
-  for (ref<ConcatExpr> ceIt = ce; ceIt && isReadFromImmutablePart;
-       ceIt = dyn_cast<ConcatExpr>(ceIt->getRight())) {
-
-    if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getLeft())) {
-      check(re);
-    } else {
-      isReadFromImmutablePart = false;
-    }
-
-    if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getRight())) {
-      check(re);
-    }
-  }
-
-  return isReadFromImmutablePart;
 }
 
 /** if *width_out!=1 then result is a bitvector,
@@ -527,7 +648,7 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     ref<ConcatExpr> ce = cast<ConcatExpr>(e);
     int numKids = static_cast<int>(ce->getNumKids());
 
-    if (isReadFromImmutablePartOfArray(ce)) {
+    if (isNonOverlapping(ce)) {
       const Array *concatArray = cast<ReadExpr>(ce->getLeft())->updates.root;
       Z3ASTHandleLIA arrayInteger;
       bool hashed = arrHashLIA.lookupArrayExpr(concatArray, arrayInteger);

@@ -66,7 +66,7 @@ namespace klee {
 class Z3SolverImpl : public SolverImpl {
 private:
   Z3Builder *builder;
-  Z3Builder *liaBuilder;
+  Z3LIABuilder *liaBuilder;
   Z3BuilderType builderType;
   time::Span timeout;
   SolverRunStatus runStatusCode;
@@ -421,10 +421,17 @@ bool Z3SolverImpl::internalRunSolver(
   }
 
   if (!useOldWay) {
+    std::vector<ref<ConcatExpr>> longReads;
+    for (const ref<Expr> &expr : query.constraints.withExpr(query.expr)) {
+      findReads(expr, false, longReads);
+    }
+
+    liaBuilder->loadReads(longReads);
+
     ConstantArrayFinder constant_arrays_in_query;
 
     for (auto const &constraint : query.constraints) {
-      Z3ASTHandle z3Constraint = liaBuilder->construct(constraint);
+      Z3ASTHandle z3Constraint = liaBuilder->Z3Builder::construct(constraint);
       check;
 
       if (ProduceUnsatCore && validityCore) {
@@ -443,8 +450,8 @@ bool Z3SolverImpl::internalRunSolver(
     if (objects)
       ++stats::queryCounterexamples;
 
-    Z3ASTHandle z3QueryExpr =
-        Z3ASTHandle(liaBuilder->construct(query.expr), liaBuilder->ctx);
+    Z3ASTHandle z3QueryExpr = Z3ASTHandle(
+        liaBuilder->Z3Builder::construct(query.expr), liaBuilder->ctx);
     check;
 
     constant_arrays_in_query.visit(query.expr);
@@ -739,8 +746,7 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
         Z3_ast symcreteIntegerValue;
         Z3ASTHandleLIA astLIA;
 
-        dynamic_cast<Z3LIABuilder *>(liaBuilder)
-            ->arrHashLIA.lookupArrayExpr(array, astLIA);
+        liaBuilder->arrHashLIA.lookupArrayExpr(array, astLIA);
 
         Z3_model_eval(builder->ctx, theModel, astLIA, Z3_TRUE,
                       &symcreteIntegerValue);

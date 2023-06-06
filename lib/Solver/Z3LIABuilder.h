@@ -73,7 +73,9 @@ public:
   ExprHashMap<Z3ASTHandleLIA> constructedLIA;
   Z3ArrayExprLIAHash arrHashLIA;
 
-  std::map<uint64_t, uint64_t> readExprs;
+  // Reflects which indixed may be optimized.
+  // Maps arrays to offsets with sizes of reads.
+  std::map<const Array *, std::map<uint64_t, uint64_t>> readExprs;
 
 private:
   Z3SortHandle liaSort();
@@ -221,11 +223,14 @@ private:
 public:
   bool isBroken = false;
 
+  Z3ASTHandle construct(ref<Expr> e, int *width_out) override;
   Z3LIABuilder(bool autoClearConstructCache, const char *z3LogInteractionFile)
       : Z3Builder(autoClearConstructCache, z3LogInteractionFile) {}
-  Z3ASTHandle construct(ref<Expr> e, int *width_out) override;
 
-  void Z3LIABuilder::loadReads(const std::vector<ref<ReadExpr>> &reads);
+  void loadReads(const std::vector<ref<ConcatExpr>> &reads);
+  bool isNonOverlapping(const ref<ConcatExpr> &read);
+  bool isContigousConstantRead(const ref<ConcatExpr> &concatExpr);
+
   Z3ASTHandle getInitialRead(const Array *root, unsigned index) override;
 
   void clearConstructCache() override {
