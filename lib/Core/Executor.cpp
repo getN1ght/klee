@@ -2938,8 +2938,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       offset = AddExpr::create(offset, Expr::createPointer(kgepi->offset));
     ref<Expr> address = AddExpr::create(base, offset);
     if (!isa<ConstantExpr>(address)) {
-      ref<Expr> extractedOffset = ExtractExpr::create(
-          offset, 0, std::min(Expr::Int64, offset->getWidth()));
+
+      // FIXME: 64 -> Expr::Int64
+      ref<Expr> extractedOffset =
+          ExtractExpr::create(offset, 0, std::min(64, int(offset->getWidth())));
       if (state.isGEPExpr(base)) {
         state.gepExprBases[address] = state.gepExprBases[base];
         state.gepExprOffsets[address] =

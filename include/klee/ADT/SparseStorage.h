@@ -80,6 +80,8 @@ public:
     return contains(idx) ? internalStorage.at(idx) : defaultValue;
   }
 
+  bool isFilled(size_t idx) const { return internalStorage.count(idx) != 0; }
+
   size_t size() const { return capacity; }
 
   void resize(size_t newCapacity) {

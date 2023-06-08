@@ -7,6 +7,15 @@
 
 using namespace klee;
 
+#define RESET "\033[0m"
+
+#define RED "\033[31m"
+#define GREEN "\033[32m"
+#define BLUE "\033[34m"
+
+#define BOLD "\e[1m"
+#define SIMPLE "\e[0m"
+
 Z3SortHandle Z3LIABuilder::liaSort() { return {Z3_mk_int_sort(ctx), ctx}; }
 
 Z3ASTHandleLIA
@@ -422,6 +431,10 @@ bool Z3LIABuilder::isContigousConstantRead(const ref<ConcatExpr> &ce) {
 
     if (ref<ReadExpr> re = dyn_cast<ReadExpr>(ceIt->getLeft())) {
       underlyingArray = re->updates.root;
+      if (!re->updates.head.isNull()) {
+        return false;
+      }
+
       if (ref<ConstantExpr> idxExpr = dyn_cast<ConstantExpr>(re->index)) {
         idx = idxExpr->getZExtValue();
       } else {
@@ -444,7 +457,18 @@ bool Z3LIABuilder::isContigousConstantRead(const ref<ConcatExpr> &ce) {
 
     lastRightSon = ceIt->getRight();
   }
-  return isa<ReadExpr>(lastRightSon);
+
+  ref<ReadExpr> lastRightSonReadExpr = dyn_cast<ReadExpr>(lastRightSon);
+  if (!lastRightSonReadExpr || !lastRightSonReadExpr->updates.head.isNull()) {
+    return false;
+  }
+
+  if (ref<ConstantExpr> ce =
+          dyn_cast<ConstantExpr>(lastRightSonReadExpr->index)) {
+    return ce->getZExtValue() + 1 == lastIdx;
+  } else {
+    return false;
+  }
 }
 
 static std::vector<const Array *> allArrays(const ref<ConcatExpr> &concat) {
@@ -488,16 +512,18 @@ static ref<ConstantExpr> readsIn(const ref<ConcatExpr> &concat) {
       return nullptr;
     }
     uint64_t numWidth = concat->getWidth() / re->getWidth();
-    return ConstantExpr::create(numWidth, concat->getWidth());
+    return ConstantExpr::create(numWidth, Expr::Int64);
   }
   return nullptr;
 }
 
 void Z3LIABuilder::loadReads(const std::vector<ref<ConcatExpr>> &concats) {
   readExprs.clear();
+  optimizedReads.clear();
+  notOptimizedReads.clear();
+
   // which offsets should not be optimized
   std::unordered_set<const Array *> toDelete;
-  std::unordered_map<const Array *, std::vector<uint64_t>> partToDelete;
 
   for (const ref<ConcatExpr> &singleConcat : concats) {
     const Array *array = anyArray(singleConcat);
@@ -523,21 +549,21 @@ void Z3LIABuilder::loadReads(const std::vector<ref<ConcatExpr>> &concats) {
     uint64_t firstIdxConst = firstIdx->getZExtValue();
     uint64_t concatSizeConst = concatSize->getZExtValue();
 
-    if (!readExprs[array].emplace(firstIdxConst, concatSizeConst).second) {
-      partToDelete[array].push_back(firstIdxConst);
+    // save maximum width, but mark less widths as intersecting
+    if (readExprs.count(array) == 0 ||
+        readExprs.at(array).count(firstIdxConst) == 0) {
+      readExprs[array][firstIdxConst] = concatSizeConst;
+    } else {
+      uint64_t &width = readExprs.at(array).at(firstIdxConst);
+      if (width != concatSizeConst) {
+        notOptimizedReads[array].insert(firstIdxConst);
+        width = std::max(width, concatSizeConst);
+      }
     }
   }
 
   for (const Array *array : toDelete) {
     readExprs.erase(array);
-  }
-
-  for (const auto &it : partToDelete) {
-    if (readExprs.count(it.first)) {
-      for (auto &itt : it.second) {
-        readExprs.at(it.first).erase(itt);
-      }
-    }
   }
 }
 
@@ -554,7 +580,9 @@ bool Z3LIABuilder::isNonOverlapping(const ref<ConcatExpr> &concat) {
   uint64_t firstIdxConst = firstIdx->getZExtValue();
   uint64_t concatSizeConst = concatSize->getZExtValue();
 
-  if (!readExprs.count(array)) {
+  if (!readExprs.count(array) ||
+      (notOptimizedReads.count(array) != 0 &&
+       notOptimizedReads.at(array).count(firstIdxConst))) {
     return false;
   }
 
@@ -648,18 +676,20 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     ref<ConcatExpr> ce = cast<ConcatExpr>(e);
     int numKids = static_cast<int>(ce->getNumKids());
 
-    if (isNonOverlapping(ce) && readsIn(ce)->getZExtValue() <= sizeof(uint64_t)) {
+    if (isNonOverlapping(ce) &&
+        readsIn(ce)->getZExtValue() <= sizeof(uint64_t)) {
       const Array *concatArray = anyArray(ce);
-      
+
       uint64_t firstReadIdx = firstIdxFromConstantRead(ce)->getZExtValue();
 
       std::map<uint64_t, Z3ASTHandleLIA> &atArray = optimizedReads[concatArray];
       if (atArray.count(firstReadIdx) == 0) {
-        std::string unique_name = concatArray->getName() + "#" + std::to_string(atArray.size());
+        std::string unique_name =
+            concatArray->getName() + "#" + std::to_string(atArray.size());
 
         Z3_symbol symbol = Z3_mk_string_symbol(ctx, unique_name.c_str());
         Z3ASTHandleLIA arrayInteger(Z3_mk_const(ctx, symbol, liaSort()), ctx,
-                                      ce->getWidth(), false);
+                                    ce->getWidth(), false);
 
         sideConstraints.push_back(liaUleExpr(
             liaUnsignedConst(llvm::APInt(ce->getWidth(), 0)), arrayInteger));
@@ -667,9 +697,14 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
             arrayInteger,
             liaUnsignedConst(llvm::APInt::getMaxValue(ce->getWidth()))));
         atArray[firstReadIdx] = arrayInteger;
+        // llvm::errs() << BOLD << GREEN << "Created concat at " << unique_name
+        //              << RESET << SIMPLE << '\n';
+      } else {
+        // llvm::errs() << BOLD << GREEN << "USED CONCAT FOR"
+        //              << concatArray->getName() << RESET << SIMPLE << '\n';
       }
 
-      return atArray[firstReadIdx];
+      return atArray.at(firstReadIdx);
     }
 
     Z3ASTHandleLIA res = constructLIA(ce->getKid(0));

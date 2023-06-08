@@ -76,7 +76,12 @@ public:
   // Reflects which indixed may be optimized.
   // Maps arrays to offsets with sizes of reads.
   std::unordered_map<const Array *, std::map<uint64_t, uint64_t>> readExprs;
-  std::unordered_map<const Array *, std::map<uint64_t, Z3ASTHandleLIA>> optimizedReads;
+  std::unordered_map<const Array *, std::map<uint64_t, Z3ASTHandleLIA>>
+      optimizedReads;
+
+  // Map arrays to offsets that should not be optimized
+  std::unordered_map<const Array *, std::unordered_set<uint64_t>>
+      notOptimizedReads;
 
 private:
   Z3SortHandle liaSort();

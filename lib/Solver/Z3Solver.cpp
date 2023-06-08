@@ -426,6 +426,12 @@ bool Z3SolverImpl::internalRunSolver(
       findReads(expr, false, longReads);
     }
 
+    // for (ref<ConcatExpr> ce : longReads) {
+    //   ce->dump();
+    // }
+    // query.dump();
+    // llvm::errs() << "\n\n";
+
     liaBuilder->loadReads(longReads);
 
     ConstantArrayFinder constant_arrays_in_query;
@@ -793,6 +799,10 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
         }
 
         for (unsigned offset : offsetValues) {
+          if (data.isFilled(offset)) {
+            continue;
+          }
+
           // We can't use Z3ASTHandle here so have to do ref counting manually
           ::Z3_ast arrayElementExpr;
           Z3ASTHandle initial_read = builder->getInitialRead(array, offset);

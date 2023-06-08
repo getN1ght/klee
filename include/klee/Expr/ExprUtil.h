@@ -45,6 +45,10 @@ void findReads(ref<Expr> e, bool visitUpdates, std::vector<ref<T>> &results) {
 
     if (T *t = dyn_cast<T>(top)) {
       results.push_back(t);
+      // FIXME: temporary. Rewrite.
+      if (!visitUpdates) {
+        continue;
+      }
     }
 
     if (ReadExpr *re = dyn_cast<ReadExpr>(top)) {
