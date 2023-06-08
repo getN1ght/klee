@@ -648,17 +648,17 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     ref<ConcatExpr> ce = cast<ConcatExpr>(e);
     int numKids = static_cast<int>(ce->getNumKids());
 
-    if (isNonOverlapping(ce)) {
-      const Array *concatArray = cast<ReadExpr>(ce->getLeft())->updates.root;
-      Z3ASTHandleLIA arrayInteger;
-      bool hashed = arrHashLIA.lookupArrayExpr(concatArray, arrayInteger);
+    if (isNonOverlapping(ce) && readsIn(ce)->getZExtValue() <= sizeof(uint64_t)) {
+      const Array *concatArray = anyArray(ce);
+      
+      uint64_t firstReadIdx = firstIdxFromConstantRead(ce)->getZExtValue();
 
-      if (!hashed) {
-        std::string unique_id = llvm::utostr(arrHashLIA._array_hash.size());
-        std::string unique_name = concatArray->getName() + unique_id;
+      std::map<uint64_t, Z3ASTHandleLIA> &atArray = optimizedReads[concatArray];
+      if (atArray.count(firstReadIdx) == 0) {
+        std::string unique_name = concatArray->getName() + "#" + std::to_string(atArray.size());
 
         Z3_symbol symbol = Z3_mk_string_symbol(ctx, unique_name.c_str());
-        arrayInteger = Z3ASTHandleLIA(Z3_mk_const(ctx, symbol, liaSort()), ctx,
+        Z3ASTHandleLIA arrayInteger(Z3_mk_const(ctx, symbol, liaSort()), ctx,
                                       ce->getWidth(), false);
 
         sideConstraints.push_back(liaUleExpr(
@@ -666,10 +666,10 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
         sideConstraints.push_back(liaUleExpr(
             arrayInteger,
             liaUnsignedConst(llvm::APInt::getMaxValue(ce->getWidth()))));
-        arrHashLIA.hashArrayExpr(concatArray, arrayInteger);
+        atArray[firstReadIdx] = arrayInteger;
       }
 
-      return arrayInteger;
+      return atArray[firstReadIdx];
     }
 
     Z3ASTHandleLIA res = constructLIA(ce->getKid(0));

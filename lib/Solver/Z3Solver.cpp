@@ -742,29 +742,41 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
 
       data.resize(arraySize);
 
-      if (isLIA && array->source->isSymcrete()) {
-        Z3_ast symcreteIntegerValue;
-        Z3ASTHandleLIA astLIA;
+      if (isLIA && liaBuilder->optimizedReads.count(array)) {
+        const std::map<uint64_t, Z3ASTHandleLIA> &atArray =
+            liaBuilder->optimizedReads.at(array);
 
-        liaBuilder->arrHashLIA.lookupArrayExpr(array, astLIA);
+        for (const auto &it : atArray) {
+          const Z3ASTHandleLIA &astInteger = it.second;
+          uint64_t width = liaBuilder->readExprs.at(array).at(it.first);
+          assert(width <= sizeof(uint64_t));
 
-        Z3_model_eval(builder->ctx, theModel, astLIA, Z3_TRUE,
-                      &symcreteIntegerValue);
-        Z3_inc_ref(builder->ctx, symcreteIntegerValue);
+          Z3_ast astIntegerValue;
+          Z3_model_eval(builder->ctx, theModel, astInteger, Z3_TRUE,
+                        &astIntegerValue);
+          Z3_inc_ref(builder->ctx, astIntegerValue);
 
-        uint64_t value;
-        Z3_get_numeral_uint64(builder->ctx, symcreteIntegerValue, &value);
+          uint64_t value;
+          Z3_get_numeral_uint64(builder->ctx, astIntegerValue, &value);
+          for (uint64_t i = 0; i < width; ++i) {
+            uint64_t base = 1ull << CHAR_BIT;
+            data.store(it.first + i, value % base);
+            value /= base;
+          }
 
-        for (unsigned i = 0; i < sizeof(value); ++i) {
-          uint64_t base = 1ull << CHAR_BIT;
-          data.store(i, value % base);
-          value /= base;
+          Z3_dec_ref(builder->ctx, astIntegerValue);
         }
+      }
 
-        Z3_dec_ref(builder->ctx, symcreteIntegerValue);
-      } else if (usedArrayBytes.count(array)) {
+      if (usedArrayBytes.count(array)) {
         std::unordered_set<uint64_t> offsetValues;
         for (ref<Expr> offsetExpr : usedArrayBytes.at(array)) {
+          if (ref<ConstantExpr> constExpr =
+                  dyn_cast<ConstantExpr>(offsetExpr)) {
+            offsetValues.insert(constExpr->getZExtValue());
+            continue;
+          }
+
           ::Z3_ast arrayElementOffsetExpr;
           Z3_model_eval(builder->ctx, theModel, builder->construct(offsetExpr),
                         Z3_TRUE, &arrayElementOffsetExpr);
