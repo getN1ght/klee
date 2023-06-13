@@ -15,6 +15,8 @@ private:
   bool isSigned = false;
 
 public:
+  bool bv = false;
+
   Z3ASTHandleLIA() : Z3ASTHandle() {}
   Z3ASTHandleLIA(const Z3_ast &node, const Z3_context &ctx, unsigned _width,
                  bool _isSigned)

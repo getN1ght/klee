@@ -3,6 +3,7 @@
 #include "z3.h"
 #include "llvm/ADT/APInt.h"
 
+#include "klee/Expr/ArrayExprVisitor.h"
 #include "klee/Expr/ExprUtil.h"
 
 using namespace klee;
@@ -377,7 +378,10 @@ Z3ASTHandleLIA Z3LIABuilder::liaGetArrayForUpdate(const Array *root,
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaBuildArray(const char *name, unsigned width) {
-  Z3SortHandle t = getArraySort(liaSort(), liaSort());
+  Z3SortHandle domainSort = liaSort();
+  Z3SortHandle rangeSort = getBvSort(width);
+  Z3SortHandle t = getArraySort(domainSort, rangeSort);
+
   Z3_symbol s = Z3_mk_string_symbol(ctx, const_cast<char *>(name));
   return {Z3_mk_const(ctx, s, t), ctx, width, false};
 }
@@ -385,9 +389,12 @@ Z3ASTHandleLIA Z3LIABuilder::liaBuildArray(const char *name, unsigned width) {
 Z3ASTHandleLIA
 Z3LIABuilder::liaBuildConstantArray(const char *name,
                                     const llvm::APInt &defaultValue) {
-  Z3ASTHandleLIA liaDefaultValue = liaUnsignedConst(defaultValue);
-  return {Z3_mk_const_array(ctx, liaSort(), liaDefaultValue), ctx,
-          liaDefaultValue.getWidth(), false};
+  // Z3ASTHandleLIA liaDefaultValue = liaUnsignedConst(defaultValue);
+  Z3SortHandle defaultValueSort = getBvSort(CHAR_BIT);
+  Z3ASTHandle liaDefaultValue = {Z3_mk_fresh_const(ctx, "", defaultValueSort),
+                                 ctx};
+  return {Z3_mk_const_array(ctx, liaSort(), liaDefaultValue), ctx, CHAR_BIT,
+          false};
 }
 
 Z3ASTHandleLIA Z3LIABuilder::liaWriteExpr(const Z3ASTHandleLIA &array,
@@ -399,7 +406,10 @@ Z3ASTHandleLIA Z3LIABuilder::liaWriteExpr(const Z3ASTHandleLIA &array,
 
 Z3ASTHandleLIA Z3LIABuilder::liaReadExpr(const Z3ASTHandleLIA &array,
                                          const Z3ASTHandleLIA &index) {
-  return {Z3_mk_select(ctx, array, index), ctx, array.getWidth(), false};
+  Z3ASTHandleLIA res = {Z3_mk_select(ctx, array, index), ctx, array.getWidth(),
+                        false};
+  res.bv = true;
+  return res;
 }
 
 Z3ASTHandleLIA Z3LIABuilder::constructLIA(const ref<Expr> &e) {
@@ -656,10 +666,10 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
         liaGetArrayForUpdate(re->updates.root, re->updates.head.get()),
         constructLIA(re->index));
 
-    sideConstraints.push_back(
-        liaUleExpr(liaUnsignedConst(llvm::APInt(CHAR_BIT, 0)), readExpr));
-    sideConstraints.push_back(liaUleExpr(
-        readExpr, liaUnsignedConst(llvm::APInt::getMaxValue(CHAR_BIT))));
+    // sideConstraints.push_back(
+    //     liaUleExpr(liaUnsignedConst(llvm::APInt(CHAR_BIT, 0)), readExpr));
+    // sideConstraints.push_back(liaUleExpr(
+    //     readExpr, liaUnsignedConst(llvm::APInt::getMaxValue(CHAR_BIT))));
 
     return readExpr;
   }
@@ -676,36 +686,50 @@ Z3ASTHandleLIA Z3LIABuilder::constructActualLIA(const ref<Expr> &e) {
     ref<ConcatExpr> ce = cast<ConcatExpr>(e);
     int numKids = static_cast<int>(ce->getNumKids());
 
-    if (isNonOverlapping(ce) &&
-        readsIn(ce)->getZExtValue() <= sizeof(uint64_t)) {
-      const Array *concatArray = anyArray(ce);
+    if (ArrayExprHelper::hasOrderedReads(*ce)) {
+      unsigned numKids = ce->getNumKids();
+      Z3ASTHandle res = construct(ce->getKid(numKids - 1), 0);
 
-      uint64_t firstReadIdx = firstIdxFromConstantRead(ce)->getZExtValue();
-
-      std::map<uint64_t, Z3ASTHandleLIA> &atArray = optimizedReads[concatArray];
-      if (atArray.count(firstReadIdx) == 0) {
-        std::string unique_name =
-            concatArray->getName() + "#" + std::to_string(atArray.size());
-
-        Z3_symbol symbol = Z3_mk_string_symbol(ctx, unique_name.c_str());
-        Z3ASTHandleLIA arrayInteger(Z3_mk_const(ctx, symbol, liaSort()), ctx,
-                                    ce->getWidth(), false);
-
-        sideConstraints.push_back(liaUleExpr(
-            liaUnsignedConst(llvm::APInt(ce->getWidth(), 0)), arrayInteger));
-        sideConstraints.push_back(liaUleExpr(
-            arrayInteger,
-            liaUnsignedConst(llvm::APInt::getMaxValue(ce->getWidth()))));
-        atArray[firstReadIdx] = arrayInteger;
-        // llvm::errs() << BOLD << GREEN << "Created concat at " << unique_name
-        //              << RESET << SIMPLE << '\n';
-      } else {
-        // llvm::errs() << BOLD << GREEN << "USED CONCAT FOR"
-        //              << concatArray->getName() << RESET << SIMPLE << '\n';
+      ref<Expr> ceIt = ce;
+      while (ceIt->getKind() == Expr::Kind::Concat) {
+        res = {Z3_mk_concat(ctx, res, constructLIA(ceIt->getKid(0))), ctx};
+        ceIt = ceIt->getKid(1);
       }
-
-      return atArray.at(firstReadIdx);
+      res = {Z3_mk_concat(ctx, res, constructLIA(ceIt)), ctx};
+      return {Z3_mk_bv2int(ctx, res, false), ctx, ce->getWidth(), false};
     }
+
+    // if (isNonOverlapping(ce) &&
+    //     readsIn(ce)->getZExtValue() <= sizeof(uint64_t)) {
+    //   const Array *concatArray = anyArray(ce);
+
+    //   uint64_t firstReadIdx = firstIdxFromConstantRead(ce)->getZExtValue();
+
+    //   std::map<uint64_t, Z3ASTHandleLIA> &atArray =
+    //   optimizedReads[concatArray]; if (atArray.count(firstReadIdx) == 0) {
+    //     std::string unique_name =
+    //         concatArray->getName() + "#" + std::to_string(atArray.size());
+
+    //     Z3_symbol symbol = Z3_mk_string_symbol(ctx, unique_name.c_str());
+    //     Z3ASTHandleLIA arrayInteger(Z3_mk_const(ctx, symbol, liaSort()), ctx,
+    //                                 ce->getWidth(), false);
+
+    //     sideConstraints.push_back(liaUleExpr(
+    //         liaUnsignedConst(llvm::APInt(ce->getWidth(), 0)), arrayInteger));
+    //     sideConstraints.push_back(liaUleExpr(
+    //         arrayInteger,
+    //         liaUnsignedConst(llvm::APInt::getMaxValue(ce->getWidth()))));
+    //     atArray[firstReadIdx] = arrayInteger;
+    //     // llvm::errs() << BOLD << GREEN << "Created concat at " <<
+    //     unique_name
+    //     //              << RESET << SIMPLE << '\n';
+    //   } else {
+    //     // llvm::errs() << BOLD << GREEN << "USED CONCAT FOR"
+    //     //              << concatArray->getName() << RESET << SIMPLE << '\n';
+    //   }
+
+    //   return atArray.at(firstReadIdx);
+    // }
 
     Z3ASTHandleLIA res = constructLIA(ce->getKid(0));
 

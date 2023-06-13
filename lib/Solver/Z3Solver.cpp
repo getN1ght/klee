@@ -426,12 +426,6 @@ bool Z3SolverImpl::internalRunSolver(
       findReads(expr, false, longReads);
     }
 
-    // for (ref<ConcatExpr> ce : longReads) {
-    //   ce->dump();
-    // }
-    // query.dump();
-    // llvm::errs() << "\n\n";
-
     liaBuilder->loadReads(longReads);
 
     ConstantArrayFinder constant_arrays_in_query;
