@@ -10,21 +10,28 @@ namespace klee {
 
 class Z3LIABuilder;
 
+typedef std::pair<Z3ASTHandle, Z3ASTHandle> Z3ASTPair;
+
 class Z3HybridBuilder : public Z3Builder {
 private:
-  ExprHashMap<std::pair<Z3ASTHandle, int>> _bvCache;
-  ExprHashMap<std::pair<Z3ASTHandle, int>> _liaCache;
+  ExprHashMap<Z3ASTHandle> _bvCache;
+  ExprHashMap<Z3ASTHandle> _liaCache;
 
   Z3ASTHandle constructActualBV(ref<Expr> e, int *width_out);
   Z3ASTHandle constructActualLIA(ref<Expr> e, int *width_out);
 
 protected:
-  Z3ASTHandle construct(ref<Expr> e, int *width_out) override;
-  Z3ASTHandle constructActual(ref<Expr> e, int *width_out) override;
+  Z3ASTPair construct(ref<Expr> e);
+  Z3ASTPair constructActual(ref<Expr> e);
+
+  Z3ASTPair buildArray(const char *name, unsigned indexWidth,
+                       unsigned rangeWidth);
+  Z3ASTPair buildConstantArray(const char *name, unsigned indexWidth,
+                               const llvm::APInt &defaultValue);
 
 protected:
   /* LIA builder part */
-  Z3SortHandle liaSort();
+  Z3SortHandle getLIASort();
 
   Z3ASTHandleLIA liaAndExpr(const Z3ASTHandleLIA &lhs,
                             const Z3ASTHandleLIA &rhs);
@@ -67,6 +74,13 @@ protected:
 
   Z3ASTHandleLIA liaZextExpr(const Z3ASTHandleLIA &expr, unsigned width);
   Z3ASTHandleLIA liaSextExpr(const Z3ASTHandleLIA &expr, unsigned width);
+
+protected:
+  /* Bitvectors part */
+
+private:
+  Z3ASTPair getArrayForUpdate(const Array *root, const UpdateNode *un);
+  Z3ASTPair getInitialArray(const Array *root);
 
 public:
   explicit Z3HybridBuilder(bool autoClearConstructCache,

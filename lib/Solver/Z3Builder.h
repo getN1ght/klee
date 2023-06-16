@@ -110,7 +110,7 @@ struct Z3ASTHandleCmp {
 };
 
 class Z3ArrayExprHash : public ArrayExprHash<Z3ASTHandle> {
-
+  friend class Z3HybridBuilder;
   friend class Z3Builder;
 
 public:
