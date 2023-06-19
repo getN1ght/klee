@@ -563,7 +563,7 @@ Z3ASTHandle Z3Builder::constructActual(ref<Expr> e, int *width_out) {
     if (*width_out == 1) {
       return notExpr(expr);
     } else {
-      return bvNotExpr(expr);
+      return bvNot(expr);
     }
   }
 

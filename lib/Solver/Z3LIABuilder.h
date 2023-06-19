@@ -186,7 +186,7 @@ private:
                                    Z3ASTHandle shift) override {
     llvm::report_fatal_error("SHOULD NOT BE CALLED!");
   }
-  Z3ASTHandle bvNotExpr(Z3ASTHandle expr) override {
+  Z3ASTHandle bvNot(Z3ASTHandle expr) override {
     llvm::report_fatal_error("SHOULD NOT BE CALLED!");
   }
   Z3ASTHandle bvAndExpr(Z3ASTHandle lhs, Z3ASTHandle rhs) override {

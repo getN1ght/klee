@@ -132,7 +132,7 @@ Z3ASTHandle Z3CoreBuilder::bvVarArithRightShift(Z3ASTHandle expr,
   return res;
 }
 
-Z3ASTHandle Z3CoreBuilder::bvNotExpr(Z3ASTHandle expr) {
+Z3ASTHandle Z3CoreBuilder::bvNot(Z3ASTHandle expr) {
   return Z3ASTHandle(Z3_mk_bvnot(ctx, expr), ctx);
 }
 
@@ -427,7 +427,7 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
     if (*width_out == 1) {
       return notExpr(expr);
     } else {
-      return bvNotExpr(expr);
+      return bvNot(expr);
     }
   }
 

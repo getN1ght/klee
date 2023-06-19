@@ -14,11 +14,7 @@ typedef std::pair<Z3ASTHandle, Z3ASTHandle> Z3ASTPair;
 
 class Z3HybridBuilder : public Z3Builder {
 private:
-  ExprHashMap<Z3ASTHandle> _bvCache;
-  ExprHashMap<Z3ASTHandle> _liaCache;
-
-  Z3ASTHandle constructActualBV(ref<Expr> e, int *width_out);
-  Z3ASTHandle constructActualLIA(ref<Expr> e, int *width_out);
+  ExprHashMap<Z3ASTPair> cache;
 
 protected:
   Z3ASTPair construct(ref<Expr> e);
@@ -33,20 +29,17 @@ protected:
   /* LIA builder part */
   Z3SortHandle getLIASort();
 
-  Z3ASTHandleLIA liaAndExpr(const Z3ASTHandleLIA &lhs,
+  Z3ASTHandleLIA liaAnd(const Z3ASTHandleLIA &lhs,
                             const Z3ASTHandleLIA &rhs);
-  Z3ASTHandleLIA liaOrExpr(const Z3ASTHandleLIA &lhs,
+  Z3ASTHandleLIA liaOr(const Z3ASTHandleLIA &lhs,
                            const Z3ASTHandleLIA &rhs);
-  Z3ASTHandleLIA liaXorExpr(const Z3ASTHandleLIA &lhs,
+  Z3ASTHandleLIA liaXor(const Z3ASTHandleLIA &lhs,
                             const Z3ASTHandleLIA &rhs);
-  Z3ASTHandleLIA liaNotExpr(const Z3ASTHandleLIA &expr);
+  Z3ASTHandleLIA liaNot(const Z3ASTHandleLIA &expr);
 
-  Z3ASTHandleLIA liaIteExpr(const Z3ASTHandleLIA &condition,
+  Z3ASTHandleLIA liaIte(const Z3ASTHandleLIA &condition,
                             const Z3ASTHandleLIA &whenTrue,
                             const Z3ASTHandleLIA &whenFalse);
-
-  Z3ASTHandleLIA liaEqExpr(const Z3ASTHandleLIA &lhs,
-                           const Z3ASTHandleLIA &rhs);
 
   Z3ASTHandleLIA liaUnsignedConstExpr(const llvm::APInt &value);
   Z3ASTHandleLIA liaSignedConstExpr(const llvm::APInt &value);
@@ -55,28 +48,56 @@ protected:
   Z3ASTHandleLIA castToUnsigned(const Z3ASTHandleLIA &expr);
   Z3ASTHandleLIA castToBool(const Z3ASTHandleLIA &expr);
 
-  Z3ASTHandleLIA liaUleExpr(const Z3ASTHandleLIA &lhs,
+  Z3ASTHandleLIA liaUle(const Z3ASTHandleLIA &lhs,
                             const Z3ASTHandleLIA &rhs);
-  Z3ASTHandleLIA liaUltExpr(const Z3ASTHandleLIA &lhs,
-                            const Z3ASTHandleLIA &rhs);
-
-  Z3ASTHandleLIA liaSleExpr(const Z3ASTHandleLIA &lhs,
-                            const Z3ASTHandleLIA &rhs);
-  Z3ASTHandleLIA liaSltExpr(const Z3ASTHandleLIA &lhs,
+  Z3ASTHandleLIA liaUlt(const Z3ASTHandleLIA &lhs,
                             const Z3ASTHandleLIA &rhs);
 
-  Z3ASTHandleLIA liaAddExpr(const Z3ASTHandleLIA &lhs,
+  Z3ASTHandleLIA liaSle(const Z3ASTHandleLIA &lhs,
                             const Z3ASTHandleLIA &rhs);
-  Z3ASTHandleLIA liaSubExpr(const Z3ASTHandleLIA &lhs,
-                            const Z3ASTHandleLIA &rhs);
-  Z3ASTHandleLIA liaMulExpr(const Z3ASTHandleLIA &lhs,
+  Z3ASTHandleLIA liaSlt(const Z3ASTHandleLIA &lhs,
                             const Z3ASTHandleLIA &rhs);
 
-  Z3ASTHandleLIA liaZextExpr(const Z3ASTHandleLIA &expr, unsigned width);
-  Z3ASTHandleLIA liaSextExpr(const Z3ASTHandleLIA &expr, unsigned width);
+  Z3ASTHandleLIA liaAdd(const Z3ASTHandleLIA &lhs,
+                            const Z3ASTHandleLIA &rhs);
+  Z3ASTHandleLIA liaSub(const Z3ASTHandleLIA &lhs,
+                            const Z3ASTHandleLIA &rhs);
+  Z3ASTHandleLIA liaMul(const Z3ASTHandleLIA &lhs,
+                            const Z3ASTHandleLIA &rhs);
+
+  Z3ASTHandleLIA liaZext(const Z3ASTHandleLIA &expr, unsigned width);
+  Z3ASTHandleLIA liaSext(const Z3ASTHandleLIA &expr, unsigned width);
 
 protected:
   /* Bitvectors part */
+  Z3ASTHandle bvConst(const llvm::APInt &);
+  Z3ASTHandle bvAdd(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+  Z3ASTHandle bvSub(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+  Z3ASTHandle bvMul(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+
+  Z3ASTHandle bvUDiv(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+  Z3ASTHandle bvSDiv(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+
+  Z3ASTHandle bvAnd(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+  Z3ASTHandle bvOr(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+  Z3ASTHandle bvXor(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+
+  Z3ASTHandle bvNot(const Z3ASTHandle &lhs);
+
+  Z3ASTHandle bvUle(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+  Z3ASTHandle bvUlt(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+
+  Z3ASTHandle bvSle(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+  Z3ASTHandle bvSlt(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+
+  Z3ASTHandle bvZext(const Z3ASTHandle &lhs, unsigned width);
+  Z3ASTHandle bvSext(const Z3ASTHandle &lhs, unsigned width);
+  Z3ASTHandle bvSext(const Z3ASTHandle &lhs, unsigned width);
+
+  Z3ASTHandle bvSrem(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+  Z3ASTHandle bvUrem(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs);
+
+  Z3ASTHandle bvExtract(const Z3ASTHandle &expr, unsigned top, unsigned bottom);
 
 private:
   Z3ASTPair getArrayForUpdate(const Array *root, const UpdateNode *un);

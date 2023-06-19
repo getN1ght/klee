@@ -147,7 +147,7 @@ protected:
   Z3ASTHandle orExpr(Z3ASTHandle lhs, Z3ASTHandle rhs);
   Z3ASTHandle iffExpr(Z3ASTHandle lhs, Z3ASTHandle rhs);
 
-  virtual Z3ASTHandle bvNotExpr(Z3ASTHandle expr) = 0;
+  virtual Z3ASTHandle bvNot(Z3ASTHandle expr) = 0;
   virtual Z3ASTHandle bvAndExpr(Z3ASTHandle lhs, Z3ASTHandle rhs) = 0;
   virtual Z3ASTHandle bvOrExpr(Z3ASTHandle lhs, Z3ASTHandle rhs) = 0;
   virtual Z3ASTHandle bvXorExpr(Z3ASTHandle lhs, Z3ASTHandle rhs) = 0;

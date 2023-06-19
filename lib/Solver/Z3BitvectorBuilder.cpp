@@ -166,7 +166,7 @@ Z3ASTHandle Z3BitvectorBuilder::bvVarArithRightShift(Z3ASTHandle expr,
   return res;
 }
 
-Z3ASTHandle Z3BitvectorBuilder::bvNotExpr(Z3ASTHandle expr) {
+Z3ASTHandle Z3BitvectorBuilder::bvNot(Z3ASTHandle expr) {
   return Z3ASTHandle(Z3_mk_bvnot(ctx, castToBitVector(expr)), ctx);
 }
 
@@ -582,7 +582,7 @@ Z3ASTHandle Z3BitvectorBuilder::constructActual(ref<Expr> e, int *width_out) {
     if (*width_out == 1) {
       return notExpr(expr);
     } else {
-      return bvNotExpr(expr);
+      return bvNot(expr);
     }
   }
 

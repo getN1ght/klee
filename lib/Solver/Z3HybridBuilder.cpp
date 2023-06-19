@@ -13,6 +13,38 @@ Z3HybridBuilder::Z3HybridBuilder(bool autoClearConstructCache,
   // pass
 }
 
+Z3ASTHandle Z3HybridBuilder::bvConst(const llvm::APInt &value) {
+    unsigned width = value.getBitWidth();
+
+    /* Fast case. */
+    if (width <= 32) {
+      return bvConst32(width, value.getZExtValue());
+    }
+    if (width <= 64) {
+      return bvConst64(width, value.getZExtValue());
+    }
+
+    /* Slow case. */
+    llvm::APInt valueSnap = value;
+
+    Z3ASTHandle bvConstResult =
+        bvConst64(64, valueSnap.getLoBits(64).getZExtValue());
+
+    while (valueSnap.getBitWidth() > 64) {
+      valueSnap = valueSnap.lshr(llvm::APInt(64, 64));
+      unsigned partialWidth = std::min(64U, valueSnap.getBitWidth());
+      bvConstResult = Z3ASTHandle( 
+          Z3_mk_concat(
+              ctx,
+              bvConst64(partialWidth,
+                        valueSnap.getLoBits(partialWidth).getZExtValue()),
+              bvConstResult),
+          ctx);
+    }
+
+    return bvConstResult;
+}
+
 Z3ASTPair Z3HybridBuilder::buildArray(const char *name, unsigned indexWidth,
                                       unsigned rangeWidth) {
   Z3SortHandle domainSortLIA = getLIASort();
@@ -20,7 +52,7 @@ Z3ASTPair Z3HybridBuilder::buildArray(const char *name, unsigned indexWidth,
   Z3SortHandle rangeSort = getBvSort(rangeWidth);
 
   Z3SortHandle liaArraySort = getArraySort(domainSortLIA, rangeSort);
-  Z3SortHandle bvArraySort = getArraySort(domainSortLIA, rangeSort);
+  Z3SortHandle bvArraySort = getArraySort(domainSortBV, rangeSort);
 
   Z3_symbol liaSymbol = Z3_mk_string_symbol(
       ctx, const_cast<char *>((std::string(name) + "lia").c_str()));
@@ -93,39 +125,94 @@ Z3ASTPair Z3HybridBuilder::getArrayForUpdate(const Array *root,
   if (!un) {
     return getInitialArray(root);
   } else {
-    Z3ASTHandle un_expr;
-    bool hashed = _arr_hash.lookupUpdateNodeExpr(un, un_expr);
+    Z3ASTPair unExprPair;
+    // bool hashed = _arr_hash.lookupUpdateNodeExpr(un, unExpr);
+    bool hashed = false;
 
     if (!hashed) {
-      un_expr = writeExpr(getArrayForUpdate(root, un->next.get()),
-                          construct(un->index, 0), construct(un->value, 0));
+      Z3ASTPair arrayForUpdatePair = getArrayForUpdate(root, un->next.get());
+      Z3ASTPair writeIndexPair = construct(un->index);
+      Z3ASTPair writeValuePair = construct(un->index);
+      unExprPair = { writeExpr(arrayForUpdatePair.first, writeIndexPair.first, writeValuePair.first),
+                     writeExpr(arrayForUpdatePair.second, writeIndexPair.second, writeValuePair.second) };
 
-      _arr_hash.hashUpdateNodeExpr(un, un_expr);
+      // _arr_hash.hashUpdateNodeExpr(un, unExpr);
     }
 
-    return (un_expr);
+    return unExprPair;
   }
 }
+
+Z3ASTHandle Z3HybridBuilder::bvAdd(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs) {
+  return {Z3_mk_bvadd(ctx, lhs, rhs), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvSub(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs) {
+  return {Z3_mk_bvsub(ctx, lhs, rhs), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvMul(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs) {
+  return {Z3_mk_bvmul(ctx, lhs, rhs), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvUDiv(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs) {
+  return {Z3_mk_bvudiv(ctx, lhs, rhs), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvSDiv(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs) {
+  return {Z3_mk_bvsdiv(ctx, lhs, rhs), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvAnd(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs) {
+  return {Z3_mk_bvadd(ctx, lhs, rhs), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvOr(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs) {
+  return {Z3_mk_bvor(ctx, lhs, rhs), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvXor(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs) {
+  return {Z3_mk_bvxor(ctx, lhs, rhs), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvNot(const Z3ASTHandle &lhs) {
+  return {Z3_mk_bvnot(ctx, lhs), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvZext(const Z3ASTHandle &expr, unsigned width) {
+  return {Z3_mk_zero_ext(ctx, width, expr), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvSext(const Z3ASTHandle &expr, unsigned width) {
+  return {Z3_mk_sign_ext(ctx, width, expr), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvExtract(const Z3ASTHandle &expr, unsigned top, unsigned bottom) {
+  return {Z3_mk_extract(ctx, top, bottom, expr), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvSrem(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs) {
+  return {Z3_mk_bvsrem(ctx, lhs, rhs), ctx};
+}
+
+Z3ASTHandle Z3HybridBuilder::bvUrem(const Z3ASTHandle &lhs, const Z3ASTHandle &rhs) {
+  return {Z3_mk_bvurem(ctx, lhs, rhs), ctx};
+}
+
 
 Z3ASTPair Z3HybridBuilder::construct(ref<Expr> e) {
   if (!Z3HashConfig::UseConstructHashZ3 || isa<ConstantExpr>(e)) {
     return constructActual(e);
   } else {
-    auto liaIterCache = _liaCache.find(e);
-    auto bvIterCache = _bvCache.find(e);
+    auto iterCache = cache.find(e);
 
     /* I.e. we have already constructed LIA and BV version. */
-    if (liaIterCache != _liaCache.end()) {
-      return {bvIterCache->second, liaIterCache->second};
-    }
-
-    if (bvIterCache != _bvCache.end()) {
-      return {bvIterCache->second, Z3ASTHandle()};
+    if (iterCache != cache.end()) {
+      return iterCache->second;
     }
 
     Z3ASTPair res = constructActual(e);
-    _bvCache.emplace(res, res.first);
-    _liaCache.emplace(res, res.second);
+    cache.emplace(e, Z3ASTPair{res.first, res.second});
     return res;
   }
 }
@@ -144,31 +231,7 @@ Z3ASTPair Z3HybridBuilder::constructActual(ref<Expr> e) {
                           : Z3ASTPair{getFalse(), getFalse()};
     }
 
-    if (width <= 32) {
-      return {bvConst32(width, CE->getZExtValue(32)),
-              liaUnsignedConstExpr(CE->getAPValue())};
-    }
-    if (width <= 64) {
-      return {bvConst64(width, CE->getZExtValue(64)),
-              liaUnsignedConstExpr(CE->getAPValue())};
-    }
-
-    /* */
-    ref<ConstantExpr> snapCE = CE;
-    Z3ASTHandle bvConstResult =
-        bvConst64(64, snapCE->Extract(0, 64)->getZExtValue());
-    while (snapCE->getWidth() > 64) {
-      snapCE = snapCE->Extract(64, snapCE->getWidth() - 64);
-      unsigned partialWidth = std::min(64U, snapCE->getWidth());
-      bvConstResult = Z3ASTHandle(
-          Z3_mk_concat(
-              ctx,
-              bvConst64(partialWidth,
-                        snapCE->Extract(0, partialWidth)->getZExtValue()),
-              bvConstResult),
-          ctx);
-    }
-    return Z3ASTPair{bvConstResult, liaUnsignedConstExpr(CE->getAPValue())};
+    return {bvConst(CE->getAPValue()), liaUnsignedConstExpr(CE->getAPValue())};
   }
 
   // Special
@@ -248,64 +311,64 @@ Z3ASTPair Z3HybridBuilder::constructActual(ref<Expr> e) {
               iteExpr(src.second,
                       liaUnsignedConstExpr(llvm::APInt(outWidth, 1)),
                       liaUnsignedConstExpr(llvm::APInt(outWidth, 0)))};
-
     } else {
       assert(outWidth > srcWidth && "Invalid width_out");
-      return Z3ASTHandle(Z3_mk_concat(ctx, bvZero(*width_out - srcWidth), src),
-                         ctx);
+      return { bvZext(src.first, ce->getWidth()), liaZext(src.second, ce->getWidth()) };
     }
   }
 
   case Expr::SExt: {
-    int srcWidth;
     ref<CastExpr> ce = cast<CastExpr>(e);
-    Z3ASTHandle src = construct(ce->src, &srcWidth);
-    *width_out = ce->getWidth();
+    int srcWidth = ce->src->getWidth();
+
+    Z3ASTPair src = construct(ce->src);
+
+    unsigned width = ce->getWidth();
     if (srcWidth == 1) {
-      return iteExpr(src, bvMinusOne(*width_out), bvZero(*width_out));
+      return iteExpr(src, bvMinusOne(width), bvZero(width));
     } else {
-      return bvSignExtend(src, *width_out);
+      return { bvSext(src, width), liaSext(src, width) };
     }
   }
 
   // Arithmetic
   case Expr::Add: {
     AddExpr *ae = cast<AddExpr>(e);
-    Z3ASTHandle left = construct(ae->left, width_out);
-    Z3ASTHandle right = construct(ae->right, width_out);
-    assert(*width_out != 1 && "uncanonicalized add");
-    Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvadd(ctx, left, right), ctx);
-    assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
-           "width mismatch");
-    return result;
+    Z3ASTPair left = construct(ae->left);
+    Z3ASTPair right = construct(ae->right);
+
+    // assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
+    //        "width mismatch");
+    return { bvAdd(left.first, right.first),
+             liaAdd(left.second, right.second) };
   }
 
   case Expr::Sub: {
     SubExpr *se = cast<SubExpr>(e);
-    Z3ASTHandle left = construct(se->left, width_out);
-    Z3ASTHandle right = construct(se->right, width_out);
-    assert(*width_out != 1 && "uncanonicalized sub");
-    Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvsub(ctx, left, right), ctx);
-    assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
-           "width mismatch");
-    return result;
+    Z3ASTPair left = construct(se->left);
+    Z3ASTPair right = construct(se->right);
+    // assert(*width_out != 1 && "uncanonicalized sub");
+    // Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvsub(ctx, left, right), ctx);
+    // assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
+    //        "width mismatch");
+    return { bvSub(left.first, left.second),
+             liaSub(left.second, right.second) };
   }
 
   case Expr::Mul: {
     MulExpr *me = cast<MulExpr>(e);
-    Z3ASTHandle right = construct(me->right, width_out);
-    assert(*width_out != 1 && "uncanonicalized mul");
-    Z3ASTHandle left = construct(me->left, width_out);
-    Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvmul(ctx, left, right), ctx);
-    assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
-           "width mismatch");
-    return result;
+    Z3ASTPair left = construct(me->left);
+    Z3ASTPair right = construct(me->right);
+    // Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvmul(ctx, left, right), ctx);
+    // assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
+    //        "width mismatch");
+    return { bvMul(left.first, left.second), 
+             liaMul(left.second, right.second) };
   }
 
   case Expr::UDiv: {
     UDivExpr *de = cast<UDivExpr>(e);
-    Z3ASTHandle left = construct(de->left, width_out);
-    assert(*width_out != 1 && "uncanonicalized udiv");
+    Z3ASTPair left = construct(de->left);
 
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(de->right)) {
       if (CE->getWidth() <= 64) {
@@ -315,28 +378,29 @@ Z3ASTPair Z3HybridBuilder::constructActual(ref<Expr> e) {
       }
     }
 
-    Z3ASTHandle right = construct(de->right, width_out);
-    Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvudiv(ctx, left, right), ctx);
-    assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
-           "width mismatch");
-    return result;
+    Z3ASTPair right = construct(de->right);
+    // Z3ASTPair result = Z3ASTHandle(Z3_mk_bvudiv(ctx, left, right), ctx);
+    // assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
+    //        "width mismatch");
+    return { bvUDiv(left.first, right.first), liaUDiv(left.second, right.second) };
   }
 
   case Expr::SDiv: {
-    SDivExpr *de = cast<SDivExpr>(e);
-    Z3ASTHandle left = construct(de->left, width_out);
-    assert(*width_out != 1 && "uncanonicalized sdiv");
-    Z3ASTHandle right = construct(de->right, width_out);
-    Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvsdiv(ctx, left, right), ctx);
-    assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
-           "width mismatch");
-    return result;
+    ref<SDivExpr> de = cast<SDivExpr>(e);
+    Z3ASTPair leftPair = construct(de->left);
+    // assert(*width_out != 1 && "uncanonicalized sdiv");
+    Z3ASTPair rightPair = construct(de->right);
+    
+    // assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
+    //        "width mismatch");
+    return { bvSDiv(leftPair.first, rightPair.first), 
+             liaSDiv(leftPair.second, rightPair.second) };
   }
 
   case Expr::URem: {
     URemExpr *de = cast<URemExpr>(e);
-    Z3ASTHandle left = construct(de->left, width_out);
-    assert(*width_out != 1 && "uncanonicalized urem");
+    Z3ASTPair left = construct(de->left);
+    // assert(*width_out != 1 && "uncanonicalized urem");
 
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(de->right)) {
       if (CE->getWidth() <= 64) {
@@ -360,105 +424,106 @@ Z3ASTPair Z3HybridBuilder::constructActual(ref<Expr> e) {
       }
     }
 
-    Z3ASTHandle right = construct(de->right, width_out);
-    Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvurem(ctx, left, right), ctx);
-    assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
-           "width mismatch");
-    return result;
+    Z3ASTPair right = construct(de->right);
+    // Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvurem(ctx, left, right), ctx);
+    // assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
+    //        "width mismatch");
+    return { bvUrem(left.first, right.first), liaUrem(left.second, right.second) };
   }
 
   case Expr::SRem: {
     SRemExpr *de = cast<SRemExpr>(e);
-    Z3ASTHandle left = construct(de->left, width_out);
-    Z3ASTHandle right = construct(de->right, width_out);
-    assert(*width_out != 1 && "uncanonicalized srem");
+    Z3ASTPair left = construct(de->left);
+    Z3ASTPair right = construct(de->right);
+    // assert(*width_out != 1 && "uncanonicalized srem");
     // LLVM's srem instruction says that the sign follows the dividend
     // (``left``).
     // Z3's C API says ``Z3_mk_bvsrem()`` does this so these seem to match.
-    Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvsrem(ctx, left, right), ctx);
-    assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
-           "width mismatch");
-    return result;
+    // Z3ASTHandle result = Z3ASTHandle(Z3_mk_bvsrem(ctx, left, right), ctx);
+    // assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
+    //        "width mismatch");
+    // return result;
+    return { bvSrem(left.first, right.first), liaSrem(left.second, right.second) };
   }
 
   // Bitwise
   case Expr::Not: {
     NotExpr *ne = cast<NotExpr>(e);
-    Z3ASTHandle expr = construct(ne->expr, width_out);
-    if (*width_out == 1) {
-      return notExpr(expr);
+    Z3ASTPair exprPair = construct(ne->expr);
+    if (ne->expr->getWidth() == 1) {
+      return { notExpr(exprPair.first), notExpr(exprPair.second) };
     } else {
-      return bvNotExpr(expr);
+      return { bvNot(exprPair.first), liaNot(exprPair.second) } ;
     }
   }
 
   case Expr::And: {
     AndExpr *ae = cast<AndExpr>(e);
-    Z3ASTHandle left = construct(ae->left, width_out);
-    Z3ASTHandle right = construct(ae->right, width_out);
-    if (*width_out == 1) {
-      return andExpr(left, right);
+    Z3ASTPair left = construct(ae->left);
+    Z3ASTPair right = construct(ae->right);
+    if (ae->getWidth() == 1) {
+      return { andExpr(left.first, right.first), andExpr(left.second, right.second) };
     } else {
-      return bvAndExpr(left, right);
+      return { bvAnd(left.first, right.first), liaAnd(left.second, right.second) };
     }
   }
 
   case Expr::Or: {
     OrExpr *oe = cast<OrExpr>(e);
-    Z3ASTHandle left = construct(oe->left, width_out);
-    Z3ASTHandle right = construct(oe->right, width_out);
-    if (*width_out == 1) {
-      return orExpr(left, right);
+    Z3ASTPair left = construct(oe->left);
+    Z3ASTPair right = construct(oe->right);
+    if (oe->getWidth() == 1) {
+      return { orExpr(left.first, right.first), orExpr(left.second, right.second) };
     } else {
-      return bvOrExpr(left, right);
+      return { bvOr(left.first, right.first), liaOr(left.second, right.second) };
     }
   }
 
   case Expr::Xor: {
     XorExpr *xe = cast<XorExpr>(e);
-    Z3ASTHandle left = construct(xe->left, width_out);
-    Z3ASTHandle right = construct(xe->right, width_out);
+    Z3ASTPair left = construct(xe->left);
+    Z3ASTPair right = construct(xe->right);
 
-    if (*width_out == 1) {
+    if (xe->getWidth() == 1) {
       // XXX check for most efficient?
       return iteExpr(left, Z3ASTHandle(notExpr(right)), right);
     } else {
-      return bvXorExpr(left, right);
+      return { bvXor(left.first, right.first), liaXor(left.second, right.second) };
     }
   }
 
   case Expr::Shl: {
     ShlExpr *se = cast<ShlExpr>(e);
-    Z3ASTHandle left = construct(se->left, width_out);
-    assert(*width_out != 1 && "uncanonicalized shl");
+    Z3ASTPair left = construct(se->left);
+    // assert(*width_out != 1 && "uncanonicalized shl");
 
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(se->right)) {
       return bvLeftShift(left, (unsigned)CE->getLimitedValue());
     } else {
       int shiftWidth;
-      Z3ASTHandle amount = construct(se->right, &shiftWidth);
+      Z3ASTPair amount = construct(se->right);
       return bvVarLeftShift(left, amount);
     }
   }
 
   case Expr::LShr: {
     LShrExpr *lse = cast<LShrExpr>(e);
-    Z3ASTHandle left = construct(lse->left, width_out);
+    Z3ASTPair left = construct(lse->left);
     assert(*width_out != 1 && "uncanonicalized lshr");
 
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(lse->right)) {
       return bvRightShift(left, (unsigned)CE->getLimitedValue());
     } else {
       int shiftWidth;
-      Z3ASTHandle amount = construct(lse->right, &shiftWidth);
+      Z3ASTPair amount = construct(lse->right);
       return bvVarRightShift(left, amount);
     }
   }
 
   case Expr::AShr: {
     AShrExpr *ase = cast<AShrExpr>(e);
-    Z3ASTHandle left = construct(ase->left, width_out);
-    assert(*width_out != 1 && "uncanonicalized ashr");
+    Z3ASTPair left = construct(ase->left);
+    // assert(*width_out != 1 && "uncanonicalized ashr");
 
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(ase->right)) {
       unsigned shift = (unsigned)CE->getLimitedValue();
@@ -466,7 +531,7 @@ Z3ASTPair Z3HybridBuilder::constructActual(ref<Expr> e) {
       return constructAShrByConstant(left, shift, signedBool);
     } else {
       int shiftWidth;
-      Z3ASTHandle amount = construct(ase->right, &shiftWidth);
+      Z3ASTPair amount = construct(ase->right, &shiftWidth);
       return bvVarArithRightShift(left, amount);
     }
   }
@@ -474,57 +539,58 @@ Z3ASTPair Z3HybridBuilder::constructActual(ref<Expr> e) {
     // Comparison
 
   case Expr::Eq: {
-    EqExpr *ee = cast<EqExpr>(e);
-    Z3ASTHandle left = construct(ee->left, width_out);
-    Z3ASTHandle right = construct(ee->right, width_out);
-    if (*width_out == 1) {
+    ref<EqExpr> ee = cast<EqExpr>(e);
+    Z3ASTPair left = construct(ee->left);
+    Z3ASTPair right = construct(ee->right);
+    if (ee->left->getWidth() == 1) {
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(ee->left)) {
-        if (CE->isTrue())
+        if (CE->isTrue()) {
           return right;
+        }
         return notExpr(right);
       } else {
         return iffExpr(left, right);
       }
     } else {
-      *width_out = 1;
       return eqExpr(left, right);
     }
   }
 
   case Expr::Ult: {
-    UltExpr *ue = cast<UltExpr>(e);
-    Z3ASTHandle left = construct(ue->left, width_out);
-    Z3ASTHandle right = construct(ue->right, width_out);
-    assert(*width_out != 1 && "uncanonicalized ult");
-    *width_out = 1;
-    return bvLtExpr(left, right);
+    ref<UltExpr> ue = cast<UltExpr>(e);
+    Z3ASTPair left = construct(ue->left);
+    Z3ASTPair right = construct(ue->right);
+    // assert(*width_out != 1 && "uncanonicalized ult");
+    return { bvUlt(left.first, right.first),
+             liaUlt(left.second, right.second) };
   }
 
   case Expr::Ule: {
-    UleExpr *ue = cast<UleExpr>(e);
-    Z3ASTHandle left = construct(ue->left, width_out);
-    Z3ASTHandle right = construct(ue->right, width_out);
-    assert(*width_out != 1 && "uncanonicalized ule");
-    *width_out = 1;
-    return bvLeExpr(left, right);
+    ref<UleExpr> ue = cast<UleExpr>(e);
+    Z3ASTPair left = construct(ue->left);
+    Z3ASTPair right = construct(ue->right);
+    // assert(*width_out != 1 && "uncanonicalized ule");
+    // *width_out = 1;
+    return { bvUle(left.first, right.first),
+             liaUle(left.second, right.second) };
   }
 
   case Expr::Slt: {
-    SltExpr *se = cast<SltExpr>(e);
-    Z3ASTHandle left = construct(se->left, width_out);
-    Z3ASTHandle right = construct(se->right, width_out);
-    assert(*width_out != 1 && "uncanonicalized slt");
-    *width_out = 1;
-    return sbvLtExpr(left, right);
+    ref<SltExpr> se = cast<SltExpr>(e);
+    Z3ASTPair left = construct(se->left);
+    Z3ASTPair right = construct(se->right);
+    // assert(*width_out != 1 && "uncanonicalized slt");
+    // *width_out = 1;
+    return { bvSlt(left.first, right.first), liaSlt(left.second, right.second) };
   }
 
   case Expr::Sle: {
-    SleExpr *se = cast<SleExpr>(e);
-    Z3ASTHandle left = construct(se->left, width_out);
-    Z3ASTHandle right = construct(se->right, width_out);
-    assert(*width_out != 1 && "uncanonicalized sle");
-    *width_out = 1;
-    return sbvLeExpr(left, right);
+    ref<SleExpr> se = cast<SleExpr>(e);
+    Z3ASTPair left = construct(se->left);
+    Z3ASTPair right = construct(se->right);
+    // assert(*width_out != 1 && "uncanonicalized sle");
+    // *width_out = 1;
+    return { bvSle(left.first, right.first), liaSle(left.second, right.second) };
   }
 
 // unused due to canonicalization
@@ -538,16 +604,8 @@ Z3ASTPair Z3HybridBuilder::constructActual(ref<Expr> e) {
 
   default:
     assert(0 && "unhandled Expr type");
-    return getTrue();
+    return { getTrue(), getTrue() };
   }
-}
-
-Z3ASTHandle Z3HybridBuilder::constructActualBV(ref<Expr> e, int *width_out) {
-  // pass
-}
-
-Z3ASTHandle Z3HybridBuilder::constructActualLIA(ref<Expr> e, int *width_out) {
-  // pass
 }
 
 Z3HybridBuilder::~Z3HybridBuilder() {}

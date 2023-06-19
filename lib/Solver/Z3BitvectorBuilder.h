@@ -37,7 +37,7 @@ protected:
   Z3ASTHandle bvVarArithRightShift(Z3ASTHandle expr,
                                    Z3ASTHandle shift) override;
 
-  Z3ASTHandle bvNotExpr(Z3ASTHandle expr) override;
+  Z3ASTHandle bvNot(Z3ASTHandle expr) override;
   Z3ASTHandle bvAndExpr(Z3ASTHandle lhs, Z3ASTHandle rhs) override;
   Z3ASTHandle bvOrExpr(Z3ASTHandle lhs, Z3ASTHandle rhs) override;
   Z3ASTHandle bvXorExpr(Z3ASTHandle lhs, Z3ASTHandle rhs) override;
