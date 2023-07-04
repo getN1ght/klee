@@ -584,8 +584,6 @@ void KleeHandler::processTestCase(const ExecutionState &state,
 
     const auto start_time = time::getWallTime();
 
-    unsigned id = ++m_numTotalTests;
-
     if (!WriteXMLTests) {
 
       if (success) {
@@ -621,34 +619,6 @@ void KleeHandler::processTestCase(const ExecutionState &state,
         }
       }
 
-      if (errorMessage || WriteKQueries) {
-        std::string constraints;
-        m_interpreter->getConstraintLog(state, constraints,
-                                        Interpreter::KQUERY);
-        auto f = openTestFile("kquery", id);
-        if (f)
-          *f << constraints;
-      }
-
-      if (WriteCVCs) {
-        // FIXME: If using Z3 as the core solver the emitted file is actually
-        // SMT-LIBv2 not CVC which is a bit confusing
-        std::string constraints;
-        m_interpreter->getConstraintLog(state, constraints, Interpreter::STP);
-        auto f = openTestFile("cvc", id);
-        if (f)
-          *f << constraints;
-      }
-
-      if (WriteSMT2s) {
-        std::string constraints;
-        m_interpreter->getConstraintLog(state, constraints,
-                                        Interpreter::SMTLIB2);
-        auto f = openTestFile("smt2", id);
-        if (f)
-          *f << constraints;
-      }
-
       if (m_symPathWriter) {
         std::vector<unsigned char> symbolicBranches;
         m_symPathWriter->readStream(
@@ -661,26 +631,6 @@ void KleeHandler::processTestCase(const ExecutionState &state,
         }
       }
 
-      if (WriteKPaths) {
-        std::string blockPath;
-        m_interpreter->getBlockPath(state, blockPath);
-        auto f = openTestFile("kpath", id);
-        if (f)
-          *f << blockPath;
-      }
-
-      if (WriteCov) {
-        std::map<const std::string *, std::set<unsigned>> cov;
-        m_interpreter->getCoveredLines(state, cov);
-        auto f = openTestFile("cov", id);
-        if (f) {
-          for (const auto &entry : cov) {
-            for (const auto &line : entry.second) {
-              *f << *entry.first << ':' << line << '\n';
-            }
-          }
-        }
-      }
     } else {
       writeTestCaseXML(errorMessage != nullptr, ktest, id);
       ++m_numGeneratedTests;
@@ -1434,7 +1384,7 @@ static int run_klee_on_function(int pArgc, char **pArgv, char **pEnvp,
     *meta_file << "\t<programhash>" << TCHash << "</programhash>\n";
     *meta_file << "\t<entryfunction>" << EntryPoint << "</entryfunction>\n";
     *meta_file << "\t<architecture>"
-               << loadedModules[0]->getDataLayout().getPointerSizeInBits()
+               << finalModule->getDataLayout().getPointerSizeInBits()
                << "bit</architecture>\n";
     std::stringstream t;
     t << std::put_time(std::localtime(&startTime), "%Y-%m-%dT%H:%M:%SZ");
