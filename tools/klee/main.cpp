@@ -584,8 +584,6 @@ void KleeHandler::processTestCase(const ExecutionState &state,
 
     const auto start_time = time::getWallTime();
 
-    unsigned id = ++m_numTotalTests;
-
     if (!WriteXMLTests) {
 
       if (success) {
@@ -1397,7 +1395,7 @@ static int run_klee_on_function(int pArgc, char **pArgv, char **pEnvp,
     *meta_file << "\t<programhash>" << TCHash << "</programhash>\n";
     *meta_file << "\t<entryfunction>" << EntryPoint << "</entryfunction>\n";
     *meta_file << "\t<architecture>"
-               << loadedModules[0]->getDataLayout().getPointerSizeInBits()
+               << finalModule->getDataLayout().getPointerSizeInBits()
                << "bit</architecture>\n";
     std::stringstream t;
     t << std::put_time(std::localtime(&startTime), "%Y-%m-%dT%H:%M:%SZ");
