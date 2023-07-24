@@ -4876,7 +4876,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
       kmodule->targetData->getAllocaAddrSpace());
 
   bool resolved = state.addressSpace.resolveOne(
-      Expr::createPointer((uint64_t)errno_addr),
+      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64),
       typeSystemManager->getWrappedType(pointerErrnoAddr), idResult);
   if (!resolved)
     klee_error("Could not resolve memory object for errno");
