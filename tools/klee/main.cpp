@@ -345,6 +345,7 @@ cl::opt<bool> Libcxx(
 
 namespace klee {
 extern cl::opt<std::string> MaxTime;
+extern cl::opt<bool> CoverageErrorCall;
 class ExecutionState;
 } // namespace klee
 
@@ -552,7 +553,7 @@ void KleeHandler::processTestCase(const ExecutionState &state,
                                   const char *message, const char *suffix,
                                   bool isError) {
   unsigned id = ++m_numTotalTests;
-  if (!WriteNone) {
+  if (!WriteNone && (!CoverageErrorCall || strcmp(errorSuffix, ".assert.err") != 0)) {
     KTest ktest;
     ktest.numArgs = m_argc;
     ktest.args = m_argv;
@@ -1800,6 +1801,9 @@ int main(int argc, char **argv, char **envp) {
 
   if (UseGuidedSearch == Interpreter::GuidanceKind::ErrorGuidance) {
     paths = parseStaticAnalysisInput();
+  } else if (CoverageErrorCall) {
+    klee_warning("turns on error-guided mode for cov-error-call TestComp track");
+    UseGuidedSearch = Interpreter::GuidanceKind::ErrorGuidance;
   }
 
   Interpreter::InterpreterOptions IOpts(paths);
