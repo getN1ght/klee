@@ -14,8 +14,8 @@ BASE=$HOME/klee_build
 # Release+Debug+Asserts
 # Debug
 # Debug+Asserts
-KLEE_RUNTIME_BUILD="Debug+Asserts"
-#KLEE_RUNTIME_BUILD="Release" # "Debug+Asserts"
+# KLEE_RUNTIME_BUILD="Debug+Asserts"
+KLEE_RUNTIME_BUILD="Release" # "Debug+Asserts"
 
 COVERAGE=0
 ENABLE_DOXYGEN=0
