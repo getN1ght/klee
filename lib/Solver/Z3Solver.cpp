@@ -348,6 +348,43 @@ bool Z3SolverImpl::internalRunSolver(
     ValidityCore *validityCore, bool &hasSolution) {
 
   assert(!query.containsSymcretes());
+  Z3_params_dec_ref(builder->ctx, solverParameters);
+
+  Z3Builder *newBuilder = nullptr;
+  switch (builderType) {
+  case KLEE_CORE:
+    newBuilder = new Z3CoreBuilder(
+        /*autoClearConstructCache=*/false,
+        /*z3LogInteractionFile=*/!Z3LogInteractionFile.empty()
+            ? Z3LogInteractionFile.c_str()
+            : nullptr);
+    break;
+  case KLEE_BITVECTOR:
+    newBuilder = new Z3BitvectorBuilder(
+        /*autoClearConstructCache=*/false,
+        /*z3LogInteractionFile=*/!Z3LogInteractionFile.empty()
+            ? Z3LogInteractionFile.c_str()
+            : nullptr);
+    break;
+  }
+
+  builder.reset(newBuilder);
+  assert(builder && "unable to create Z3Builder");
+  solverParameters = Z3_mk_params(builder->ctx);
+  Z3_params_inc_ref(builder->ctx, solverParameters);
+  timeoutParamStrSymbol = Z3_mk_string_symbol(builder->ctx, "timeout");
+  setCoreSolverTimeout(timeout);
+  unsatCoreParamStrSymbol = Z3_mk_string_symbol(builder->ctx, "unsat_core");
+  Z3_global_param_set("rewriter.hi_fp_unspecified", "true");
+
+  // Set verbosity
+  if (Z3VerbosityLevel > 0) {
+    std::string underlyingString;
+    llvm::raw_string_ostream ss(underlyingString);
+    ss << Z3VerbosityLevel;
+    ss.flush();
+    Z3_global_param_set("verbose", underlyingString.c_str());
+  }
 
   if (ProduceUnsatCore && validityCore) {
     enableUnsatCore();
