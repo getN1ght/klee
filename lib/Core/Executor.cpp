@@ -545,7 +545,7 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &userModules,
   kmodule = std::make_unique<KModule>();
 
   // 1.) Link the modules together && 2.) Apply different instrumentation
-  kmodule->link(userModules, 0);
+  kmodule->link(userModules, 1);
   kmodule->instrument(opts);
 
   kmodule->link(libsModules, 2);
