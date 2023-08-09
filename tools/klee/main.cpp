@@ -570,7 +570,8 @@ void KleeHandler::processTestCase(const ExecutionState &state,
                                   const char *message, const char *suffix,
                                   bool isError) {
   unsigned id = ++m_numTotalTests;
-  if (!WriteNone && (!CoverageErrorCall || strcmp(suffix, ".assert.err") != 0)) {
+  if (!WriteNone && (!CoverageErrorCall || strcmp(suffix, "assert.err") == 0 ||
+                     strcmp(suffix, "reachable.err") == 0)) {
     KTest ktest;
     ktest.numArgs = m_argc;
     ktest.args = m_argv;
