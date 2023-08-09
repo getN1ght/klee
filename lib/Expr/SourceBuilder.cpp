@@ -3,10 +3,12 @@
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/KModule.h"
 
+#include <map>
+
 using namespace klee;
 
 ref<SymbolicSource>
-SourceBuilder::constant(const std::vector<ref<ConstantExpr>> &constantValues) {
+SourceBuilder::constant(const std::map<unsigned, ref<ConstantExpr>> &constantValues) {
   ref<SymbolicSource> r(new ConstantSource(constantValues));
   r->computeHash();
   return r;

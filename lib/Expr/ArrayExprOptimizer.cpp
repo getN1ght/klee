@@ -299,7 +299,7 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
            un = un->next.get())
         us.push_back(un);
 
-      std::vector<ref<ConstantExpr>> arrayConstValues;
+      std::map<unsigned, ref<ConstantExpr>> arrayConstValues;
       if (ref<ConstantSource> constantSource =
               dyn_cast<ConstantSource>(read->updates.root->source)) {
         arrayConstValues = constantSource->constantValues;
@@ -309,7 +309,7 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
         auto ce = dyn_cast<ConstantExpr>(un->index);
         assert(ce && "Not a constant expression");
         uint64_t index = ce->getAPValue().getZExtValue();
-        assert(index < arrayConstValues.size());
+        // assert(index < arrayConstValues.size());
         auto arrayValue = dyn_cast<ConstantExpr>(un->value);
         assert(arrayValue && "Not a constant expression");
         arrayConstValues[index] = arrayValue;
@@ -374,7 +374,7 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       // Note: we already filtered the ReadExpr, so here we can safely
       // assume that the UpdateNodes contain ConstantExpr indexes, but in
       // this case we *cannot* assume anything on the values
-      std::vector<ref<ConstantExpr>> arrayConstValues;
+      std::map<unsigned, ref<ConstantExpr>> arrayConstValues;
       if (ref<ConstantSource> constantSource =
               dyn_cast<ConstantSource>(read->updates.root->source)) {
         arrayConstValues = constantSource->constantValues;
@@ -382,7 +382,8 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       if (arrayConstValues.size() < size) {
         // We need to "force" initialization of the values
         for (size_t i = arrayConstValues.size(); i < size; i++) {
-          arrayConstValues.push_back(ConstantExpr::create(0, Expr::Int8));
+          std::abort();
+          // arrayConstValues.push_back(ConstantExpr::create(0, Expr::Int8));
         }
       }
 

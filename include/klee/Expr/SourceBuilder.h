@@ -5,6 +5,8 @@
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/KModule.h"
 
+#include <map>
+
 namespace klee {
 
 class SourceBuilder {
@@ -12,7 +14,7 @@ public:
   SourceBuilder() = delete;
 
   static ref<SymbolicSource>
-  constant(const std::vector<ref<ConstantExpr>> &constantValues);
+  constant(const std::map<unsigned, ref<ConstantExpr>> &constantValues);
   static ref<SymbolicSource> symbolicSizeConstant(unsigned defaultValue);
   static ref<SymbolicSource> symbolicSizeConstantAddress(unsigned defaultValue,
                                                          unsigned version);
