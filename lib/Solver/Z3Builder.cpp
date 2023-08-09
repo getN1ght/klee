@@ -254,6 +254,7 @@ Z3ASTHandle Z3Builder::getInitialArray(const Array *root) {
     std::string unique_name = root->getIdentifier() + unique_id;
     if (ref<SymbolicSizeConstantSource> symbolicSizeConstantSource =
             dyn_cast<SymbolicSizeConstantSource>(root->source)) {
+      std::abort();
       array_expr = buildConstantArray(unique_name.c_str(), root->getDomain(),
                                       root->getRange(),
                                       symbolicSizeConstantSource->defaultValue);
@@ -266,17 +267,15 @@ Z3ASTHandle Z3Builder::getInitialArray(const Array *root) {
       std::vector<Z3ASTHandle> array_assertions;
       if (ref<ConstantSource> constantSource =
               dyn_cast<ConstantSource>(root->source)) {
-        for (unsigned i = 0, e = constantSource->constantValues.size(); i != e;
-             ++i) {
+        for (auto &[idx, value] : constantSource->constantValues) {
           // construct(= (select i root) root->value[i]) to be asserted in
           // Z3Solver.cpp
           int width_out;
-          Z3ASTHandle array_value =
-              construct(constantSource->constantValues[i], &width_out);
+          Z3ASTHandle array_value = construct(value, &width_out);
           assert(width_out == (int)root->getRange() &&
                  "Value doesn't match root range");
           array_assertions.push_back(
-              eqExpr(readExpr(array_expr, bvConst32(root->getDomain(), i)),
+              eqExpr(readExpr(array_expr, bvConst32(root->getDomain(), idx)),
                      array_value));
         }
       }

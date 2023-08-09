@@ -451,12 +451,11 @@ ExprHandle STPBuilder::constructSDivByConstant(ExprHandle expr_n,
       // to work correctly in that case.
 
       // TODO: usage of `constantValues.size()` seems unconvinient.
-      for (unsigned i = 0, e = constantSource->constantValues.size(); i != e;
-           ++i) {
+      for (const auto &[idx, value] : constantSource->constantValues) {
         ::VCExpr prev = array_expr;
         array_expr = vc_writeExpr(
-            vc, prev, construct(ConstantExpr::alloc(i, root->getDomain()), 0),
-            construct(constantSource->constantValues[i], 0));
+            vc, prev, construct(ConstantExpr::alloc(idx, root->getDomain()), 0),
+            construct(value, 0));
         vc_DeleteExpr(prev);
       }
     }
