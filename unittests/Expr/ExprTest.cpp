@@ -128,7 +128,7 @@ TEST(ExprTest, ReadExprFoldingBasic) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr>> Contents(size);
+  std::map<unsigned, ref<ConstantExpr>> Contents;
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -156,7 +156,7 @@ TEST(ExprTest, ReadExprFoldingIndexOutOfBound) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr>> Contents(size);
+  std::map<unsigned, ref<ConstantExpr>> Contents;
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -178,7 +178,7 @@ TEST(ExprTest, ReadExprFoldingConstantUpdate) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr>> Contents(size);
+  std::map<unsigned, ref<ConstantExpr>> Contents;
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -205,7 +205,7 @@ TEST(ExprTest, ReadExprFoldingConstantMultipleUpdate) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr>> Contents(size);
+  std::map<unsigned, ref<ConstantExpr>> Contents;
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -234,7 +234,7 @@ TEST(ExprTest, ReadExprFoldingSymbolicValueUpdate) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr>> Contents(size);
+  std::map<unsigned, ref<ConstantExpr>> Contents;
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;
@@ -263,7 +263,7 @@ TEST(ExprTest, ReadExprFoldingSymbolicIndexUpdate) {
   unsigned size = 5;
 
   // Constant array
-  std::vector<ref<ConstantExpr>> Contents(size);
+  std::map<unsigned, ref<ConstantExpr>> Contents;
   for (unsigned i = 0; i < size; ++i)
     Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
   ArrayCache ac;

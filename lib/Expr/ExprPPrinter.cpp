@@ -387,9 +387,9 @@ public:
     PC << source->getName() << " ";
     if (auto s = dyn_cast<ConstantSource>(source)) {
       PC << " [";
-      for (unsigned i = 0; i < s->constantValues.size(); i++) {
-        PC << s->constantValues[i];
-        if (i != s->constantValues.size() - 1) {
+      for (const auto &[idx, value] : s->constantValues) {
+        PC << value;
+        if (idx != std::prev(s->constantValues.end())->first) {
           PC << " ";
         }
       }

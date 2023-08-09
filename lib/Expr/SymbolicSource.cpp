@@ -47,9 +47,9 @@ std::set<const Array *> LazyInitializationSource::getRelatedArrays() const {
 
 unsigned ConstantSource::computeHash() {
   unsigned res = 0;
-  for (unsigned i = 0, e = constantValues.size(); i != e; ++i) {
+  for (const auto &[idx, value] : constantValues) {
     res =
-        (res * SymbolicSource::MAGIC_HASH_CONSTANT) + constantValues[i]->hash();
+        (res * SymbolicSource::MAGIC_HASH_CONSTANT) + value->hash();
   }
   res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) + getKind();
   hashValue = res;

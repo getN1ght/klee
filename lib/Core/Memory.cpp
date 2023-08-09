@@ -33,6 +33,7 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Support/raw_ostream.h"
 DISABLE_WARNING_POP
 
+#include <map>
 #include <cassert>
 #include <sstream>
 
@@ -198,55 +199,41 @@ const UpdateList &ObjectState::getUpdates() const {
       Writes[i] = std::make_pair(un->index, un->value);
     }
 
-    /* For objects of symbolic size we will leave last constant
-    sizes for every index and create constant array (in terms of
-    Z3 solver) filled with zeros. This part is required for reads
-    from unitialzed memory. */
-    std::vector<ref<ConstantExpr>> Contents(size);
+    std::map<unsigned, ref<ConstantExpr>> contents;
 
     // Initialize to zeros.
-    for (unsigned i = 0, e = size; i != e; ++i)
-      Contents[i] = ConstantExpr::create(0, Expr::Int8);
+    // for (unsigned i = 0, e = size; i != e; ++i)
+    //   contents[i] = ConstantExpr::create(0, Expr::Int8);
 
     // Pull off as many concrete writes as we can.
     unsigned Begin = 0, End = Writes.size();
     for (; Begin != End; ++Begin) {
       // Push concrete writes into the constant array.
       ConstantExpr *Index = dyn_cast<ConstantExpr>(Writes[Begin].first);
-      if (!Index)
+      if (!Index) {
         break;
+      }
 
       ConstantExpr *Value = dyn_cast<ConstantExpr>(Writes[Begin].second);
-      if (!Value)
+      if (!Value) {
         break;
+      }
 
-      Contents[Index->getZExtValue()] = Value;
+      contents[Index->getZExtValue()] = Value;
     }
 
     static unsigned id = 0;
     std::string arrayName = "const_arr" + llvm::utostr(++id);
     const Array *array = nullptr;
 
-    if (object->hasSymbolicSize()) {
-      /* Extend updates with last written non-zero constant values.
-      ConstantValues must be empty in constant array. */
-      array = getArrayCache()->CreateArray(
-          object->getSizeExpr(), SourceBuilder::symbolicSizeConstant(0));
-      updates = UpdateList(array, 0);
-      for (unsigned idx = 0; idx < size; ++idx) {
-        if (!Contents[idx]->getZExtValue()) {
-          updates.extend(ConstantExpr::create(idx, Expr::Int32), Contents[idx]);
-        }
-      }
-    } else {
-      array = getArrayCache()->CreateArray(object->getSizeExpr(),
-                                           SourceBuilder::constant(Contents));
-      updates = UpdateList(array, 0);
-    }
+    array = getArrayCache()->CreateArray(object->getSizeExpr(),
+                                          SourceBuilder::constant(contents));
+    updates = UpdateList(array, 0);
 
     // Apply the remaining (non-constant) writes.
-    for (; Begin != End; ++Begin)
+    for (; Begin != End; ++Begin) {
       updates.extend(Writes[Begin].first, Writes[Begin].second);
+    }
   }
 
   return updates;
