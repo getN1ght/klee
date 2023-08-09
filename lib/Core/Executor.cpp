@@ -1153,7 +1153,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
       success = solver->mayBeFalse(current.constraints.cs(), condition,
                                    mayBeFalse, current.queryMetaData);
     }
-    if (success && !mayBeFalse)
+    if (!success || !mayBeFalse)
       terminateEverything = true;
     else
       res = PartialValidity::MayBeFalse;
@@ -1162,7 +1162,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     bool mayBeTrue;
     success = solver->mayBeTrue(current.constraints.cs(), condition, mayBeTrue,
                                 current.queryMetaData);
-    if (success && !mayBeTrue)
+    if (!success || !mayBeTrue)
       terminateEverything = true;
     else
       res = PartialValidity::MayBeTrue;
