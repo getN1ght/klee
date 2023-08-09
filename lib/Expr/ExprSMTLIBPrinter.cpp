@@ -619,7 +619,12 @@ void ExprSMTLIBPrinter::printArrayDeclarations() {
                 symbolicSizeConstantSource->defaultValue, array->getRange()));
           } else if (ref<ConstantSource> constantSource =
                          cast<ConstantSource>(array->source)) {
-            printConstant(constantSource->constantValues[byteIndex]);
+            const auto &arrayConstantValues = constantSource->constantValues;
+            if (arrayConstantValues.count(byteIndex)) {
+              printConstant(arrayConstantValues.at(byteIndex));
+            } else {
+              printConstant(ConstantExpr::create(0, array->getRange()));
+            }
           }
 
           p->popIndent();

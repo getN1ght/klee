@@ -391,7 +391,7 @@ public:
               dyn_cast<ConstantSource>(array.source)) {
         if (index.min() < constantSource->constantValues.size()) {
           return ValueRange(
-              constantSource->constantValues[index.min()]->getZExtValue(8));
+              constantSource->constantValues.at(index.min())->getZExtValue(8));
         }
       } else if (ref<SymbolicSizeConstantSource> symbolicSizeConstantSource =
                      dyn_cast<SymbolicSizeConstantSource>(array.source)) {
@@ -896,7 +896,7 @@ public:
         if (ref<ConstantSource> constantSource =
                 dyn_cast<ConstantSource>(array->source)) {
           // Verify the range.
-          propagateExactValues(constantSource->constantValues[index.min()],
+          propagateExactValues(constantSource->constantValues.at(index.min()),
                                range);
         } else if (isa<SymbolicSizeConstantSource>(array->source)) {
           assert(0 && "not implemented");

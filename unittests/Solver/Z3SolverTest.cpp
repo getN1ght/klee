@@ -40,14 +40,10 @@ TEST_F(Z3SolverTest, GetConstraintLog) {
   ConstraintSet Constraints;
 
   const std::vector<uint64_t> ConstantValues{1, 2, 3, 4};
-  std::vector<ref<ConstantExpr>> ConstantExpressions;
-
-  std::transform(
-      ConstantValues.begin(), ConstantValues.end(),
-      std::back_inserter(ConstantExpressions), [](const uint64_t Value) {
-        ref<ConstantExpr> ConstantExpr(ConstantExpr::alloc(Value, Expr::Int8));
-        return ConstantExpr;
-      });
+  std::map<unsigned, ref<ConstantExpr>> ConstantExpressions;
+  for (int i = 0; i < ConstantValues.size(); ++i) {
+    ConstantExpressions.emplace(i, ConstantExpr::alloc(ConstantValues[i], Expr::Int8));
+  }
 
   const Array *ConstantArray =
       AC.CreateArray(ConstantExpr::create(4, sizeof(uint64_t) * CHAR_BIT),

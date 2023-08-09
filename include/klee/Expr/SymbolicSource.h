@@ -11,6 +11,7 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/IR/Instruction.h"
 DISABLE_WARNING_POP
 
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -66,9 +67,9 @@ public:
   /// constantValues - The constant initial values for this array, or empty for
   /// a symbolic array. If non-empty, this size of this array is equivalent to
   /// the array size.
-  const std::vector<ref<ConstantExpr>> constantValues;
+  const std::map<unsigned, ref<ConstantExpr>> constantValues;
 
-  ConstantSource(const std::vector<ref<ConstantExpr>> &_constantValues)
+  ConstantSource(const std::map<unsigned, ref<ConstantExpr>> &_constantValues)
       : constantValues(_constantValues){};
   Kind getKind() const override { return Kind::Constant; }
   virtual std::string getName() const override { return "constant"; }

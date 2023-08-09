@@ -1461,15 +1461,15 @@ Array::Array(ref<Expr> _size, ref<SymbolicSource> _source, Expr::Width _domain,
       "Invalid size for constant array!");
   computeHash();
 #ifndef NDEBUG
-  if (isa<ConstantSource>(_source)) {
-    for (const ref<ConstantExpr> *
-             it = cast<ConstantSource>(_source)->constantValues.data(),
-            *end = cast<ConstantSource>(_source)->constantValues.data() +
-                   cast<ConstantSource>(_source)->constantValues.size();
-         it != end; ++it)
-      assert((*it)->getWidth() == getRange() &&
-             "Invalid initial constant value!");
-  }
+  // if (isa<ConstantSource>(_source)) {
+  //   for (const ref<ConstantExpr> *
+  //            it = cast<ConstantSource>(_source)->constantValues.data(),
+  //           *end = cast<ConstantSource>(_source)->constantValues.data() +
+  //                  cast<ConstantSource>(_source)->constantValues.size();
+  //        it != end; ++it)
+  //     assert((*it)->getWidth() == getRange() &&
+  //            "Invalid initial constant value!");
+  // }
 #endif // NDEBUG
 
   std::set<const Array *> allArrays = _source->getRelatedArrays();
@@ -1528,7 +1528,10 @@ ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index) {
       uint64_t concreteIndex = CE->getZExtValue();
       uint64_t size = constantSource->constantValues.size();
       if (concreteIndex < size) {
-        return constantSource->constantValues[concreteIndex];
+        const auto &arrayConstantValues = constantSource->constantValues;
+        if (arrayConstantValues.count(concreteIndex)) {
+          return arrayConstantValues.at(concreteIndex);
+        }
       }
     }
   }
@@ -2264,15 +2267,14 @@ static ref<Expr> TryConstArrayOpt(const ref<ConstantExpr> &cl, ReadExpr *rd) {
   ref<Expr> res = ConstantExpr::alloc(0, Expr::Bool);
   if (ref<ConstantSource> constantSource =
           dyn_cast<ConstantSource>(rd->updates.root->source)) {
-    for (unsigned i = 0, e = constantSource->constantValues.size(); i != e;
-         ++i) {
-      if (cl == constantSource->constantValues[i]) {
+    for (const auto &[idx, value] : constantSource->constantValues) {
+      if (cl == value) {
         // Arbitrary maximum on the size of disjunction.
         if (++numMatches > 100)
           return EqExpr_create(cl, rd);
 
         ref<Expr> mayBe = EqExpr::create(
-            rd->index, ConstantExpr::alloc(i, rd->index->getWidth()));
+            rd->index, ConstantExpr::alloc(idx, rd->index->getWidth()));
         res = OrExpr::create(res, mayBe);
       }
     }
