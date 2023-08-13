@@ -295,6 +295,8 @@ public:
   virtual unsigned getNumKids() const = 0;
   virtual ref<Expr> getKid(unsigned i) const = 0;
 
+  std::vector<ref<Expr>> kids() const;
+
   virtual void print(llvm::raw_ostream &os) const;
 
   /// dump - Print the expression to stderr.

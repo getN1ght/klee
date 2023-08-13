@@ -122,6 +122,15 @@ void Expr::splitAnds(ref<Expr> e, std::vector<ref<Expr>> &exprs) {
   }
 }
 
+std::vector<ref<Expr>> Expr::kids() const {
+  unsigned size = getNumKids();
+  std::vector<ref<Expr>> result(size);
+  for (unsigned idx = 0; idx < size; ++idx) {
+    result[idx] = getKid(idx);
+  }
+  return result;
+}
+
 int Expr::compare(const Expr &b) const {
   static ExprEquivSet equivs;
   int r = compare(b, equivs);
