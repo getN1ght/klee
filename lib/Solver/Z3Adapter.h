@@ -2,32 +2,30 @@
 #define Z3ADAPTER_H
 
 #include "SolverTheory.h"
+#include "SolverAdapter.h"
 
-class ExprHandle;
+#include "z3++.h"
 
-class Z3Adapter {
+namespace klee {
+
+class Z3ExprHandle : ExprHandle {
+private:
+  const z3::expr expr;
+
 public:
-  class Arrays : SolverTheory {
-  public:
-    static ExprHandle read();
-    static ExprHandle write();
-  };
+  Z3ExprHandle(const z3::expr &);
+};
 
-  class LIA : SolverTheory {
-  public:
-    static ExprHandle add(const ExprHandle &lhs, const ExprHandle &rhs);
-    static ExprHandle sub(const ExprHandle &lhs, const ExprHandle &rhs);
-    static ExprHandle zext();
-    static ExprHandle sext();
+class Z3Adapter : SolverAdapter {
+private:
+  const z3::context ctx;
 
-  };
-  
-  class BV : SolverTheory {
-  public:
-    
-  };
+public:
+  Z3Adapter();
 
-  
+  ~Z3Adapter() = default;
+};
+
 };
 
 #endif

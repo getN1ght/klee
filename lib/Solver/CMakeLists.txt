@@ -23,10 +23,13 @@ add_library(kleaverSolver
   QueryLoggingSolver.cpp
   SMTLIBLoggingSolver.cpp
   Solver.cpp
+  SolverAdapter.cpp
+  SolverBuilder.cpp
   SolverCmdLine.cpp
   SolverImpl.cpp
   SolverUtil.cpp
   SolverStats.cpp
+  SolverTheory.cpp
   STPBuilder.cpp
   STPSolver.cpp
   ValidatingSolver.cpp
@@ -34,6 +37,7 @@ add_library(kleaverSolver
   Z3BitvectorBuilder.cpp
   Z3CoreBuilder.cpp
   Z3HashConfig.cpp
+  Z3Adapter.cpp
   Z3Solver.cpp
 )
 
