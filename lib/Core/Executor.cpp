@@ -6893,10 +6893,10 @@ void Executor::logState(const ExecutionState &state, int id,
     *f << "Address memory object: " << object.first->address << "\n";
     *f << "Memory object size: " << object.first->size << "\n";
   }
-  *f << state.symbolics.size() << " symbolics total. "
+  *f << state.symbolics->size() << " symbolics total. "
      << "Symbolics:\n";
   size_t sc = 0;
-  for (auto &symbolic : state.symbolics) {
+  for (auto &symbolic : *state.symbolics) {
     *f << "Symbolic number " << sc++ << "\n";
     *f << "Associated memory object: " << symbolic.memoryObject.get()->id
        << "\n";
@@ -6917,12 +6917,12 @@ void Executor::setInitializationGraph(const ExecutionState &state,
   ExprHashMap<std::pair<IDType, ref<Expr>>> resolvedPointers;
 
   std::unordered_map<IDType, ref<const MemoryObject>> idToSymbolics;
-  for (const auto &symbolic : state.symbolics) {
+  for (const auto &symbolic : *state.symbolics) {
     ref<const MemoryObject> mo = symbolic.memoryObject;
     idToSymbolics[mo->id] = mo;
   }
 
-  for (const auto &symbolic : state.symbolics) {
+  for (const auto &symbolic : *state.symbolics) {
     KType *symbolicType = symbolic.type;
     if (!symbolicType->getRawType()) {
       continue;
@@ -6985,15 +6985,17 @@ void Executor::setInitializationGraph(const ExecutionState &state,
       // The objects have to be symbolic
       bool pointerFound = false, pointeeFound = false;
       size_t pointerIndex = 0, pointeeIndex = 0;
-      for (size_t i = 0; i < state.symbolics.size(); i++) {
-        if (state.symbolics[i].memoryObject == pointerResolution.first) {
+      size_t i = 0;
+      for (auto &symbolic : *state.symbolics) {
+        if (symbolic.memoryObject == pointerResolution.first) {
           pointerIndex = i;
           pointerFound = true;
         }
-        if (state.symbolics[i].memoryObject->id == pointer.second.first) {
+        if (symbolic.memoryObject->id == pointer.second.first) {
           pointeeIndex = i;
           pointeeFound = true;
         }
+        ++i;
       }
       if (pointerFound && pointeeFound) {
         ref<ConstantExpr> offset = model.evaluate(pointerResolution.second);
@@ -7080,8 +7082,9 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
 
   std::vector<SparseStorage<unsigned char>> values;
   std::vector<const Array *> objects;
-  for (unsigned i = 0; i != state.symbolics.size(); ++i)
-    objects.push_back(state.symbolics[i].array);
+  for (auto &symbolic : *state.symbolics) {
+    objects.push_back(symbolic.array);
+  }
   bool success = solver->getInitialValues(extendedConstraints.cs(), objects,
                                           values, state.queryMetaData);
   solver->setTimeout(time::Span());
@@ -7092,19 +7095,23 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
     return false;
   }
 
-  res.objects = new KTestObject[state.symbolics.size()];
-  res.numObjects = state.symbolics.size();
+  res.numObjects = state.symbolics->size();
+  res.objects = new KTestObject[res.numObjects];
 
-  for (unsigned i = 0; i != state.symbolics.size(); ++i) {
-    auto mo = state.symbolics[i].memoryObject;
-    KTestObject *o = &res.objects[i];
-    o->name = const_cast<char *>(mo->name.c_str());
-    o->address = mo->address;
-    o->numBytes = values[i].size();
-    o->bytes = new unsigned char[o->numBytes];
-    std::copy(values[i].begin(), values[i].end(), o->bytes);
-    o->numPointers = 0;
-    o->pointers = nullptr;
+  {
+    size_t i = 0;
+    for (auto &symbolic : *state.symbolics) {
+      auto mo = symbolic.memoryObject;
+      KTestObject *o = &res.objects[i];
+      o->name = const_cast<char *>(mo->name.c_str());
+      o->address = mo->address;
+      o->numBytes = values[i].size();
+      o->bytes = new unsigned char[o->numBytes];
+      std::copy(values[i].begin(), values[i].end(), o->bytes);
+      o->numPointers = 0;
+      o->pointers = nullptr;
+      ++i;
+    }
   }
 
   Assignment model = Assignment(objects, values);

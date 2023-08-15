@@ -302,6 +302,9 @@ else()
   message(STATUS "TCMalloc support disabled")
 endif()
 
+
+list(APPEND KLEE_COMPONENT_CXX_FLAGS "-gdwarf-4")
+
 ################################################################################
 # Detect SQLite3
 ################################################################################

@@ -43,6 +43,8 @@ DISABLE_WARNING_POP
 #include <utility>
 #include <vector>
 
+#include <list>
+
 namespace klee {
 class Array;
 class CallPathNode;
@@ -227,6 +229,85 @@ struct Symbolic {
   }
 };
 
+struct PList {
+private:
+  std::shared_ptr<const PList> prev;
+  size_t prev_len;
+  std::vector<Symbolic> curr;
+
+public:
+  size_t size() const { return prev_len + curr.size(); }
+
+  struct iterator {
+    const PList *curr;
+    std::unique_ptr<iterator> it;
+    size_t get;
+
+  public:
+    explicit iterator(const PList *p) : curr(p), it(nullptr), get(0) {
+      if (curr->prev.get()) {
+        it = std::make_unique<iterator>(curr->prev.get());
+      }
+    }
+
+    bool operator==(const iterator &b) const {
+      return curr == b.curr && get == b.get;
+    }
+    bool operator!=(const iterator &b) const { return !(*this == b); }
+
+    iterator &operator++() {
+      ++get;
+      if (get < curr->prev_len) {
+        return it->operator++();
+      }
+      return *this;
+    }
+
+    const Symbolic &operator*() const {
+      if (get < curr->prev_len) {
+        return it->operator*();
+      }
+      return curr->curr[get - curr->prev_len];
+    }
+
+    const Symbolic &operator->() const { return **this; }
+  };
+
+  [[nodiscard]] iterator begin() const { return iterator(this); }
+
+  [[nodiscard]] iterator end() const {
+    auto it = iterator(this);
+    it.get = size();
+    return it;
+  }
+
+  [[nodiscard]] iterator begin() { return iterator(this); }
+
+  [[nodiscard]] iterator end() {
+    auto it = iterator(this);
+    it.get = size();
+    return it;
+  }
+
+  void emplace_back(const MemoryObject *mo, const Array *array, KType *type) {
+    curr.emplace_back(ref<const MemoryObject>(mo), array, type);
+  }
+
+  PList() : prev(nullptr), prev_len(0), curr(){};
+  PList(std::shared_ptr<const PList> pr) : curr() {
+    while (pr && pr->prev && pr->prev_len == pr->prev->prev_len) {
+      pr = pr->prev;
+    }
+    if (pr && pr->size()) {
+      prev = pr;
+      prev_len = pr->size();
+    } else {
+      prev = nullptr;
+      prev_len = 0;
+    }
+  }
+};
+
 struct MemorySubobject {
   ref<Expr> address;
   unsigned size;
@@ -329,7 +410,7 @@ public:
   /// @brief Ordered list of symbolics: used to generate test cases.
   //
   // FIXME: Move to a shared list structure (not critical).
-  std::vector<Symbolic> symbolics;
+  std::shared_ptr<PList> symbolics;
 
   /// @brief map from memory accesses to accessed objects and access offsets.
   ExprHashMap<std::set<IDType>> resolvedPointers;
