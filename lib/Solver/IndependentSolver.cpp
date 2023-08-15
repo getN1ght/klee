@@ -147,14 +147,20 @@ bool assertCreatedPointEvaluatesToTrue(
 bool IndependentSolver::computeInitialValues(
     const Query &query, const std::vector<const Array *> &objects,
     std::vector<SparseStorage<unsigned char>> &values, bool &hasSolution) {
-  // We assume the query has a solution except proven differently
-  // This is important in case we don't have any constraints but
-  // we need initial values for requested array objects.
-  hasSolution = true;
   // FIXME: When we switch to C++11 this should be a std::unique_ptr so we don't
   // need to remember to manually call delete
   std::list<IndependentElementSet> *factors =
       getAllIndependentConstraintsSets(query);
+  if (factors->size() == 1) {
+    delete factors;
+    return solver->impl->computeInitialValues(query, objects, values,
+                                              hasSolution);
+  }
+
+  // We assume the query has a solution except proven differently
+  // This is important in case we don't have any constraints but
+  // we need initial values for requested array objects.
+  hasSolution = true;
 
   // Used to rearrange all of the answers into the correct order
   std::map<const Array *, SparseStorage<unsigned char>> retMap;
@@ -164,16 +170,17 @@ bool IndependentSolver::computeInitialValues(
     calculateArrayReferences(*it, arraysInFactor);
     // Going to use this as the "fresh" expression for the Query() invocation
     // below
-    assert(it->exprs.size() >= 1 && "No null/empty factors");
+    constraints_ty factorConstraints = it->exprs;
+    assert(factorConstraints.size() >= 1 && "No null/empty factors");
     if (arraysInFactor.size() == 0) {
       continue;
     }
-    ConstraintSet tmp(it->exprs, it->symcretes,
+    ConstraintSet tmp(factorConstraints, it->symcretes,
                       query.constraints.concretization().part(it->symcretes));
+    ref<Expr> factorExpr = ConstantExpr::alloc(0, Expr::Bool);
     std::vector<SparseStorage<unsigned char>> tempValues;
     if (!solver->impl->computeInitialValues(
-            Query(tmp, ConstantExpr::alloc(0, Expr::Bool)), arraysInFactor,
-            tempValues, hasSolution)) {
+            Query(tmp, factorExpr), arraysInFactor, tempValues, hasSolution)) {
       values.clear();
       delete factors;
       return false;
@@ -248,12 +255,13 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
     calculateArrayReferences(*it, arraysInFactor);
     // Going to use this as the "fresh" expression for the Query() invocation
     // below
-    assert(it->exprs.size() >= 1 && "No null/empty factors");
+    constraints_ty factorConstraints = it->exprs;
+    assert(factorConstraints.size() >= 1 && "No null/empty factors");
     if (arraysInFactor.size() == 0) {
       continue;
     }
-
-    constraints_ty factorConstraints = it->exprs;
+    ConstraintSet tmp(factorConstraints, it->symcretes,
+                      query.constraints.concretization().part(it->symcretes));
     ref<Expr> factorExpr = ConstantExpr::alloc(0, Expr::Bool);
     auto factorConstraintsExprIterator =
         std::find(factorConstraints.begin(), factorConstraints.end(),
@@ -265,12 +273,7 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
 
     ref<SolverResponse> tempResult;
     std::vector<SparseStorage<unsigned char>> tempValues;
-    if (!solver->impl->check(
-            Query(ConstraintSet(
-                      factorConstraints, it->symcretes,
-                      query.constraints.concretization().part(it->symcretes)),
-                  factorExpr),
-            tempResult)) {
+    if (!solver->impl->check(Query(tmp, factorExpr), tempResult)) {
       delete factors;
       return false;
     } else if (isa<ValidResponse>(tempResult)) {
