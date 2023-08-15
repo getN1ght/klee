@@ -5,16 +5,22 @@
 
 namespace klee {
 
+template <typename T> class ref;
 class ExprHandle;
 
 class SolverAdapter {
 public:
   /* Arrays theory */
   struct Arrays : SolverTheory {
-    Arrays();
-    virtual ExprHandle read(const ExprHandle &array, const ExprHandle &index);
-    virtual ExprHandle write(const ExprHandle &array, const ExprHandle &index,
-                             const ExprHandle &value);
+  protected:
+    virtual ref<ExprHandle> applyHandler(Expr::Kind, const ArgumentsList &) = 0;
+
+  public:
+    virtual ref<ExprHandle> read(const ref<ExprHandle> &array,
+                                 const ref<ExprHandle> &index);
+    virtual ref<ExprHandle> write(const ref<ExprHandle> &array,
+                                  const ref<ExprHandle> &index,
+                                  const ref<ExprHandle> &value);
   };
 
   /*
@@ -22,56 +28,98 @@ public:
    * bit words available in modern machines.
    */
   struct BV : SolverTheory {
-    BV();
-    virtual ExprHandle add(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle sub(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle mul(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle udiv(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle sdiv(const ExprHandle &lhs, const ExprHandle &rhs);
+  protected:
+    virtual ref<ExprHandle> applyHandler(Expr::Kind, const ArgumentsList &) = 0;
 
-    virtual ExprHandle shl(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle lshr(const ExprHandle &lhs, const ExprHandle &rhs);
+  public:
+    virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> sub(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> mul(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> udiv(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> sdiv(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
 
-    virtual ExprHandle sext(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle uext(const ExprHandle &lhs, const ExprHandle &rhs);
+    virtual ref<ExprHandle> shl(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> ashr(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> lshr(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
 
-    virtual ExprHandle band(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle bor(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle bxor(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle bnot(const ExprHandle &lhs);
+    virtual ref<ExprHandle> sext(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> zext(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
 
-    virtual ExprHandle ult(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle ule(const ExprHandle &lhs, const ExprHandle &rhs);
+    virtual ref<ExprHandle> band(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> bor(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> bxor(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> bnot(const ref<ExprHandle> &lhs);
 
-    virtual ExprHandle slt(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle sle(const ExprHandle &lhs, const ExprHandle &rhs);
+    virtual ref<ExprHandle> ult(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> ule(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
 
-    virtual ExprHandle extract();
+    virtual ref<ExprHandle> slt(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> sle(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+
+    virtual ref<ExprHandle> extract();
   };
 
   struct LIA : SolverTheory {
-    LIA();
-    virtual ExprHandle add(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle sub(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle mult(const ExprHandle &lhs, const ExprHandle &rhs);
+  protected:
+    virtual ref<ExprHandle> applyHandler(Expr::Kind, const ArgumentsList &) = 0;
 
-    virtual ExprHandle sext(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle uext(const ExprHandle &lhs, const ExprHandle &rhs);
+  public:
+    virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> sub(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> mul(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
 
-    virtual ExprHandle ult(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle ule(const ExprHandle &lhs, const ExprHandle &rhs);
+    virtual ref<ExprHandle> sext(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> zext(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
 
-    virtual ExprHandle slt(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle sle(const ExprHandle &lhs, const ExprHandle &rhs);
+    virtual ref<ExprHandle> ult(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> ule(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+
+    virtual ref<ExprHandle> slt(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> sle(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
   };
 
   /* Propositional logic theory */
-  struct Propositional {
-    virtual ExprHandle land(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle lor(const ExprHandle &lhs, const ExprHandle &rhs);
-    virtual ExprHandle lnot(const ExprHandle &lhs);
-    virtual ExprHandle lite(const ExprHandle &cond, const ExprHandle &lhs,
-                            const ExprHandle &rhs);
+  struct Propositional : SolverTheory {
+  protected:
+    virtual ref<ExprHandle> applyHandler(Expr::Kind, const ArgumentsList &) = 0;
+
+  public:
+    virtual ref<ExprHandle> land(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> lor(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> lxor(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
+    virtual ref<ExprHandle> lnot(const ref<ExprHandle> &lhs);
+    virtual ref<ExprHandle> lite(const ref<ExprHandle> &cond,
+                                 const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs);
   };
 
   virtual ~SolverAdapter() = 0;

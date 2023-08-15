@@ -1,12 +1,13 @@
 #ifndef SOLVERBUILDER_H
 #define SOLVERBUILDER_H
 
+#include "klee/ADT/Ref.h"
+
 #include <memory>
 #include <vector>
 
 namespace klee {
 
-class SolverBuilderFactory;
 class SolverTheory;
 
 template <typename> class ref;
@@ -20,15 +21,22 @@ class Expr;
  */
 
 class ExprHandle {
+public:
+  enum Kind {
+    Z3,
+    STP,
+    METASMT
+  };
 private:
   /* TODO: it is a sort. */
   // SolverTheory::Kind theory;
 
 public:
+  class ReferenceCounter _refCount;
   // SolverTheory::Kind type() const {
   //   return theory;
   // }
-  virtual ~ExprHandle() = 0;
+  virtual ~ExprHandle() = default;
 };
 
 
@@ -42,7 +50,7 @@ private:
   SolverBuilder(const std::vector<std::shared_ptr<SolverTheory>> &);
 
 public:
-  ExprHandle build(const ref<Expr> &expr);
+  ref<ExprHandle> build(const ref<Expr> &expr);
 };
 } // namespace klee
 

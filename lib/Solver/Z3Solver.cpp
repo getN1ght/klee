@@ -21,6 +21,9 @@
 #include "Z3CoreBuilder.h"
 #include "Z3Solver.h"
 
+#include "SolverBuilderFactory.h"
+#include "Z3Adapter.h"
+
 #include "klee/ADT/SparseStorage.h"
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
@@ -129,6 +132,13 @@ public:
 
 Z3SolverImpl::Z3SolverImpl(Z3BuilderType type)
     : builderType(type), runStatusCode(SOLVER_RUN_STATUS_FAILURE) {
+  SolverBuilderFactory::forSolver<Z3Adapter>()
+      .thenApply<Propositional>()
+      .thenApply<Arrays>()
+      .thenApply<LIA>()
+      .thenApply<BV>()
+      .build();
+
   switch (type) {
   case KLEE_CORE:
     builder = std::unique_ptr<Z3Builder>(new Z3CoreBuilder(

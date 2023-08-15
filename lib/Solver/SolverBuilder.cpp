@@ -11,21 +11,20 @@ SolverBuilder::SolverBuilder(
     const std::vector<std::shared_ptr<SolverTheory>> &theories)
     : orderOfTheories(theories) {}
 
-ExprHandle SolverBuilder::build(const ref<Expr> &expr) {
-  std::vector<ExprHandle> kidsHandles;
+ref<ExprHandle> SolverBuilder::build(const ref<Expr> &expr) {
+  std::vector<ref<ExprHandle>> kidsHandles;
   kidsHandles.reserve(expr->getNumKids());
 
-  SolverTheory::Kind leastCommonType;
   for (const auto &expr : expr->kids()) {
-    std::optional<ExprHandle> kidHandle = build(expr);
-    kidsHandles.push_back(kidHandle.value());
+    ref<ExprHandle> kidHandle = build(expr);
+    kidsHandles.push_back(kidHandle);
   }
 
   for (const auto &theory : orderOfTheories) {
-    std::optional<ExprHandle> handle = theory->translate(expr);
-    if (handle.has_value()) {
-      return handle.value();
-    }
+    ref<ExprHandle> handle = theory->translate(expr);
+    // if (handle()) {
+    //   return handle.value();
+    // }
 
     /* If handle is empty switch to another theory. */
   }

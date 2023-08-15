@@ -11,40 +11,22 @@
 
 namespace klee {
 
-template<typename Fn, typename...Args>
-class Handler {
-private:
-  Fn function;
-
-public:
-  Handler(Fn function) : function(function) {}
-
-  ExprHandle apply(Args&&...args) {
-    function(args...);
-  }
-};
+typedef std::vector<ref<ExprHandle>> ArgumentsList;
 
 struct SolverTheory {
-public:
-  enum Kind {
-    ARR,
-    BV,
-    LIA,
-  };
-
 protected:
-  std::unordered_map<Expr::Kind, int> handlers;
+  virtual ref<ExprHandle> applyHandler(Expr::Kind, const ArgumentsList &) = 0; 
 
 public:
-  std::optional<ExprHandle> translate(const ref<Expr> &expr) {
-    Expr::Kind exprKind = expr->getKind();
-
-    if (handlers.count(exprKind)) {
-      return std::optional<ExprHandle>();
+  virtual ref<ExprHandle> translate(const ref<Expr> &expr) {
+    std::vector<ref<ExprHandle>> arguments;
+    arguments.reserve(expr->getNumKids());
+    
+    for (const ref<Expr> &kid : expr->kids()) {
+      arguments.push_back(translate(kid));
     }
 
-    handlers.at(exprKind);
-    return std::optional<ExprHandle>();
+    return applyHandler(expr->getKind(), arguments);
   }
 
   virtual ~SolverTheory() = default;

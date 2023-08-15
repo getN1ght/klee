@@ -9,17 +9,23 @@ Z3ExprHandle::Z3ExprHandle(const z3::expr &node) : expr(node) {}
 
 Z3Adapter::Z3Adapter() : ctx(z3::context()) {}
 
-// ExprHandle Z3Adapter::Arrays::read(const ExprHandle &array,
-//                                    const ExprHandle &index) {
-//   dynamic_cast<const Z3ExprHandle &>(array)
-// }
+ref<ExprHandle> Z3Adapter::Arrays::read(const ref<ExprHandle> &array,
+                                        const ref<ExprHandle> &index) {
+  Z3ExprHandle *arrayZ3ExprHandle = dynamic_cast<Z3ExprHandle *>(array.get());
+  Z3ExprHandle *indexZ3ExprHandle = dynamic_cast<Z3ExprHandle *>(index.get());
 
-// ExprHandle Z3Adapter::Arrays::write(const ExprHandle &array,
-//                                     const ExprHandle &index,
-//                                     const ExprHandle &value) {
+  return (ExprHandle *)(new Z3ExprHandle(
+      z3::select(*arrayZ3ExprHandle, *indexZ3ExprHandle)));
+}
 
-//   //
-// }
+ref<ExprHandle> Z3Adapter::Arrays::write(const ref<ExprHandle> &array,
+                                         const ref<ExprHandle> &index,
+                                         const ref<ExprHandle> &value) {
+  Z3ExprHandle *arrayZ3ExprHandle = dynamic_cast<Z3ExprHandle *>(array.get());
+  Z3ExprHandle *indexZ3ExprHandle = dynamic_cast<Z3ExprHandle *>(index.get());
+  Z3ExprHandle *valueZ3ExprHandle = dynamic_cast<Z3ExprHandle *>(value.get());
 
+  return (ExprHandle *)(new Z3ExprHandle(
+      z3::store(*arrayZ3ExprHandle, *indexZ3ExprHandle, *valueZ3ExprHandle)));
+}
 
-// ExprHandle Z3Adapter::BV::add(const ExprHandle &lhs, const ExprHandle &rhs) {}
