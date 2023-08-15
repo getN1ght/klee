@@ -184,6 +184,9 @@ ConstraintSet::ConstraintSet(constraints_ty cs, symcretes_ty symcretes,
     : _constraints(cs), _symcretes(symcretes), _concretization(concretization) {
 }
 
+ConstraintSet::ConstraintSet(constraints_ty cs)
+    : _constraints(cs), _symcretes({}), _concretization(true) {}
+
 ConstraintSet::ConstraintSet() : _concretization(Assignment(true)) {}
 
 void ConstraintSet::addConstraint(ref<Expr> e, const Assignment &delta) {

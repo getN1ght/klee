@@ -35,6 +35,7 @@ class ConstraintSet {
 public:
   ConstraintSet(constraints_ty cs, symcretes_ty symcretes,
                 Assignment concretization);
+  explicit ConstraintSet(constraints_ty cs);
   ConstraintSet();
 
   void addConstraint(ref<Expr> e, const Assignment &delta);

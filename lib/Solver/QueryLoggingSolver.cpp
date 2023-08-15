@@ -271,8 +271,7 @@ bool QueryLoggingSolver::check(const Query &query,
       result->tryGetValidityCore(validityCore);
       logBuffer << queryCommentSign << "   ValidityCore:\n";
 
-      printQuery(Query(ConstraintSet(validityCore.constraints, {}, {true}),
-                       validityCore.expr));
+      printQuery(validityCore.toQuery());
     }
   }
   logBuffer << "\n";
@@ -300,8 +299,7 @@ bool QueryLoggingSolver::computeValidityCore(const Query &query,
   if (isValid) {
     logBuffer << queryCommentSign << "   ValidityCore:\n";
 
-    printQuery(Query(ConstraintSet(validityCore.constraints, {}, {true}),
-                     validityCore.expr));
+    printQuery(validityCore.toQuery());
   }
 
   logBuffer << "\n";
@@ -321,4 +319,8 @@ char *QueryLoggingSolver::getConstraintLog(const Query &query) {
 
 void QueryLoggingSolver::setCoreSolverTimeout(time::Span timeout) {
   solver->impl->setCoreSolverTimeout(timeout);
+}
+
+void QueryLoggingSolver::notifyStateTermination(std::uint32_t id) {
+  solver->impl->notifyStateTermination(id);
 }

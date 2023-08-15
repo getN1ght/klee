@@ -60,6 +60,7 @@ public:
   SolverRunStatus getOperationStatusCode();
   char *getConstraintLog(const Query &);
   void setCoreSolverTimeout(time::Span timeout);
+  void notifyStateTermination(std::uint32_t id);
 };
 
 bool IndependentSolver::computeValidity(const Query &query,
@@ -179,8 +180,9 @@ bool IndependentSolver::computeInitialValues(
                       query.constraints.concretization().part(it->symcretes));
     ref<Expr> factorExpr = ConstantExpr::alloc(0, Expr::Bool);
     std::vector<SparseStorage<unsigned char>> tempValues;
-    if (!solver->impl->computeInitialValues(
-            Query(tmp, factorExpr), arraysInFactor, tempValues, hasSolution)) {
+    if (!solver->impl->computeInitialValues(Query(tmp, factorExpr, query.id),
+                                            arraysInFactor, tempValues,
+                                            hasSolution)) {
       values.clear();
       delete factors;
       return false;
@@ -273,7 +275,7 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
 
     ref<SolverResponse> tempResult;
     std::vector<SparseStorage<unsigned char>> tempValues;
-    if (!solver->impl->check(Query(tmp, factorExpr), tempResult)) {
+    if (!solver->impl->check(Query(tmp, factorExpr, query.id), tempResult)) {
       delete factors;
       return false;
     } else if (isa<ValidResponse>(tempResult)) {
@@ -340,6 +342,10 @@ char *IndependentSolver::getConstraintLog(const Query &query) {
 
 void IndependentSolver::setCoreSolverTimeout(time::Span timeout) {
   solver->impl->setCoreSolverTimeout(timeout);
+}
+
+void IndependentSolver::notifyStateTermination(std::uint32_t id) {
+  solver->impl->notifyStateTermination(id);
 }
 
 std::unique_ptr<Solver>

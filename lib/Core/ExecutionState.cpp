@@ -182,7 +182,9 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       returnValue(state.returnValue), gepExprBases(state.gepExprBases),
       prevTargets_(state.prevTargets_), targets_(state.targets_),
       prevHistory_(state.prevHistory_), history_(state.history_),
-      isTargeted_(state.isTargeted_) {}
+      isTargeted_(state.isTargeted_) {
+  queryMetaData.id = state.id;
+}
 
 ExecutionState *ExecutionState::branch() {
   depth++;
@@ -495,4 +497,8 @@ bool ExecutionState::reachedTarget(ref<ReachBlockTarget> target) const {
   } else {
     return pc == target->getBlock()->getFirstInstruction();
   }
+}
+
+Query ExecutionState::toQuery() const {
+  return Query(constraints.cs(), Expr::createFalse(), id);
 }
