@@ -728,14 +728,32 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
   }
 
 #ifndef WINDOWS
-  int *errno_addr = getErrnoLocation(state);
+
   llvm::Type *pointerErrnoAddr = llvm::PointerType::get(
       llvm::IntegerType::get(m->getContext(), sizeof(*errno_addr) * CHAR_BIT),
       adressSpaceNum);
-  MemoryObject *errnoObj =
-      addExternalObject(state, (void *)errno_addr,
-                        typeSystemManager->getWrappedType(pointerErrnoAddr),
-                        sizeof *errno_addr, false);
+  MemoryObject *errnoObj = nullptr;
+
+  if (Context::get().getPointerWidth() == 32) {
+    // This is not working (?) 
+    // errno_addr = (int *)mmap(NULL, sizeof(*errno_addr), PROT_READ | PROT_WRITE,
+    //                          MAP_32BIT | MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    errnoObj = allocate(state, Expr::createPointer(sizeof(*errno_addr)), false, true,
+             nullptr, 8);
+    errnoObj->isFixed = true;
+    
+    ObjectState *os = bindObjectInState(
+        state, errnoObj, typeSystemManager->getWrappedType(pointerErrnoAddr),
+        false);
+    errno_addr = reinterpret_cast<int *>(errnoObj->address);
+  } else {
+    errno_addr = getErrnoLocation(state);
+    errnoObj =
+        addExternalObject(state, (void *)errno_addr,
+                          typeSystemManager->getWrappedType(pointerErrnoAddr),
+                          sizeof *errno_addr, false);
+  }
+
   // Copy values from and to program space explicitly
   errnoObj->isUserSpecified = true;
 #endif
@@ -4875,7 +4893,6 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
   state.addressSpace.copyOutConcretes();
 #ifndef WINDOWS
   // Update external errno state with local state value
-  int *errno_addr = getErrnoLocation(state);
   IDType idResult;
 
   llvm::Type *pointerErrnoAddr = llvm::PointerType::get(
@@ -4884,7 +4901,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
       kmodule->targetData->getAllocaAddrSpace());
 
   bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64),
+      ConstantExpr::create((uint64_t)errno_addr, Context::get().getPointerWidth()),
       typeSystemManager->getWrappedType(pointerErrnoAddr), idResult);
   if (!resolved)
     klee_error("Could not resolve memory object for errno");
