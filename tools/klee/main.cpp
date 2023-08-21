@@ -1307,8 +1307,18 @@ linkWithUclibc(StringRef libDir, std::string opt_suffix,
                FortifyPath.c_str(), errorMsg.c_str());
 
   // Ensure that klee-uclibc exists
-  SmallString<128> uclibcBCA(libDir);
-  llvm::sys::path::append(uclibcBCA, KLEE_UCLIBC_BCA_NAME);
+  SmallString<128> uclibcBCA(libDir); 
+  // Hack to find out bitness of .bc file
+  
+  if (opt_suffix.substr(0, 2) == "32") {
+    llvm::sys::path::append(uclibcBCA, KLEE_UCLIBC_BCA_32_NAME);
+  } else if (opt_suffix.substr(0, 2) == "64") {
+    llvm::sys::path::append(uclibcBCA, KLEE_UCLIBC_BCA_64_NAME);
+  } else {
+    klee_error("Cannot determine bitness of source file from the name %s", uclibcBCA.c_str());
+  }
+  llvm::errs() << uclibcBCA << "\n";
+
   if (!klee::loadFileAsOneModule(uclibcBCA.c_str(), ctx, libsModules, errorMsg))
     klee_error("Cannot find klee-uclibc '%s': %s", uclibcBCA.c_str(),
                errorMsg.c_str());

@@ -7,10 +7,18 @@ setup_build_variables_uclibc() {
 download_uclibc() {
   source "${DIR}/common-functions"
   git_clone_or_update "${uclibc_url}" "${UCLIBC_PATH}" "${UCLIBC_VERSION}"
+  cp -r "${UCLIBC_PATH}" "${UCLIBC_PATH}-32"
+  cp -r "${UCLIBC_PATH}" "${UCLIBC_PATH}-64"
 }
 
 build_uclibc() { 
-  cd "${UCLIBC_PATH}" || return 1
+  pushd "${UCLIBC_PATH}-32" || return 1
+  ./configure --make-llvm-lib --with-cc "${BITCODE_CC}" --with-llvm-config "${LLVM_CONFIG}"
+  make KLEE_CFLAGS="-m32" || return 1
+  touch .is_installed
+  popd &>/dev/null
+
+  pushd "${UCLIBC_PATH}-64" || return 1
   ./configure --make-llvm-lib --with-cc "${BITCODE_CC}" --with-llvm-config "${LLVM_CONFIG}"
   make || return 1
   touch .is_installed
@@ -24,7 +32,11 @@ install_uclibc() {
 is_installed_uclibc() {
   (
     setup_build_variables_uclibc
-    [[ -f "${UCLIBC_PATH}"/.is_installed ]]
+    [[ -f "${UCLIBC_PATH}-32"/.is_installed ]]
+  ) || return 1
+  (
+    setup_build_variables_uclibc
+    [[ -f "${UCLIBC_PATH}-64"/.is_installed ]]
   ) || return 1
 }
 
