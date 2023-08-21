@@ -10,117 +10,218 @@ class ExprHandle;
 
 class SolverAdapter {
 public:
-  /* Arrays theory */
-  struct Arrays : SolverTheory {
-  protected:
-    virtual ref<ExprHandle> applyHandler(Expr::Kind, const ArgumentsList &) = 0;
+  /* Floats section */
+  virtual ref<ExprHandle> bvFAdd(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFSub(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
 
-  public:
-    virtual ref<ExprHandle> read(const ref<ExprHandle> &array,
-                                 const ref<ExprHandle> &index);
-    virtual ref<ExprHandle> write(const ref<ExprHandle> &array,
-                                  const ref<ExprHandle> &index,
-                                  const ref<ExprHandle> &value);
-  };
+  virtual ref<ExprHandle> bvFMul(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFDiv(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFRem(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFMax(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFMin(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
 
-  /*
-   * Theory of Bit Vectors. Supports all operations with
-   * bit words available in modern machines.
-   */
-  struct BV : SolverTheory {
-  protected:
-    virtual ref<ExprHandle> applyHandler(Expr::Kind, const ArgumentsList &) = 0;
+  virtual ref<ExprHandle> bvFOEq(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFOLt(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFOLe(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
 
-  public:
-    virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> sub(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> mul(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> udiv(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> sdiv(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  virtual ref<ExprHandle> bvFIsNaN(const ref<ExprHandle> &arg) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFIsInfinite(const ref<ExprHandle> &arg) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFIsNormal(const ref<ExprHandle> &arg) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFIsSubnormal(const ref<ExprHandle> &arg) {
+    return nullptr;
+  }
 
-    virtual ref<ExprHandle> shl(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> ashr(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> lshr(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  virtual ref<ExprHandle> bvFSqrt(const ref<ExprHandle> &arg) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFRint(const ref<ExprHandle> &arg) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvFAbs(const ref<ExprHandle> &arg) { return nullptr; }
+  virtual ref<ExprHandle> FNeg(const ref<ExprHandle> &arg) { return nullptr; }
 
-    virtual ref<ExprHandle> sext(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> zext(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  /* Arithmetics section */
+  virtual ref<ExprHandle> bvAdd(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvSub(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvMul(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvUDiv(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvSDiv(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvURem(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvSRem(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
 
-    virtual ref<ExprHandle> band(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> bor(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> bxor(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> bnot(const ref<ExprHandle> &lhs);
+  virtual ref<ExprHandle> bvAnd(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvOr(const ref<ExprHandle> &lhs,
+                               const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvXor(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvNot(const ref<ExprHandle> &arg) { return nullptr; }
 
-    virtual ref<ExprHandle> ult(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> ule(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
+  virtual ref<ExprHandle> bvUle(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvSle(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvUlt(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvSlt(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
 
-    virtual ref<ExprHandle> slt(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> sle(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
+  virtual ref<ExprHandle> bvZExt(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvSExt(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
 
-    virtual ref<ExprHandle> extract();
-  };
+  virtual ref<ExprHandle> bvShl(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvAShr(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvLShr(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
 
-  struct LIA : SolverTheory {
-  protected:
-    virtual ref<ExprHandle> applyHandler(Expr::Kind, const ArgumentsList &) = 0;
+  virtual ref<ExprHandle> bvExtract(const ref<ExprHandle> &expr,
+                                    const ref<ExprHandle> &lb,
+                                    const ref<ExprHandle> &rb) {
+    return nullptr;
+  }
+  /* LIA section */
+public:
+  virtual ref<ExprHandle> liaAdd(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> liaDub(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> liaMul(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
 
-  public:
-    virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> sub(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> mul(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
+  virtual ref<ExprHandle> liaLe(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> liaLt(const ref<ExprHandle> &lhs,
+                                const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
 
-    virtual ref<ExprHandle> sext(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> zext(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  /* Arrays section */
+public:
+  virtual ref<ExprHandle> read(const ref<ExprHandle> &arr,
+                               const ref<ExprHandle> &idx) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> write(const ref<ExprHandle> &arr,
+                                const ref<ExprHandle> &idx,
+                                const ref<ExprHandle> &val) {
+    return nullptr;
+  }
 
-    virtual ref<ExprHandle> ult(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> ule(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-
-    virtual ref<ExprHandle> slt(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> sle(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  };
-
-  /* Propositional logic theory */
-  struct Propositional : SolverTheory {
-  protected:
-    virtual ref<ExprHandle> applyHandler(Expr::Kind, const ArgumentsList &) = 0;
-
-  public:
-    virtual ref<ExprHandle> land(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> lor(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> lxor(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-    virtual ref<ExprHandle> lnot(const ref<ExprHandle> &lhs);
-    virtual ref<ExprHandle> lite(const ref<ExprHandle> &cond,
-                                 const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  };
+  /* Propositional section */
+public:
+  virtual ref<ExprHandle> propAnd(const ref<ExprHandle> &lhs,
+                                  const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> propOr(const ref<ExprHandle> &lhs,
+                                 const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> propXor(const ref<ExprHandle> &lhs,
+                                  const ref<ExprHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> propNot(const ref<ExprHandle> &arg) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> propIte(const ref<ExprHandle> &cond,
+                                  const ref<ExprHandle> &onTrue,
+                                  const ref<ExprHandle> &onFalse) {
+    return nullptr;
+  }
 
   virtual ~SolverAdapter() = 0;
 };

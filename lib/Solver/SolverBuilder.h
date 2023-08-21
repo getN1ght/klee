@@ -45,9 +45,10 @@ class SolverBuilder {
 
 private:
   // exprCache cache;
-  std::vector<std::shared_ptr<SolverTheory>> orderOfTheories;
+  std::vector<ref<SolverTheory>> orderOfTheories;
 
-  SolverBuilder(const std::vector<std::shared_ptr<SolverTheory>> &);
+  SolverBuilder(const std::vector<ref<SolverTheory>> &);
+  ref<ExprHandle> buildWithTheory(const ref<SolverTheory> &theory, const ref<Expr> &expr);
 
 public:
   ref<ExprHandle> build(const ref<Expr> &expr);

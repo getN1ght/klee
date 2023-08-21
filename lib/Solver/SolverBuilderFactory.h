@@ -12,9 +12,9 @@
 
 
 namespace klee {  
+template <typename ST>
 class SolverBuilderFactory {
 private:
-  std::shared_ptr<SolverAdapter> adapter;
   std::vector<std::shared_ptr<SolverTheory>> orderOfTheories;
 
   SolverBuilderFactory() = default;
@@ -24,11 +24,11 @@ public:
    * Constructs the factory for specified solver.
    * Takes class of adapter.
    */
-  template <typename ST> static SolverBuilderFactory forSolver() {
-    static_assert(std::is_base_of_v<SolverAdapter, ST>,
+  template<typename fST>
+  static SolverBuilderFactory forSolver() {
+    static_assert(std::is_base_of_v<SolverAdapter, fST>,
                   "Solver adapter required to instantiate a factory");
-    SolverBuilderFactory solverBuilderFactory;
-    solverBuilderFactory.adapter.reset((SolverAdapter *)new ST());
+    SolverBuilderFactory<fST> solverBuilderFactory;
     return solverBuilderFactory;
   }
 
@@ -38,8 +38,6 @@ public:
    * in order of calls to this method.
    */
   template <typename TT> SolverBuilderFactory thenApply() {
-    static_assert(std::is_base_of_v<SolverTheory, merger<std::remove_reference<decltype(*adapter)>::type, TT>::type>,
-                  "Only Theory may be applied to a solver builder");
     orderOfTheories.emplace_back(new typename std::remove_reference<decltype(*adapter)>::type::TT());
     return *this;
   }

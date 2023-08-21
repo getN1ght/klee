@@ -7,12 +7,12 @@
 
 using namespace klee;
 
-SolverBuilder::SolverBuilder(
-    const std::vector<std::shared_ptr<SolverTheory>> &theories)
+SolverBuilder::SolverBuilder(const std::vector<ref<SolverTheory>> &theories)
     : orderOfTheories(theories) {}
 
-ref<ExprHandle> SolverBuilder::build(const ref<Expr> &expr) {
-  std::vector<ref<ExprHandle>> kidsHandles;
+ref<ExprHandle> SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
+                                               const ref<Expr> &expr) {
+  ArgumentsList kidsHandles;
   kidsHandles.reserve(expr->getNumKids());
 
   for (const auto &expr : expr->kids()) {
@@ -20,12 +20,14 @@ ref<ExprHandle> SolverBuilder::build(const ref<Expr> &expr) {
     kidsHandles.push_back(kidHandle);
   }
 
-  for (const auto &theory : orderOfTheories) {
-    ref<ExprHandle> handle = theory->translate(expr);
-    // if (handle()) {
-    //   return handle.value();
-    // }
+  return theory->translate(expr->getKind(), kidsHandles);
+}
 
-    /* If handle is empty switch to another theory. */
+ref<ExprHandle> SolverBuilder::build(const ref<Expr> &expr) {
+  for (const auto &theory : orderOfTheories) {
+    ref<ExprHandle> exprHandle = buildWithTheory(theory, expr);
+    if (exprHandle) {
+
+    }
   }
 }
