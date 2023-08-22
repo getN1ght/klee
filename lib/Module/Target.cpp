@@ -93,11 +93,11 @@ ref<Target> CoverBranchTarget::create(KBlock *_block, unsigned _branchCase) {
 
 bool ReproduceErrorTarget::isTheSameAsIn(const KInstruction *instr) const {
   const auto &errLoc = loc;
-  return instr->info->line >= errLoc.startLine &&
-         instr->info->line <= errLoc.endLine &&
+  return instr->getLine() >= errLoc.startLine &&
+         instr->getLine() <= errLoc.endLine &&
          (!LocationAccuracy || !errLoc.startColumn.has_value() ||
-          (instr->info->column >= *errLoc.startColumn &&
-           instr->info->column <= *errLoc.endColumn));
+          (instr->getColumn() >= *errLoc.startColumn &&
+           instr->getColumn() <= *errLoc.endColumn));
 }
 
 int Target::compare(const Target &b) const { return internalCompare(b); }

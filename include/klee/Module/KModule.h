@@ -62,14 +62,13 @@ struct KBlock {
   KFunction *parent;
   llvm::BasicBlock *basicBlock;
 
-  unsigned numInstructions;
   KInstruction **instructions;
+  unsigned numInstructions;
+  unsigned id;
 
   /// Whether instructions in this function should count as
   /// "coverable" for statistics and search heuristics.
-  bool trackCoverage;
-
-  unsigned id;
+//  bool trackCoverage;
 
 public:
   KBlock(KFunction *, llvm::BasicBlock *, KModule *,
@@ -155,7 +154,7 @@ public:
 
   /// Whether instructions in this function should count as
   /// "coverable" for statistics and search heuristics.
-  bool trackCoverage;
+//  bool trackCoverage;
 
   explicit KFunction(llvm::Function *, KModule *);
   KFunction(const KFunction &) = delete;
@@ -230,8 +229,10 @@ public:
   // XXX change to KFunction
   std::set<llvm::Function *> escapingFunctions;
 
+  // TODO change to StringRef
   std::unordered_set<std::string> mainModuleFunctions;
 
+  // TODO change to StringRef
   std::unordered_set<std::string> mainModuleGlobals;
 
   InstructionInfoTable::Instructions origInfos;

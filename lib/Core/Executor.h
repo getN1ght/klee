@@ -480,7 +480,7 @@ private:
 
   ref<Expr> readDest(ExecutionState &state, StackFrame &frame,
                      const KInstruction *target) {
-    unsigned index = target->dest;
+    unsigned index = target->getDest();
     ref<Expr> reg = frame.locals[index].value;
     if (!reg) {
       prepareSymbolicRegister(state, frame, index);
@@ -494,7 +494,7 @@ private:
   }
 
   Cell &getDestCell(const StackFrame &frame, const KInstruction *target) {
-    return frame.locals[target->dest];
+    return frame.locals[target->getDest()];
   }
 
   const Cell &eval(const KInstruction *ki, unsigned index,
@@ -566,9 +566,8 @@ private:
 
   // Determines the \param lastInstruction of the \param state which is not KLEE
   // internal and returns its InstructionInfo
-  const InstructionInfo &
-  getLastNonKleeInternalInstruction(const ExecutionState &state,
-                                    llvm::Instruction **lastInstruction);
+  const KInstruction *
+  getLastNonKleeInternalInstruction(const ExecutionState &state);
 
   /// Remove state from queue and delete state
   void terminateState(ExecutionState &state,
@@ -800,7 +799,7 @@ public:
 
   void getCoveredLines(
       const ExecutionState &state,
-      std::map<const std::string *, std::set<unsigned>> &res) override;
+      std::map<std::string, std::set<size_t>> &res) override;
 
   void getBlockPath(const ExecutionState &state,
                     std::string &blockPath) override;

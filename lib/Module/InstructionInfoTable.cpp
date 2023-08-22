@@ -34,8 +34,7 @@ DISABLE_WARNING_POP
 #include <map>
 #include <string>
 
-using namespace klee;
-
+namespace klee {
 class InstructionToLineAnnotator : public llvm::AssemblyAnnotationWriter {
 private:
   std::unordered_map<uintptr_t, uint64_t> mapping = {};
@@ -132,7 +131,7 @@ public:
 
     // Check if a valid debug location is assigned to the instruction.
     if (dl.get() != nullptr) {
-      auto full_path = dl.get()->getFilename();
+      auto full_path = dl->getFilename();
       auto line = dl.getLine();
       auto column = dl.getCol();
 
@@ -146,18 +145,51 @@ public:
         }
       }
       return std::make_unique<InstructionInfo>(InstructionInfo(
-          0, getInternedString(full_path.str()), line, column, asmLine));
+          0, asmLine));
     }
 
-    if (f != nullptr)
+    if (f != nullptr) {
       // If nothing found, use the surrounding function
       return std::make_unique<InstructionInfo>(
-          InstructionInfo(0, f->file, f->line, 0, asmLine));
+          InstructionInfo(0, asmLine));
+    }
     // If nothing found, use the surrounding function
     return std::make_unique<InstructionInfo>(
-        InstructionInfo(0, getInternedString(""), 0, 0, asmLine));
+        InstructionInfo(0, asmLine));
   }
 };
+
+// TODO need some unify with kInstruction
+LocationInfo getLocationInfo(const llvm::Instruction &Inst,
+                             const FunctionInfo *f) {
+  // Retrieve debug information associated with instruction
+  auto dl = Inst.getDebugLoc();
+
+  // Check if a valid debug location is assigned to the instruction.
+  if (dl.get() != nullptr) {
+    auto full_path = dl->getFilename();
+    auto line = dl.getLine();
+    auto column = dl.getCol();
+
+    // Still, if the line is unknown, take the context of the instruction to
+    // narrow it down
+    if (line == 0) {
+      if (auto LexicalBlock =
+              llvm::dyn_cast<llvm::DILexicalBlock>(dl.getScope())) {
+        line = LexicalBlock->getLine();
+        column = LexicalBlock->getColumn();
+      }
+    }
+    return {full_path.str(), line, column};
+  }
+
+  if (f != nullptr) {
+    // If nothing found, use the surrounding function
+    return {f->file, f->line, 0};
+  }
+  // If nothing found, use the surrounding function
+  return {"", 0, 0};
+}
 
 InstructionInfoTable::InstructionInfoTable(
     const llvm::Module &m, std::unique_ptr<llvm::raw_fd_ostream> assemblyFS,
@@ -174,12 +206,13 @@ InstructionInfoTable::InstructionInfoTable(
          ++it) {
       auto instr = &*it;
       auto instInfo = DI.getInstructionInfo(*instr, FR);
+      auto locationInfo = getLocationInfo(*instr, FR);
       if (withInstructions) {
-        insts[instInfo->file][instInfo->line][instInfo->column].insert(
+        insts[locationInfo.file][locationInfo.line][locationInfo.column].insert(
             instr->getOpcode());
       }
-      filesNames.insert(instInfo->file);
-      fileNameToFunctions[instInfo->file].insert(&Func);
+      filesNames.insert(locationInfo.file);
+      fileNameToFunctions[locationInfo.file].insert(&Func);
       infos.emplace(instr, std::move(instInfo));
     }
   }
@@ -228,3 +261,5 @@ InstructionInfoTable::getFilesNames() const {
 InstructionInfoTable::Instructions InstructionInfoTable::getInstructions() {
   return std::move(insts);
 }
+
+} // namespace klee

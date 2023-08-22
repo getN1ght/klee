@@ -1086,7 +1086,7 @@ ref<Expr> Executor::maxStaticPctChecks(ExecutionState &current,
     std::string msg("skipping fork and concretizing condition (MaxStatic*Pct "
                     "limit reached) at ");
     llvm::raw_string_ostream os(msg);
-    os << current.prevPC->getSourceLocation();
+    os << current.prevPC->getSourceLocationString();
     klee_warning_once(0, "%s", os.str().c_str());
 
     addConstraint(current, EqExpr::create(value, condition));
@@ -1504,8 +1504,8 @@ ref<klee::ConstantExpr> Executor::toConstant(ExecutionState &state, ref<Expr> e,
   std::string str;
   llvm::raw_string_ostream os(str);
   os << "silently concretizing (reason: " << reason << ") expression " << e
-     << " to value " << value << " (" << (*(state.pc)).info->file << ":"
-     << (*(state.pc)).info->line << ")";
+     << " to value " << value << " (" << state.pc->getSourceFilepath() << ":"
+     << state.pc->getLine() << ")";
 
   if (AllExternalWarnings)
     klee_warning("%s", os.str().c_str());
@@ -1584,7 +1584,7 @@ void Executor::printDebugInstructions(ExecutionState &state) {
   //   [src]     src location:asm line:state ID
   if (!DebugPrintInstructions.isSet(STDERR_COMPACT) &&
       !DebugPrintInstructions.isSet(FILE_COMPACT)) {
-    (*stream) << "     " << state.pc->getSourceLocation() << ':';
+    (*stream) << "     " << state.pc->getSourceLocationString() << ':';
   }
   if (state.pc->info->assemblyLine.hasValue()) {
     (*stream) << state.pc->info->assemblyLine.getValue() << ':';
@@ -2552,7 +2552,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       // requires that we still be in the context of the branch
       // instruction (it reuses its statistic id). Should be cleaned
       // up with convenient instruction specific data.
-      if (statsTracker && state.stack.callStack().back().kf->trackCoverage)
+      if (statsTracker)
         statsTracker->markBranchVisited(branches.first, branches.second);
 
       if (branches.first)
@@ -4231,9 +4231,9 @@ void Executor::reportProgressTowardsTargets(std::string prefix,
     repr << "in function " +
                 target->getBlock()->parent->function->getName().str();
     repr << " (lines ";
-    repr << target->getBlock()->getFirstInstruction()->info->line;
+    repr << target->getBlock()->getFirstInstruction()->getLine();
     repr << " to ";
-    repr << target->getBlock()->getLastInstruction()->info->line;
+    repr << target->getBlock()->getLastInstruction()->getLine();
     repr << ")";
     std::string targetString = repr.str();
     klee_message("%s for %s", distance.toString().c_str(),
@@ -4598,22 +4598,20 @@ void Executor::terminateStateEarlyUser(ExecutionState &state,
   terminateStateEarly(state, message, StateTerminationType::SilentExit);
 }
 
-const InstructionInfo &
-Executor::getLastNonKleeInternalInstruction(const ExecutionState &state,
-                                            Instruction **lastInstruction) {
+const KInstruction *
+Executor::getLastNonKleeInternalInstruction(const ExecutionState &state) {
   // unroll the stack of the applications state and find
   // the last instruction which is not inside a KLEE internal function
-  ExecutionStack::call_stack_ty::const_reverse_iterator
-      it = state.stack.callStack().rbegin(),
-      itE = state.stack.callStack().rend();
+  auto it = state.stack.callStack().rbegin();
+  auto itE = state.stack.callStack().rend();
 
   // don't check beyond the outermost function (i.e. main())
   itE--;
 
-  const InstructionInfo *ii = 0;
+  const KInstruction *ki = nullptr;
   if (kmodule->internalFunctions.count(it->kf->function) == 0) {
-    ii = state.prevPC->info;
-    *lastInstruction = state.prevPC->inst;
+    ki = state.prevPC;
+//    *lastInstruction = state.prevPC->inst;
     //  Cannot return yet because even though
     //  it->function is not an internal function it might of
     //  been called from an internal function.
@@ -4627,21 +4625,21 @@ Executor::getLastNonKleeInternalInstruction(const ExecutionState &state,
     // function
     const Function *f = (*it->caller).inst->getParent()->getParent();
     if (kmodule->internalFunctions.count(f)) {
-      ii = 0;
+      ki = nullptr;
       continue;
     }
-    if (!ii) {
-      ii = (*it->caller).info;
-      *lastInstruction = (*it->caller).inst;
+    if (!ki) {
+      ki = it->caller;
+//      *lastInstruction = *it->caller;
     }
   }
 
-  if (!ii) {
+  if (!ki) {
     // something went wrong, play safe and return the current instruction info
-    *lastInstruction = state.prevPC->inst;
-    return *state.prevPC->info;
+//    *lastInstruction = state.prevPC->inst;
+    return state.prevPC;
   }
-  return *ii;
+  return ki;
 }
 
 bool shouldExitOn(StateTerminationType reason) {
@@ -4700,14 +4698,15 @@ void Executor::terminateStateOnError(ExecutionState &state,
                                      const char *suffix) {
   std::string message = messaget.str();
   static std::set<std::pair<Instruction *, std::string>> emittedErrors;
-  Instruction *lastInst;
-  const InstructionInfo &ii =
-      getLastNonKleeInternalInstruction(state, &lastInst);
+  const KInstruction *ki = getLastNonKleeInternalInstruction(state);
+  const InstructionInfo &ii = *ki->info;
+  Instruction *lastInst = ki->inst;
 
   if (EmitAllErrors ||
       emittedErrors.insert(std::make_pair(lastInst, message)).second) {
-    if (!ii.file.empty()) {
-      klee_message("ERROR: %s:%d: %s", ii.file.c_str(), ii.line,
+    std::string filepath = ki->getSourceFilepath();
+    if (!filepath.empty()) {
+      klee_message("ERROR: %s:%zu: %s", filepath.c_str(), ki->getLine(),
                    message.c_str());
     } else {
       klee_message("ERROR: (location information missing) %s", message.c_str());
@@ -4718,8 +4717,9 @@ void Executor::terminateStateOnError(ExecutionState &state,
     std::string MsgString;
     llvm::raw_string_ostream msg(MsgString);
     msg << "Error: " << message << '\n';
-    if (!ii.file.empty()) {
-      msg << "File: " << ii.file << '\n' << "Line: " << ii.line << '\n';
+    if (!filepath.empty()) {
+      msg << "File: " << filepath << '\n'
+          << "Line: " << ki->getLine() << '\n';
       if (ii.assemblyLine.hasValue()) {
         msg << "assembly.ll line: " << ii.assemblyLine.getValue() << '\n';
       }
@@ -4810,7 +4810,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
       if (i != arguments.size() - 1)
         os << ", ";
     }
-    os << ") at " << state.pc->getSourceLocation();
+    os << ") at " << state.pc->getSourceLocationString();
 
     if (AllExternalWarnings)
       klee_warning("%s", os.str().c_str());
@@ -4929,7 +4929,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
       if (i != arguments.size() - 1)
         os << ", ";
     }
-    os << ") at " << state.pc->getSourceLocation();
+    os << ") at " << state.pc->getSourceLocationString();
 
     if (AllExternalWarnings)
       klee_warning("%s", os.str().c_str());
@@ -7126,7 +7126,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
 
 void Executor::getCoveredLines(
     const ExecutionState &state,
-    std::map<const std::string *, std::set<unsigned>> &res) {
+    std::map<std::string, std::set<size_t>> &res) {
   res = state.coveredLines;
 }
 
@@ -7285,9 +7285,9 @@ void Executor::dumpStates() {
            sfIt != sf_ie; ++sfIt) {
         *os << "('" << sfIt->kf->function->getName().str() << "',";
         if (next == es->stack.callStack().end()) {
-          *os << es->prevPC->info->line << "), ";
+          *os << es->prevPC->getLine() << "), ";
         } else {
-          *os << next->caller->info->line << "), ";
+          *os << next->caller->getLine() << "), ";
           ++next;
         }
       }

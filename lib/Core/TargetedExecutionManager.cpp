@@ -524,7 +524,7 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
 void TargetedExecutionManager::reportFalseNegative(ExecutionState &state,
                                                    ReachWithError error) {
   klee_warning("100.00%% %s False Negative at: %s", getErrorString(error),
-               state.prevPC->getSourceLocation().c_str());
+               state.prevPC->getSourceLocationString().c_str());
 }
 
 bool TargetedExecutionManager::reportTruePositive(ExecutionState &state,

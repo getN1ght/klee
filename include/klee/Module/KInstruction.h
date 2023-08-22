@@ -36,26 +36,36 @@ struct KBlock;
 /// during execution.
 struct KInstruction {
   llvm::Instruction *inst;
-  const InstructionInfo *info;
+  const InstructionInfo *info; // TODO remove it
 
   /// Value numbers for each operand. -1 is an invalid value,
   /// otherwise negative numbers are indices (negated and offset by
   /// 2) into the module constant table and positive numbers are
   /// register indices.
   int *operands;
-  /// Destination register index.
-  unsigned dest;
   KBlock *parent;
 
   // Instruction index in the basic block
-  unsigned index;
+  size_t index; // TODO maybe change to pointer or size_t
 
+  /// Destination register index.
+  //  unsigned dest;
 public:
-  KInstruction() = default;
-  explicit KInstruction(const KInstruction &ki);
+  /// Instruction index in the basic block
+  [[nodiscard]] unsigned getIndex() const; // TODO change to uintptr_t
+  /// Destination register index.
+  [[nodiscard]] unsigned getDest() const; // TODO change to uintptr_t
+
+  KInstruction() = default;               // TODO remove default constructor
+  explicit KInstruction(const KInstruction &ki) = delete;
   virtual ~KInstruction();
-  std::string getSourceLocation() const;
-  std::string toString() const;
+
+  [[nodiscard]] size_t getLine() const;
+  [[nodiscard]] size_t getColumn() const;
+  [[nodiscard]] std::string getSourceFilepath() const;
+
+  [[nodiscard]] std::string getSourceLocationString() const;
+  [[nodiscard]] std::string toString() const;
 };
 
 struct KGEPInstruction : KInstruction {
@@ -71,7 +81,7 @@ struct KGEPInstruction : KInstruction {
 
 public:
   KGEPInstruction() = default;
-  explicit KGEPInstruction(const KGEPInstruction &ki);
+  explicit KGEPInstruction(const KGEPInstruction &ki) = delete;
 };
 } // namespace klee
 

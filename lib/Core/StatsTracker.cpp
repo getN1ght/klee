@@ -237,7 +237,7 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
 
   for (auto &kfp : km->functions) {
     KFunction *kf = kfp.get();
-    kf->trackCoverage = 1;
+//    kf->trackCoverage = 1;
 
     for (unsigned i = 0; i < kf->numInstructions; ++i) {
       KInstruction *ki = kf->instructions[i];
@@ -245,15 +245,15 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
       if (OutputIStats) {
         unsigned id = ki->info->id;
         theStatisticManager->setIndex(id);
-        if (kf->trackCoverage && instructionIsCoverable(ki->inst))
+        if (instructionIsCoverable(ki->inst))
           ++stats::uncoveredInstructions;
       }
 
-      if (kf->trackCoverage) {
+//      if (kf->trackCoverage) {
         if (BranchInst *bi = dyn_cast<BranchInst>(ki->inst))
           if (!bi->isUnconditional())
             numBranches++;
-      }
+//      }
     }
   }
 
@@ -393,6 +393,7 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
     }
 
     Instruction *inst = es.pc->inst;
+    const KInstruction *ki = es.pc;
     const InstructionInfo &ii = *es.pc->info;
     InfoStackFrame &sf = es.stack.infoStack().back();
     theStatisticManager->setIndex(ii.id);
@@ -402,7 +403,7 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
     if (es.instsSinceCovNew)
       ++es.instsSinceCovNew;
 
-    if (sf.kf->trackCoverage && instructionIsCoverable(inst)) {
+    if (instructionIsCoverable(inst)) {
       if (!theStatisticManager->getIndexedValue(stats::coveredInstructions,
                                                 ii.id)) {
         // Checking for actual stoppoints avoids inconsistencies due
@@ -785,16 +786,21 @@ void StatsTracker::writeIStats() {
              it != ie; ++it) {
           Instruction *instr = &*it;
           const InstructionInfo &ii = executor.kmodule->infos->getInfo(*instr);
+
+          // TODO unify with KInstrtuction
+          auto &f = executor.kmodule->infos->getFunctionInfo(*fnIt);
+          auto locationInfo = getLocationInfo(*instr, &f);
+
           unsigned index = ii.id;
-          if (ii.file != sourceFile) {
-            of << "fl=" << ii.file << "\n";
-            sourceFile = ii.file;
+          if (locationInfo.file != sourceFile) {
+            of << "fl=" << locationInfo.file << "\n";
+            sourceFile = locationInfo.file;
           }
 
           assert(ii.assemblyLine.hasValue());
           of << ii.assemblyLine.getValue() << " ";
 
-          of << ii.line << " ";
+          of << locationInfo.line << " ";
           for (unsigned i = 0; i < nStats; i++)
             if (istatsMask.test(i))
               of << sm.getIndexedValue(sm.getStatistic(i), index) << " ";
@@ -824,7 +830,7 @@ void StatsTracker::writeIStats() {
                 assert(ii.assemblyLine.hasValue());
                 of << ii.assemblyLine.getValue() << " ";
 
-                of << ii.line << " ";
+                of << locationInfo.line << " ";
                 for (unsigned i = 0; i < nStats; i++) {
                   if (istatsMask.test(i)) {
                     Statistic &s = sm.getStatistic(i);
@@ -989,9 +995,8 @@ void StatsTracker::computeReachableUncovered() {
     bool changed;
     do {
       changed = false;
-      for (auto it = instructions.begin(), ie = instructions.end(); it != ie;
-           ++it) {
-        Instruction *inst = *it;
+      for (auto & instruction : instructions) {
+        Instruction *inst = instruction;
         unsigned bestThrough = 0;
 
         if (isa<CallInst>(inst) || isa<InvokeInst>(inst)) {
@@ -1011,10 +1016,10 @@ void StatsTracker::computeReachableUncovered() {
         }
 
         if (bestThrough) {
-          unsigned id = infos.getInfo(*(*it)).id;
+          unsigned id = infos.getInfo(*instruction).id;
           uint64_t best,
               cur = best = sm.getIndexedValue(stats::minDistToReturn, id);
-          std::vector<Instruction *> succs = getSuccs(*it);
+          std::vector<Instruction *> succs = getSuccs(instruction);
           for (std::vector<Instruction *>::iterator it2 = succs.begin(),
                                                     ie = succs.end();
                it2 != ie; ++it2) {
@@ -1070,10 +1075,7 @@ void StatsTracker::computeReachableUncovered() {
   bool changed;
   do {
     changed = false;
-    for (std::vector<Instruction *>::iterator it = instructions.begin(),
-                                              ie = instructions.end();
-         it != ie; ++it) {
-      Instruction *inst = *it;
+    for (auto inst : instructions) {
       uint64_t best, cur = best = sm.getIndexedValue(stats::minDistToUncovered,
                                                      infos.getInfo(*inst).id);
       unsigned bestThrough = 0;

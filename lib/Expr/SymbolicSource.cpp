@@ -129,10 +129,10 @@ int InstructionSource::internalCompare(const SymbolicSource &b) const {
   if (kf->blockMap[block]->id != kf->blockMap[bBlock]->id) {
     return kf->blockMap[block]->id < kf->blockMap[bBlock]->id ? -1 : 1;
   }
-  if (kf->instructionMap[&allocSite]->index !=
-      kf->instructionMap[&ib.allocSite]->index) {
-    return kf->instructionMap[&allocSite]->index <
-                   kf->instructionMap[&ib.allocSite]->index
+  if (kf->instructionMap[&allocSite]->getIndex() !=
+      kf->instructionMap[&ib.allocSite]->getIndex()) {
+    return kf->instructionMap[&allocSite]->getIndex() <
+                   kf->instructionMap[&ib.allocSite]->getIndex()
                ? -1
                : 1;
   }
@@ -158,7 +158,7 @@ unsigned InstructionSource::computeHash() {
         km->functionIDMap.at(function);
   res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) + kf->blockMap[block]->id;
   res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) +
-        kf->instructionMap[&allocSite]->index;
+        kf->instructionMap[&allocSite]->getIndex();
   hashValue = res;
   return hashValue;
 }

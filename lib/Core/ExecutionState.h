@@ -400,8 +400,10 @@ public:
   /// taken to reach/create this state
   TreeOStream symPathOS;
 
+
   /// @brief Set containing which lines in which files are covered by this state
-  std::map<const std::string *, std::set<std::uint32_t>> coveredLines;
+  // TODO change to StringRef
+  std::map<std::string, std::set<size_t>> coveredLines;
 
   /// @brief Pointer to the process tree of the current state
   /// Copies of ExecutionState should not copy ptreeNode

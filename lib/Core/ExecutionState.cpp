@@ -440,8 +440,9 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
       }
     }
     out << ")";
-    if (ii.file != "")
-      out << " at " << ii.file << ":" << ii.line;
+    std::string filepath = target->getSourceFilepath();
+    if (!filepath.empty())
+      out << " at " << filepath << ":" << target->getLine();
     out << "\n";
     target = csf.caller;
   }

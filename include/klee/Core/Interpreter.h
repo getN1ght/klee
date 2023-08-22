@@ -194,7 +194,7 @@ public:
 
   virtual void
   getCoveredLines(const ExecutionState &state,
-                  std::map<const std::string *, std::set<unsigned>> &res) = 0;
+                  std::map<std::string, std::set<size_t>> &res) = 0;
 
   virtual void getBlockPath(const ExecutionState &state,
                             std::string &blockPath) = 0;

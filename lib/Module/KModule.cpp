@@ -535,7 +535,7 @@ void KBlock::handleKInstruction(
     llvm::Instruction *inst, KModule *km, KInstruction *ki) {
   ki->parent = this;
   ki->inst = inst;
-  ki->dest = instructionToRegisterMap[inst];
+//  ki->dest = instructionToRegisterMap[inst]; // TODO
   if (isa<CallInst>(inst) || isa<InvokeInst>(inst)) {
     const CallBase &cs = cast<CallBase>(*inst);
     Value *val = cs.getCalledOperand();
@@ -559,12 +559,13 @@ void KBlock::handleKInstruction(
 KFunction::KFunction(llvm::Function *_function, KModule *_km)
     : KCallable(CK_Function), parent(_km), function(_function),
       numArgs(function->arg_size()), numInstructions(0), numBlocks(0),
-      entryKBlock(nullptr), trackCoverage(true) {
+      entryKBlock(nullptr) {
   for (auto &BasicBlock : *function) {
     numInstructions += BasicBlock.size();
     numBlocks++;
   }
   instructions = new KInstruction *[numInstructions];
+  // TODO may be deleted [numArgs + instructionId]
   std::unordered_map<Instruction *, unsigned> instructionToRegisterMap;
   // Assign unique instruction IDs to each basic block
   unsigned n = 0;
@@ -574,8 +575,9 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km)
                                 bbie = function->end();
        bbit != bbie; ++bbit) {
     for (llvm::BasicBlock::iterator it = bbit->begin(), ie = bbit->end();
-         it != ie; ++it)
+         it != ie; ++it) {
       instructionToRegisterMap[&*it] = rnum++;
+    }
   }
   numRegisters = rnum;
 
@@ -628,15 +630,14 @@ KFunction::~KFunction() {
 
 KBlock::KBlock(
     KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
-    std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
+    std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap, // TODO remove instructionToRegisterMap
     std::unordered_map<unsigned, KInstruction *> &registerToInstructionMap,
     KInstruction **instructionsKF)
-    : parent(_kfunction), basicBlock(block), numInstructions(0),
-      trackCoverage(true) {
+    : parent(_kfunction), basicBlock(block), numInstructions(0) {
   numInstructions += block->size();
   instructions = instructionsKF;
 
-  unsigned i = 0;
+  size_t i = 0;
   for (llvm::BasicBlock::iterator it = block->begin(), ie = block->end();
        it != ie; ++it) {
     KInstruction *ki;
@@ -654,7 +655,7 @@ KBlock::KBlock(
 
     Instruction *inst = &*it;
     handleKInstruction(instructionToRegisterMap, inst, km, ki);
-    ki->index = i;
+    ki->index = i; // TODO
     instructions[i++] = ki;
     registerToInstructionMap[instructionToRegisterMap[&*it]] = ki;
   }

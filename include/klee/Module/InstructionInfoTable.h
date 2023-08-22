@@ -31,28 +31,27 @@ class Module;
 
 namespace klee {
 
+// TODO move to methods of kInstruction
 /// @brief InstructionInfo stores debug information for a KInstruction.
 struct InstructionInfo {
   /// @brief The instruction id.
   unsigned id;
   /// @brief Line number in source file.
-  unsigned line;
+  //  unsigned line;
   /// @brief Column number in source file.
-  unsigned column;
+  //  unsigned column;
   /// @brief Line number in generated assembly.ll.
   llvm::Optional<uint64_t> assemblyLine;
   /// @brief Source file name.
-  const std::string &file;
+//  const std::string &file;
 
 public:
-  InstructionInfo(unsigned id, const std::string &file, unsigned line,
-                  unsigned column, llvm::Optional<uint64_t> assemblyLine)
-      : id{id}, line{line}, column{column},
-        assemblyLine{assemblyLine}, file{file} {}
+  InstructionInfo(unsigned id, llvm::Optional<uint64_t> assemblyLine)
+      : id{id}, assemblyLine{assemblyLine} {}
 };
 
 /// @brief FunctionInfo stores debug information for a KFunction.
-struct FunctionInfo {
+struct FunctionInfo { // TODO clear this too
   /// @brief The function id.
   unsigned id;
   /// @brief Line number in source file.
@@ -87,12 +86,12 @@ public:
 private:
   std::unordered_map<const llvm::Instruction *,
                      std::unique_ptr<InstructionInfo>>
-      infos;
+      infos; // TODO change to llvm::Instruction* -> KInstruction*
   std::unordered_map<const llvm::Function *, std::unique_ptr<FunctionInfo>>
       functionInfos;
-  LocationToFunctionsMap fileNameToFunctions;
-  std::vector<std::unique_ptr<std::string>> internedStrings;
-  std::unordered_set<std::string> filesNames;
+  std::vector<std::unique_ptr<std::string>> internedStrings; // TODO remove
+  LocationToFunctionsMap fileNameToFunctions; // TODO remove
+  std::unordered_set<std::string> filesNames; // TODO remove
   Instructions insts;
 
 public:
@@ -107,6 +106,16 @@ public:
   const std::unordered_set<std::string> &getFilesNames() const;
   Instructions getInstructions();
 };
+
+struct LocationInfo {
+  std::string file;
+  size_t line;
+  size_t column;
+};
+
+// TODO need unify with kInstruction
+LocationInfo getLocationInfo(const llvm::Instruction &Inst,
+                             const FunctionInfo *f);
 
 } // namespace klee
 
