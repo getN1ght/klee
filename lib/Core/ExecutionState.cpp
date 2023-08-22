@@ -102,13 +102,13 @@ bool CallStackFrame::equals(const CallStackFrame &other) const {
 }
 
 StackFrame::StackFrame(KFunction *kf) : kf(kf), varargs(0) {
-  locals = new Cell[kf->numRegisters];
+  locals = new Cell[kf->getNumRegisters()];
 }
 
 StackFrame::StackFrame(const StackFrame &s)
     : kf(s.kf), allocas(s.allocas), varargs(s.varargs) {
-  locals = new Cell[kf->numRegisters];
-  for (unsigned i = 0; i < kf->numRegisters; i++)
+  locals = new Cell[kf->getNumRegisters()];
+  for (unsigned i = 0; i < kf->getNumRegisters(); i++)
     locals[i] = s.locals[i];
 }
 

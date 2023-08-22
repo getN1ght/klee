@@ -67,6 +67,6 @@ std::string KInstruction::toString() const {
 unsigned KInstruction::getIndex() const { return index; }
 
 unsigned KInstruction::getDest() const {
-  return parent->parent->numArgs + index +
+  return parent->parent->getNumArgs() + index +
          (parent->instructions - parent->parent->instructions);
 }

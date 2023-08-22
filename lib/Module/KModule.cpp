@@ -376,7 +376,7 @@ void KModule::manifest(InterpreterHandler *ih,
       }
     }
 
-    functionIDMap.insert({&Function, functionID});
+//    functionIDMap[&Function] = functionID;
     kf->id = functionID;
     functionID++;
     functionNameMap.insert({kf->getName().str(), kf.get()});
@@ -502,6 +502,10 @@ unsigned KModule::getConstantID(Constant *c, KInstruction *ki) {
   return id;
 }
 
+unsigned KModule::getFunctionId(const llvm::Function *func) const {
+  return functionMap.at(func)->id;
+}
+
 /***/
 
 KConstant::KConstant(llvm::Constant *_ct, unsigned _id, KInstruction *_ki) {
@@ -514,10 +518,10 @@ KConstant::KConstant(llvm::Constant *_ct, unsigned _id, KInstruction *_ki) {
 
 static int getOperandNum(
     Value *v,
-    std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
+    const std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
     KModule *km, KInstruction *ki) {
   if (Instruction *inst = dyn_cast<Instruction>(v)) {
-    return instructionToRegisterMap[inst];
+    return instructionToRegisterMap.at(inst);
   } else if (Argument *a = dyn_cast<Argument>(v)) {
     return a->getArgNo();
   } else if (isa<BasicBlock>(v) || isa<InlineAsm>(v) ||
@@ -531,11 +535,11 @@ static int getOperandNum(
 }
 
 void KBlock::handleKInstruction(
-    std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
+    const std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
     llvm::Instruction *inst, KModule *km, KInstruction *ki) {
   ki->parent = this;
   ki->inst = inst;
-//  ki->dest = instructionToRegisterMap[inst]; // TODO
+  //  ki->dest = instructionToRegisterMap[inst]; // TODO
   if (isa<CallInst>(inst) || isa<InvokeInst>(inst)) {
     const CallBase &cs = cast<CallBase>(*inst);
     Value *val = cs.getCalledOperand();
@@ -558,11 +562,10 @@ void KBlock::handleKInstruction(
 
 KFunction::KFunction(llvm::Function *_function, KModule *_km)
     : KCallable(CK_Function), parent(_km), function(_function),
-      numArgs(function->arg_size()), numInstructions(0), numBlocks(0),
-      entryKBlock(nullptr) {
+      numInstructions(0), entryKBlock(nullptr) {
   for (auto &BasicBlock : *function) {
     numInstructions += BasicBlock.size();
-    numBlocks++;
+    //    numBlocks++;
   }
   instructions = new KInstruction *[numInstructions];
   // TODO may be deleted [numArgs + instructionId]
@@ -570,18 +573,14 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km)
   // Assign unique instruction IDs to each basic block
   unsigned n = 0;
   // The first arg_size() registers are reserved for formals.
-  unsigned rnum = numArgs;
-  for (llvm::Function::iterator bbit = function->begin(),
-                                bbie = function->end();
-       bbit != bbie; ++bbit) {
-    for (llvm::BasicBlock::iterator it = bbit->begin(), ie = bbit->end();
-         it != ie; ++it) {
-      instructionToRegisterMap[&*it] = rnum++;
+  unsigned rnum = getNumArgs();
+  for (auto &bbit : *function) {
+    for (auto &it : bbit) {
+      instructionToRegisterMap[&it] = rnum++;
     }
   }
-  numRegisters = rnum;
 
-  unsigned blockID = 0;
+  //  unsigned blockID = 0;
   for (llvm::Function::iterator bbit = function->begin(),
                                 bbie = function->end();
        bbit != bbie; ++bbit) {
@@ -596,27 +595,28 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km)
       if (f) {
         calledFunctions.insert(f);
       }
-      KCallBlock *ckb = new KCallBlock(
-          this, &*bbit, parent, instructionToRegisterMap,
-          registerToInstructionMap, calledFunctions, &instructions[n]);
+      KCallBlock *ckb =
+          new KCallBlock(this, &*bbit, parent, instructionToRegisterMap,
+                         calledFunctions, &instructions[n]);
       kCallBlocks.push_back(ckb);
       kb = ckb;
     } else if (SplitReturns && isa<ReturnInst>(lit)) {
       kb = new KReturnBlock(this, &*bbit, parent, instructionToRegisterMap,
-                            registerToInstructionMap, &instructions[n]);
+                            &instructions[n]);
       returnKBlocks.push_back(kb);
-    } else
+    } else {
       kb = new KBlock(this, &*bbit, parent, instructionToRegisterMap,
-                      registerToInstructionMap, &instructions[n]);
+                      &instructions[n]);
+    }
     for (unsigned i = 0; i < kb->numInstructions; i++, n++) {
       instructionMap[instructions[n]->inst] = instructions[n];
     }
-    kb->id = blockID++;
+    //    kb->id = blockID++;
     blockMap[&*bbit] = kb;
     blocks.push_back(std::unique_ptr<KBlock>(kb));
   }
 
-  if (numBlocks > 0) {
+  if (blocks.size() > 0) {
     assert(function->begin() != function->end());
     entryKBlock = blockMap[&*function->begin()];
   }
@@ -630,19 +630,18 @@ KFunction::~KFunction() {
 
 KBlock::KBlock(
     KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
-    std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap, // TODO remove instructionToRegisterMap
-    std::unordered_map<unsigned, KInstruction *> &registerToInstructionMap,
+    const std::unordered_map<Instruction *, unsigned>
+        &instructionToRegisterMap, // TODO remove instructionToRegisterMap
     KInstruction **instructionsKF)
     : parent(_kfunction), basicBlock(block), numInstructions(0) {
   numInstructions += block->size();
   instructions = instructionsKF;
 
   size_t i = 0;
-  for (llvm::BasicBlock::iterator it = block->begin(), ie = block->end();
-       it != ie; ++it) {
+  for (auto &it : *block) {
     KInstruction *ki;
 
-    switch (it->getOpcode()) {
+    switch (it.getOpcode()) {
     case Instruction::GetElementPtr:
     case Instruction::InsertValue:
     case Instruction::ExtractValue:
@@ -653,21 +652,20 @@ KBlock::KBlock(
       break;
     }
 
-    Instruction *inst = &*it;
-    handleKInstruction(instructionToRegisterMap, inst, km, ki);
+    Instruction *inst = &it;
     ki->index = i; // TODO
+    handleKInstruction(instructionToRegisterMap, inst, km, ki);
     instructions[i++] = ki;
-    registerToInstructionMap[instructionToRegisterMap[&*it]] = ki;
+    //    registerToInstructionMap[ki->getDest()] = ki;
   }
 }
 
 KCallBlock::KCallBlock(
     KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
-    std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
-    std::unordered_map<unsigned, KInstruction *> &registerToInstructionMap,
+    const std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
     std::set<llvm::Function *> _calledFunctions, KInstruction **instructionsKF)
     : KBlock::KBlock(_kfunction, block, km, instructionToRegisterMap,
-                     registerToInstructionMap, instructionsKF),
+                     instructionsKF),
       kcallInstruction(this->instructions[0]),
       calledFunctions(_calledFunctions) {}
 
@@ -696,11 +694,10 @@ KFunction *KCallBlock::getKFunction() const {
 
 KReturnBlock::KReturnBlock(
     KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
-    std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
-    std::unordered_map<unsigned, KInstruction *> &registerToInstructionMap,
+    const std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
     KInstruction **instructionsKF)
     : KBlock::KBlock(_kfunction, block, km, instructionToRegisterMap,
-                     registerToInstructionMap, instructionsKF) {}
+                     instructionsKF) {}
 
 std::string KBlock::getLabel() const {
   std::string _label;
@@ -712,4 +709,14 @@ std::string KBlock::getLabel() const {
 
 std::string KBlock::toString() const {
   return getLabel() + " in function " + parent->function->getName().str();
+}
+
+uintptr_t KBlock::getId() const { return instructions - parent->instructions; }
+
+KInstruction *KFunction::getInstructionByRegister(size_t reg) const {
+  return instructions[reg - function->arg_size()];
+}
+size_t KFunction::getNumArgs() const { return function->arg_size(); }
+size_t KFunction::getNumRegisters() const {
+  return function->arg_size() + numInstructions;
 }

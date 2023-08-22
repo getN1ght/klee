@@ -64,16 +64,16 @@ struct KBlock {
 
   KInstruction **instructions;
   unsigned numInstructions;
-  unsigned id;
+  //  unsigned id;
 
   /// Whether instructions in this function should count as
   /// "coverable" for statistics and search heuristics.
-//  bool trackCoverage;
+  //  bool trackCoverage;
 
 public:
   KBlock(KFunction *, llvm::BasicBlock *, KModule *,
-         std::unordered_map<llvm::Instruction *, unsigned> &,
-         std::unordered_map<unsigned, KInstruction *> &, KInstruction **);
+         const std::unordered_map<llvm::Instruction *, unsigned> &,
+         KInstruction **);
   KBlock(const KBlock &) = delete;
   KBlock &operator=(const KBlock &) = delete;
   virtual ~KBlock() = default;
@@ -81,16 +81,19 @@ public:
   virtual KBlockType getKBlockType() const { return KBlockType::Base; }
   static bool classof(const KBlock *) { return true; }
 
-  void handleKInstruction(std::unordered_map<llvm::Instruction *, unsigned>
-                              &instructionToRegisterMap,
-                          llvm::Instruction *inst, KModule *km,
-                          KInstruction *ki);
+  void
+  handleKInstruction(const std::unordered_map<llvm::Instruction *, unsigned>
+                         &instructionToRegisterMap,
+                     llvm::Instruction *inst, KModule *km, KInstruction *ki);
   KInstruction *getFirstInstruction() const noexcept { return instructions[0]; }
   KInstruction *getLastInstruction() const noexcept {
     return instructions[numInstructions - 1];
   }
   std::string getLabel() const;
   std::string toString() const;
+
+  /// Block id inside function
+  [[nodiscard]] uintptr_t getId() const;
 };
 
 typedef std::function<bool(KBlock *)> KBlockPredicate;
@@ -101,8 +104,7 @@ struct KCallBlock : KBlock {
 
 public:
   KCallBlock(KFunction *, llvm::BasicBlock *, KModule *,
-             std::unordered_map<llvm::Instruction *, unsigned> &,
-             std::unordered_map<unsigned, KInstruction *> &,
+             const std::unordered_map<llvm::Instruction *, unsigned> &,
              std::set<llvm::Function *>, KInstruction **);
   static bool classof(const KCallBlock *) { return true; }
   static bool classof(const KBlock *E) {
@@ -118,8 +120,8 @@ public:
 struct KReturnBlock : KBlock {
 public:
   KReturnBlock(KFunction *, llvm::BasicBlock *, KModule *,
-               std::unordered_map<llvm::Instruction *, unsigned> &,
-               std::unordered_map<unsigned, KInstruction *> &, KInstruction **);
+               const std::unordered_map<llvm::Instruction *, unsigned> &,
+               KInstruction **);
   static bool classof(const KReturnBlock *) { return true; }
   static bool classof(const KBlock *E) {
     return E->getKBlockType() == KBlockType::Return;
@@ -134,27 +136,33 @@ private:
 public:
   KModule *parent;
   llvm::Function *function;
-
-  unsigned numArgs, numRegisters;
-  unsigned id;
-
-  std::unordered_map<unsigned, KInstruction *> registerToInstructionMap;
-  unsigned numInstructions;
-  unsigned numBlocks;
   KInstruction **instructions;
 
-  bool kleeHandled = false;
+  //  std::unordered_map<unsigned, KInstruction *> registerToInstructionMap;
+  [[nodiscard]] KInstruction *getInstructionByRegister(size_t reg) const;
 
   std::unordered_map<const llvm::Instruction *, KInstruction *> instructionMap;
+  // TODO maybe change to std::unique_ptr<KBlock[]>
   std::vector<std::unique_ptr<KBlock>> blocks;
   std::unordered_map<const llvm::BasicBlock *, KBlock *> blockMap;
   KBlock *entryKBlock;
   std::vector<KBlock *> returnKBlocks;
   std::vector<KCallBlock *> kCallBlocks;
 
+
+  /// count of instructions in function
+  unsigned numInstructions;
+  //  unsigned numArgs;
+  [[nodiscard]] size_t getNumArgs() const;
+  //  unsigned numRegisters;
+  [[nodiscard]] size_t getNumRegisters() const;
+  //  unsigned numBlocks;
+  unsigned id;
+
+  bool kleeHandled = false;
   /// Whether instructions in this function should count as
   /// "coverable" for statistics and search heuristics.
-//  bool trackCoverage;
+  //  bool trackCoverage;
 
   explicit KFunction(llvm::Function *, KModule *);
   KFunction(const KFunction &) = delete;
@@ -212,7 +220,7 @@ public:
 
 class KModule {
 private:
-  bool withPosixRuntime;
+  bool withPosixRuntime; // TODO move to opts
 
 public:
   std::unique_ptr<llvm::Module> module;
@@ -223,7 +231,8 @@ public:
   std::unordered_map<const llvm::Function *, KFunction *> functionMap;
   std::unordered_map<llvm::Function *, std::set<llvm::Function *>> callMap;
   std::unordered_map<std::string, KFunction *> functionNameMap;
-  std::unordered_map<const llvm::Function *, unsigned> functionIDMap;
+//  std::unordered_map<const llvm::Function *, unsigned> functionIDMap;
+  [[nodiscard]] unsigned getFunctionId(const llvm::Function *) const;
 
   // Functions which escape (may be called indirectly)
   // XXX change to KFunction

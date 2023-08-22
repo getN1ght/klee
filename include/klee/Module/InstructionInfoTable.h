@@ -90,9 +90,9 @@ private:
   std::unordered_map<const llvm::Function *, std::unique_ptr<FunctionInfo>>
       functionInfos;
   std::vector<std::unique_ptr<std::string>> internedStrings; // TODO remove
-  LocationToFunctionsMap fileNameToFunctions; // TODO remove
-  std::unordered_set<std::string> filesNames; // TODO remove
-  Instructions insts;
+  LocationToFunctionsMap fileNameToFunctions;                // TODO remove
+  std::unordered_set<std::string> filesNames;                // TODO remove
+  Instructions insts; // TODO remove when move prepare target to main
 
 public:
   explicit InstructionInfoTable(

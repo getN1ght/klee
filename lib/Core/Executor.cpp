@@ -6813,7 +6813,8 @@ void Executor::prepareSymbolicValue(ExecutionState &state,
 
 void Executor::prepareSymbolicRegister(ExecutionState &state, StackFrame &sf,
                                        unsigned regNum) {
-  KInstruction *allocInst = sf.kf->registerToInstructionMap[regNum];
+//  KInstruction *allocInst = sf.kf->registerToInstructionMap[regNum];
+  KInstruction *allocInst = sf.kf->getInstructionByRegister(regNum);
   prepareSymbolicValue(state, sf, allocInst);
 }
 
