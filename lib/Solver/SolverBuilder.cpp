@@ -16,6 +16,7 @@ ref<ExprHandle> SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   kidsHandles.reserve(expr->getNumKids());
 
   for (const auto &expr : expr->kids()) {
+    // Build in arbitrary theory
     ref<ExprHandle> kidHandle = build(expr);
     kidsHandles.push_back(kidHandle);
   }
@@ -27,7 +28,7 @@ ref<ExprHandle> SolverBuilder::build(const ref<Expr> &expr) {
   for (const auto &theory : orderOfTheories) {
     ref<ExprHandle> exprHandle = buildWithTheory(theory, expr);
     if (exprHandle) {
-
+      
     }
   }
 }

@@ -3,6 +3,8 @@
 
 #include "SolverTheory.h"
 
+#include "llvm/ADT/APInt.h"
+
 namespace klee {
 
 template <typename T> class ref;
@@ -77,6 +79,8 @@ public:
   virtual ref<ExprHandle> FNeg(const ref<ExprHandle> &arg) { return nullptr; }
 
   /* Arithmetics section */
+public:
+  virtual ref<ExprHandle> bvConst(const llvm::APInt &val) { return nullptr; }
   virtual ref<ExprHandle> bvAdd(const ref<ExprHandle> &lhs,
                                 const ref<ExprHandle> &rhs) {
     return nullptr;
@@ -162,6 +166,10 @@ public:
   virtual ref<ExprHandle> bvExtract(const ref<ExprHandle> &expr,
                                     const ref<ExprHandle> &lb,
                                     const ref<ExprHandle> &rb) {
+    return nullptr;
+  }
+  virtual ref<ExprHandle> bvConcat(const ref<ExprHandle> &lhs,
+                                   const ref<ExprHandle> &rhs) {
     return nullptr;
   }
   /* LIA section */

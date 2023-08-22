@@ -52,6 +52,7 @@ protected:
   virtual ref<ExprHandle> translate(Expr::Kind, const ArgumentsList &);
 
 public:
+  virtual ref<ExprHandle> constant();
   virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
                               const ref<ExprHandle> &rhs);
   virtual ref<ExprHandle> sub(const ref<ExprHandle> &lhs,

@@ -8,6 +8,9 @@ using namespace klee;
 
 ref<ExprHandle> BV::translate(Expr::Kind kind, const ArgumentsList &args) {
   switch (kind) {
+  case Expr::Kind::Constant: {
+     return constant();
+  }
   case Expr::Kind::Add: {
     return add(args[0], args[1]);
   }

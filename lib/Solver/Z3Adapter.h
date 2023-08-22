@@ -4,6 +4,7 @@
 #include "SolverAdapter.h"
 #include "SolverTheory.h"
 
+#include "llvm/ADT/APInt.h"
 #include "z3++.h"
 
 namespace klee {
@@ -11,13 +12,9 @@ namespace klee {
 template <typename> class ref;
 
 class Z3ExprHandle : public ExprHandle {
-private:
-  const z3::expr expr;
-
 public:
+  const z3::expr expr;
   Z3ExprHandle(const z3::expr &);
-
-  operator const z3::expr &() const { return expr; }
 };
 
 class Z3Adapter : public SolverAdapter {
@@ -25,6 +22,7 @@ private:
   const z3::context ctx;
 
 public:
+  ref<ExprHandle> bvConst(const llvm::APInt &val) override;
   ref<ExprHandle> bvAdd(const ref<ExprHandle> &lhs,
                         const ref<ExprHandle> &rhs) override;
   ref<ExprHandle> bvSub(const ref<ExprHandle> &lhs,
@@ -68,6 +66,8 @@ public:
   ref<ExprHandle> bvExtract(const ref<ExprHandle> &expr,
                             const ref<ExprHandle> &lb,
                             const ref<ExprHandle> &rb) override;
+  ref<ExprHandle> bvConcat(const ref<ExprHandle> &lhs,
+                           const ref<ExprHandle> &rhs) override;
 
 public:
   ref<ExprHandle> propAnd(const ref<ExprHandle> &lhs,
