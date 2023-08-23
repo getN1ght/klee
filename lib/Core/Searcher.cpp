@@ -390,7 +390,7 @@ double WeightedRandomSearcher::getWeight(ExecutionState *es) {
     return std::pow(0.5, es->depth);
   case InstCount: {
     uint64_t count = theStatisticManager->getIndexedValue(stats::instructions,
-                                                          es->pc->info->id);
+                                                          es->pc->getGlobalIndex());
     double inv = 1. / std::max((uint64_t)1, count);
     return inv * inv;
   }

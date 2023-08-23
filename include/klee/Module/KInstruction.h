@@ -16,10 +16,12 @@
 #include "klee/Support/CompilerWarning.h"
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
+#include "KModule.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Support/raw_ostream.h"
 DISABLE_WARNING_POP
 
+#include <optional>
 #include <vector>
 
 namespace llvm {
@@ -28,7 +30,7 @@ class Instruction;
 
 namespace klee {
 class Executor;
-struct InstructionInfo;
+//struct InstructionInfo;
 class KModule;
 struct KBlock;
 
@@ -36,7 +38,7 @@ struct KBlock;
 /// during execution.
 struct KInstruction {
   llvm::Instruction *inst;
-  const InstructionInfo *info; // TODO remove it
+//  const InstructionInfo *info; // TODO remove it
 
   /// Value numbers for each operand. -1 is an invalid value,
   /// otherwise negative numbers are indices (negated and offset by
@@ -45,18 +47,27 @@ struct KInstruction {
   int *operands;
   KBlock *parent;
 
+private:
   // Instruction index in the basic block
-  size_t index; // TODO maybe change to pointer or size_t
+  const unsigned globalIndex;
 
   /// Destination register index.
   //  unsigned dest;
 public:
+  /// Unique index for KFunction and KInstruction inside KModule
+  /// from 0 to [KFunction + KInstruction]
+  [[nodiscard]] unsigned getGlobalIndex() const;
   /// Instruction index in the basic block
-  [[nodiscard]] unsigned getIndex() const; // TODO change to uintptr_t
+  [[nodiscard]] unsigned getIndex() const;
   /// Destination register index.
-  [[nodiscard]] unsigned getDest() const; // TODO change to uintptr_t
+  [[nodiscard]] unsigned getDest() const;
 
-  KInstruction() = default;               // TODO remove default constructor
+  KInstruction(const std::unordered_map<llvm::Instruction *, unsigned>
+                   &_instructionToRegisterMap,
+               llvm::Instruction *_inst, KModule *_km, KBlock *_kb,
+               unsigned &_globalIndexInc);
+
+  KInstruction() = delete; // TODO remove default constructor
   explicit KInstruction(const KInstruction &ki) = delete;
   virtual ~KInstruction();
 
@@ -66,6 +77,14 @@ public:
 
   [[nodiscard]] std::string getSourceLocationString() const;
   [[nodiscard]] std::string toString() const;
+
+  [[nodiscard]] inline KBlock *getKBlock() const { return parent; }
+  [[nodiscard]] inline KFunction *getKFunction() const {
+    return getKBlock()->parent;
+  }
+  [[nodiscard]] inline KModule *getKModule() const {
+    return getKFunction()->parent;
+  }
 };
 
 struct KGEPInstruction : KInstruction {
@@ -80,7 +99,13 @@ struct KGEPInstruction : KInstruction {
   uint64_t offset;
 
 public:
-  KGEPInstruction() = default;
+  KGEPInstruction(const std::unordered_map<llvm::Instruction *, unsigned>
+                      &_instructionToRegisterMap,
+                  llvm::Instruction *_inst, KModule *_km, KBlock *_kb,
+                  unsigned &_globalIndexInc)
+      : KInstruction(_instructionToRegisterMap, _inst, _km, _kb,
+                     _globalIndexInc) {}
+  KGEPInstruction() = delete;
   explicit KGEPInstruction(const KGEPInstruction &ki) = delete;
 };
 } // namespace klee

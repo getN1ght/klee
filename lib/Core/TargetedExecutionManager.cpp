@@ -318,24 +318,32 @@ TargetedExecutionManager::LocationToBlocks
 TargetedExecutionManager::prepareAllLocations(KModule *kmodule,
                                               Locations &locations) const {
   LocationToBlocks locToBlocks;
-  const auto &infos = kmodule->infos;
+//  const auto &infos = kmodule->infos;
+
+  std::unordered_map<std::string, std::unordered_set<const llvm::Function *>>
+      fileNameToFunctions;
+
+  for (const auto &kfunc : kmodule->functions) {
+    fileNameToFunctions[kfunc->getSourceFilepath()].insert(kfunc->function);
+  }
+
   for (auto it = locations.begin(); it != locations.end(); ++it) {
     auto loc = *it;
-    for (const auto &fileName : infos->getFilesNames()) {
-      if (kmodule->origInfos.count(fileName) == 0) {
+    for (const auto &[fileName, origInstsInFile] : kmodule->origInstructions) {
+      if (kmodule->origInstructions.count(fileName) == 0) {
         continue;
       }
       if (!loc->isInside(fileName)) {
         continue;
       }
 
-      const auto &relatedFunctions =
-          infos->getFileNameToFunctions().at(fileName);
+      const auto &relatedFunctions = fileNameToFunctions.at(fileName);
 
       for (const auto func : relatedFunctions) {
         const auto kfunc = kmodule->functionMap[func];
-        const auto &fi = infos->getFunctionInfo(*kfunc->function);
-        const auto &origInstsInFile = kmodule->origInfos.at(fi.file);
+        //        const auto &fi = infos->getFunctionInfo(*kfunc->function);
+        //        const auto &origInstsInFile =
+        //            kmodule->origInstructions.at(kfunc->getSourceFilepath());
 
         for (const auto &kblock : kfunc->blocks) {
           auto b = kblock.get();

@@ -726,9 +726,9 @@ public:
   setModule(std::vector<std::unique_ptr<llvm::Module>> &userModules,
             std::vector<std::unique_ptr<llvm::Module>> &libsModules,
             const ModuleOptions &opts,
-            const std::unordered_set<std::string> &mainModuleFunctions,
-            const std::unordered_set<std::string> &mainModuleGlobals,
-            std::unique_ptr<InstructionInfoTable> origInfos) override;
+            std::set<llvm::StringRef> &mainModuleFunctions,
+            std::set<llvm::StringRef> &mainModuleGlobals,
+            FInstructions &&origInstructions) override;
 
   void useSeeds(const std::vector<struct KTest *> *seeds) override {
     usingSeeds = seeds;

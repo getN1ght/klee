@@ -540,9 +540,9 @@ llvm::Module *
 Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &userModules,
                     std::vector<std::unique_ptr<llvm::Module>> &libsModules,
                     const ModuleOptions &opts,
-                    const std::unordered_set<std::string> &mainModuleFunctions,
-                    const std::unordered_set<std::string> &mainModuleGlobals,
-                    std::unique_ptr<InstructionInfoTable> origInfos) {
+                    std::set<llvm::StringRef> &mainModuleFunctions,
+                    std::set<llvm::StringRef> &mainModuleGlobals,
+                    FInstructions &&origInstructions) {
   assert(!kmodule && !userModules.empty() &&
          "can only register one module"); // XXX gross
 
@@ -589,16 +589,12 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &userModules,
   kmodule->checkModule();
 
   // 4.) Manifest the module
-  kmodule->mainModuleFunctions.insert(mainModuleFunctions.begin(),
-                                      mainModuleFunctions.end());
-  kmodule->mainModuleGlobals.insert(mainModuleGlobals.begin(),
-                                    mainModuleGlobals.end());
+  std::swap(kmodule->mainModuleFunctions, mainModuleFunctions);
+  std::swap(kmodule->mainModuleGlobals, mainModuleGlobals);
   kmodule->manifest(interpreterHandler, interpreterOpts.Guidance,
                     StatsTracker::useStatistics());
 
-  if (origInfos) {
-    kmodule->origInfos = origInfos->getInstructions();
-  }
+  kmodule->origInstructions = origInstructions;
 
   specialFunctionHandler->bind();
 
@@ -1586,8 +1582,11 @@ void Executor::printDebugInstructions(ExecutionState &state) {
       !DebugPrintInstructions.isSet(FILE_COMPACT)) {
     (*stream) << "     " << state.pc->getSourceLocationString() << ':';
   }
-  if (state.pc->info->assemblyLine.hasValue()) {
-    (*stream) << state.pc->info->assemblyLine.getValue() << ':';
+  {
+    auto asmLine = state.pc->getKModule()->getAsmLine(state.pc->inst);
+    if (asmLine.has_value()) {
+      (*stream) << asmLine.value() << ':';
+    }
   }
   (*stream) << state.getID() << ":";
   (*stream) << "[";
@@ -4699,7 +4698,7 @@ void Executor::terminateStateOnError(ExecutionState &state,
   std::string message = messaget.str();
   static std::set<std::pair<Instruction *, std::string>> emittedErrors;
   const KInstruction *ki = getLastNonKleeInternalInstruction(state);
-  const InstructionInfo &ii = *ki->info;
+//  const InstructionInfo &ii = *ki->info;
   Instruction *lastInst = ki->inst;
 
   if (EmitAllErrors ||
@@ -4720,8 +4719,11 @@ void Executor::terminateStateOnError(ExecutionState &state,
     if (!filepath.empty()) {
       msg << "File: " << filepath << '\n'
           << "Line: " << ki->getLine() << '\n';
-      if (ii.assemblyLine.hasValue()) {
-        msg << "assembly.ll line: " << ii.assemblyLine.getValue() << '\n';
+      {
+        auto asmLine = ki->getKModule()->getAsmLine(ki->inst);
+        if (asmLine.has_value()) {
+          msg << "assembly.ll line: " << asmLine.value() << '\n';
+        }
       }
       msg << "State: " << state.getID() << '\n';
     }
@@ -7298,7 +7300,7 @@ void Executor::dumpStates() {
       uint64_t md2u =
           computeMinDistToUncovered(es->pc, sf.minDistToUncoveredOnReturn);
       uint64_t icnt = theStatisticManager->getIndexedValue(stats::instructions,
-                                                           es->pc->info->id);
+                                                           es->pc->getGlobalIndex());
       uint64_t cpicnt =
           sf.callPathNode->statistics.getValue(stats::instructions);
 
