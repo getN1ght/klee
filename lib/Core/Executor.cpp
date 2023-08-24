@@ -6394,12 +6394,12 @@ void Executor::updateStateWithSymcretes(ExecutionState &state,
 
 uint64_t Executor::updateNameVersion(ExecutionState &state,
                                      const std::string &name) {
-  uint64_t id = 0;
-  if (state.arrayNames.count(name)) {
-    id = state.arrayNames[name];
-  }
-  state.arrayNames[name] = id + 1;
-  return id;
+  static uint64_t id = 0;
+  // if (state.arrayNames.count(name)) {
+  //   id = state.arrayNames[name];
+  // }
+  // state.arrayNames[name] = id + 1;
+  return ++id;
 }
 
 const Array *Executor::makeArray(ref<Expr> size, ref<SymbolicSource> source) {
