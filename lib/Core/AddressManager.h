@@ -19,7 +19,8 @@ class AddressManager : public AddressGenerator {
 
 private:
   MemoryManager *memory;
-  ExprHashMap<IDType> bindingsAdressesToObjects;
+  std::unordered_map<AddressSpaceContext, ExprHashMap<IDType>>
+      bindingsAdressesToObjects;
   uint64_t maxSize;
 
 public:
@@ -29,6 +30,7 @@ public:
   void *allocate(ref<Expr> address, uint64_t size) override;
   MemoryObject *allocateMemoryObject(ref<Expr> address, uint64_t size);
   bool isAllocated(ref<Expr>);
+  void transferTo(const AddressSpaceContext &newCtx);
 };
 
 } // namespace klee

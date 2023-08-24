@@ -6,12 +6,12 @@
 namespace klee {
 
 void AddressManager::addAllocation(ref<Expr> address, IDType id) {
-  assert(!bindingsAdressesToObjects.count(address));
-  bindingsAdressesToObjects[address] = id;
+  assert(!bindingsAdressesToObjects[ctx].count(address));
+  bindingsAdressesToObjects[ctx][address] = id;
 }
 
 void *AddressManager::allocate(ref<Expr> address, uint64_t size) {
-  IDType id = bindingsAdressesToObjects.at(address);
+  IDType id = bindingsAdressesToObjects[ctx].at(address);
 
   auto &objects = memory->allocatedSizes.at(id);
   auto sizeLocation = objects.lower_bound(size);
@@ -48,7 +48,7 @@ void *AddressManager::allocate(ref<Expr> address, uint64_t size) {
 
 MemoryObject *AddressManager::allocateMemoryObject(ref<Expr> address,
                                                    uint64_t size) {
-  IDType id = bindingsAdressesToObjects.at(address);
+  IDType id = bindingsAdressesToObjects[ctx].at(address);
   const auto &objects = memory->getAllocatedObjects(id);
   auto resultIterator = objects.lower_bound(size);
   if (resultIterator == objects.end()) {
@@ -60,7 +60,15 @@ MemoryObject *AddressManager::allocateMemoryObject(ref<Expr> address,
 }
 
 bool AddressManager::isAllocated(ref<Expr> address) {
-  return bindingsAdressesToObjects.count(address);
+  return bindingsAdressesToObjects.count(ctx) &&
+         bindingsAdressesToObjects.at(ctx).count(address);
+}
+
+void AddressManager::transferTo(const AddressSpaceContext &newCtx) {
+  auto &bindingsInNewCtx = bindingsAdressesToObjects[newCtx];
+  for (const auto &it : bindingsAdressesToObjects[ctx]) {
+    bindingsInNewCtx.insert(it);
+  }
 }
 
 } // namespace klee

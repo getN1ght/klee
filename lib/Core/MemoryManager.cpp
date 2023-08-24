@@ -218,7 +218,7 @@ void MemoryManager::markFreed(MemoryObject *mo) {
   if (objects.find(mo) != objects.end()) {
     allocatedSizes[mo->id].erase(mo->size);
     if (allocatedSizes[mo->id].empty()) {
-      am->bindingsAdressesToObjects.erase(mo->getBaseExpr());
+      am->bindingsAdressesToObjects[am->ctx].erase(mo->getBaseExpr());
     }
     if (!mo->isFixed && !DeterministicAllocation)
       free((void *)mo->address);

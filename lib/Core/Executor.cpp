@@ -966,6 +966,7 @@ void Executor::branch(ExecutionState &state,
     for (unsigned i = 1; i < N; ++i) {
       ExecutionState *es = result[theRNG.getInt32() % i];
       ExecutionState *ns = es->branch();
+      addressManager->transferTo(ns->getID());
       addedStates.push_back(ns);
       result.push_back(ns);
       processForest->attach(es->ptreeNode, ns, es, reason);
@@ -1284,6 +1285,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     ++stats::forks;
 
     falseState = trueState->branch();
+    addressManager->transferTo(falseState->getID());
     addedStates.push_back(falseState);
 
     if (it != seedMap.end()) {
@@ -4260,6 +4262,7 @@ void Executor::run(std::vector<ExecutionState *> initialStates) {
   while (!states.empty() && !haltExecution) {
     while (!searcher->empty() && !haltExecution) {
       ExecutionState &state = searcher->selectState();
+      addressManager->inContext(state.getID());
       KInstruction *prevKI = state.prevPC;
       KFunction *kf = prevKI->parent->parent;
 
@@ -5920,6 +5923,7 @@ void Executor::executeMemoryOperation(
   if (!branches.second)
     return;
   ExecutionState *state = branches.second;
+  addressManager->inContext(state->getID());
 
   // fast path: single in-bounds resolution
   IDType idFastResult;
