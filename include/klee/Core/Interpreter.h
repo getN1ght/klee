@@ -147,8 +147,8 @@ public:
   setModule(std::vector<std::unique_ptr<llvm::Module>> &userModules,
             std::vector<std::unique_ptr<llvm::Module>> &libsModules,
             const ModuleOptions &opts,
-            std::set<llvm::StringRef> &mainModuleFunctions,
-            std::set<llvm::StringRef> &mainModuleGlobals,
+            std::set<std::string> &mainModuleFunctions,
+            std::set<std::string> &mainModuleGlobals,
             FInstructions &&origInstructions) = 0;
 
   // supply a tree stream writer which the interpreter will use

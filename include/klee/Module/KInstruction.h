@@ -23,6 +23,7 @@ DISABLE_WARNING_POP
 
 #include <optional>
 #include <vector>
+#include <unordered_map>
 
 namespace llvm {
 class Instruction;

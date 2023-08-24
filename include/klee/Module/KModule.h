@@ -247,9 +247,8 @@ public:
   // XXX change to KFunction
   std::set<llvm::Function *> escapingFunctions;
 
-  std::set<llvm::StringRef> mainModuleFunctions;
-
-  std::set<llvm::StringRef> mainModuleGlobals;
+  std::set<std::string> mainModuleFunctions;
+  std::set<std::string> mainModuleGlobals;
 
   using FInstructions = std::unordered_map<
       std::string,

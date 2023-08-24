@@ -1575,15 +1575,16 @@ int main(int argc, char **argv, char **envp) {
     EntryPoint = stubEntryPoint;
   }
 
-  std::set<llvm::StringRef> mainModuleFunctions;
+  //change to StringRef
+  std::set<std::string> mainModuleFunctions;
   for (auto &Function : *mainModule) {
     if (!Function.isDeclaration()) {
-      mainModuleFunctions.insert(Function.getName());
+      mainModuleFunctions.insert(Function.getName().str());
     }
   }
-  std::set<llvm::StringRef> mainModuleGlobals;
+  std::set<std::string> mainModuleGlobals;
   for (const auto &gv : mainModule->globals()) {
-    mainModuleGlobals.insert(gv.getName());
+    mainModuleGlobals.insert(gv.getName().str());
   }
 
   const std::string &module_triple = mainModule->getTargetTriple();

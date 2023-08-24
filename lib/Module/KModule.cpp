@@ -388,8 +388,8 @@ void KModule::manifest(InterpreterHandler *ih,
     std::unique_ptr<llvm::raw_fd_ostream> assemblyFS;
     if (OutputSource || forceSourceOutput) {
       assemblyFS = ih->openOutputFile("assembly.ll");
+      asmLineMap = buildInstructionToLineMap(*module, std::move(assemblyFS));
     }
-    asmLineMap = buildInstructionToLineMap(*module, std::move(assemblyFS));
 //    infos = std::make_unique<InstructionInfoTable>(*module);
   }
 
