@@ -510,19 +510,18 @@ SourceResult ParserImpl::ParseSource() {
 
 SourceResult ParserImpl::ParseConstantSource() {
   std::map<unsigned, ref<ConstantExpr>> Values;
-  std::abort();
-  // ConsumeLSquare();
-  // while (Tok.kind != Token::RSquare) {
-  //   if (Tok.kind == Token::EndOfFile) {
-  //     Error("unexpected end of file.");
-  //     assert(0);
-  //   }
+  ConsumeLSquare();
+  for (unsigned idx = 0; Tok.kind != Token::RSquare; ++idx) {
+    if (Tok.kind == Token::EndOfFile) {
+      Error("unexpected end of file.");
+      assert(0);
+    }
 
-  //   ExprResult Res = ParseNumber(8); // Should be Range Type
-  //   if (Res.isValid())
-  //     Values.push_back(cast<ConstantExpr>(Res.get()));
-  // }
-  // ConsumeRSquare();
+    ExprResult Res = ParseNumber(8); // Should be Range Type
+    if (Res.isValid())
+      Values.emplace(idx, cast<ConstantExpr>(Res.get()));
+  }
+  ConsumeRSquare();
   return SourceBuilder::constant(Values);
 }
 

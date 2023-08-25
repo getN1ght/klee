@@ -621,11 +621,8 @@ public:
         unsigned _id = 0);
 
 public:
-  bool isSymbolicArray() const { return !isConstantArray(); }
-  bool isConstantArray() const {
-    return isa<ConstantSource>(source) ||
-           isa<SymbolicSizeConstantSource>(source);
-  }
+  bool isSymbolicArray() const;
+  bool isConstantArray() const;
 
   const std::string getName() const { return source->toString(); }
   const std::string getIdentifier() const {
