@@ -309,23 +309,24 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
         auto ce = dyn_cast<ConstantExpr>(un->index);
         assert(ce && "Not a constant expression");
         uint64_t index = ce->getAPValue().getZExtValue();
-        // assert(index < arrayConstValues.size());
+        assert(index < elementsInArray);
         auto arrayValue = dyn_cast<ConstantExpr>(un->value);
         assert(arrayValue && "Not a constant expression");
         arrayConstValues[index] = arrayValue;
       }
-      std::vector<uint64_t> arrayValues;
+      std::vector<uint64_t> arrayValues(elementsInArray);
       // Get the concrete values from the array
       for (unsigned i = 0; i < elementsInArray; i++) {
         uint64_t val = 0;
         for (unsigned j = 0; j < bytesPerElement; j++) {
-          val |= (*(arrayConstValues[(i * bytesPerElement) + j]
+          unsigned idx = (i * bytesPerElement) + j;
+          val |= (*(arrayConstValues.at(idx)
                         .get()
                         ->getAPValue()
                         .getRawData())
                   << (j * 8));
         }
-        arrayValues.push_back(val);
+        arrayValues[i] = val;
       }
 
       ref<Expr> index = UDivExpr::create(
@@ -379,13 +380,13 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
               dyn_cast<ConstantSource>(read->updates.root->source)) {
         arrayConstValues = constantSource->constantValues;
       }
-      if (arrayConstValues.size() < size) {
-        // We need to "force" initialization of the values
-        for (size_t i = arrayConstValues.size(); i < size; i++) {
-          std::abort();
-          // arrayConstValues.push_back(ConstantExpr::create(0, Expr::Int8));
-        }
-      }
+      // if (arrayConstValues.size() < size) {
+      //   // We need to "force" initialization of the values
+      //   for (size_t i = arrayConstValues.size(); i < size; i++) {
+      //     std::abort();
+      //     // arrayConstValues.push_back(ConstantExpr::create(0, Expr::Int8));
+      //   }
+      // }
 
       // We need to read updates from lest recent to most recent, therefore
       // reverse the list
@@ -420,7 +421,7 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
             elementIsConcrete = false;
             break;
           } else {
-            val |= (*(arrayConstValues[(i * bytesPerElement) + j]
+            val |= (*(arrayConstValues.at((i * bytesPerElement) + j)
                           .get()
                           ->getAPValue()
                           .getRawData())

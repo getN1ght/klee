@@ -1505,6 +1505,26 @@ unsigned Array::computeHash() {
   hashValue = res;
   return hashValue;
 }
+
+bool Array::isSymbolicArray() const { return !isConstantArray(); }
+bool Array::isConstantArray() const {
+  // Array is concrete only if it has all values set to concrete.
+  // Otherwise, it is a symbolic array as it has uninitialized cells,
+  // which we are treat as symbolic.
+  assert(source);
+  if (ref<ConstantSource> constantSource = dyn_cast<ConstantSource>(source)) {
+    if (ref<ConstantExpr> constantSize = dyn_cast<ConstantExpr>(size)) {
+      uint64_t constantValuesSize = constantSource->constantValues.size();
+      return constantSize->getAPValue().eq(
+          llvm::APInt(constantSize->getWidth(), constantValuesSize));
+    }
+  }
+  // Array of symbolic size can not be constant.
+  //
+  // return isa<SymbolicSizeConstantSource>(source);
+  return false;
+}
+
 /***/
 
 ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index) {
@@ -1537,11 +1557,9 @@ ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index) {
           cast<ConstantSource>(ul.root->source);
       uint64_t concreteIndex = CE->getZExtValue();
       uint64_t size = constantSource->constantValues.size();
-      if (concreteIndex < size) {
-        const auto &arrayConstantValues = constantSource->constantValues;
-        if (arrayConstantValues.count(concreteIndex)) {
-          return arrayConstantValues.at(concreteIndex);
-        }
+      const auto &arrayConstantValues = constantSource->constantValues;
+      if (arrayConstantValues.count(concreteIndex)) {
+        return arrayConstantValues.at(concreteIndex);
       }
     }
   }
