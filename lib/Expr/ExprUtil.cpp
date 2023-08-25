@@ -134,7 +134,7 @@ ExprVisitor::Action ConstantArrayFinder::visitRead(const ReadExpr &re) {
     visit(un->value);
   }
 
-  if (ul.root->isConstantArray()) {
+  if (isa<ConstantSource>(ul.root->source)) {
     results.insert(ul.root);
   }
 
