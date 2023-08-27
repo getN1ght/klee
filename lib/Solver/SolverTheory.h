@@ -20,26 +20,25 @@ protected:
   ref<SolverAdapter> solverAdapter;
 
 public:
-  virtual ref<ExprHandle> translate(Expr::Kind, const ArgumentsList &) = 0;
+  virtual ref<ExprHandle> sort() = 0;
+  virtual ref<ExprHandle> translate(const ref<Expr> &, const ArgumentsList &) = 0;
   virtual ~SolverTheory() = default;
 };
 
 /* Arrays theory */
+template<typename RT, typename DT>
 struct Arrays : public SolverTheory {
 protected:
-  virtual ref<ExprHandle> translate(Expr::Kind, const ArgumentsList &);
+  virtual ref<ExprHandle> translate(const ref<Expr> &, const ArgumentsList &);
 
 public:
+  virtual ref<ExprHandle> sort();
   virtual ref<ExprHandle> read(const ref<ExprHandle> &array,
-                               const ref<ExprHandle> &index) {
-    return nullptr;
-  }
+                               const ref<ExprHandle> &index);
 
   virtual ref<ExprHandle> write(const ref<ExprHandle> &array,
                                 const ref<ExprHandle> &index,
-                                const ref<ExprHandle> &value) {
-    return nullptr;
-  }
+                                const ref<ExprHandle> &value);
 };
 
 /*
@@ -49,7 +48,7 @@ public:
 
 struct BV : public SolverTheory {
 protected:
-  virtual ref<ExprHandle> translate(Expr::Kind, const ArgumentsList &);
+  virtual ref<ExprHandle> translate(const ref<Expr> &, const ArgumentsList &);
 
 public:
   virtual ref<ExprHandle> constant();
@@ -101,7 +100,7 @@ public:
 
 struct LIA : public SolverTheory {
 protected:
-  virtual ref<ExprHandle> translate(Expr::Kind, const ArgumentsList &);
+  virtual ref<ExprHandle> translate(const ref<Expr> &, const ArgumentsList &);
 
 public:
   virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
@@ -130,7 +129,7 @@ public:
 /* Propositional logic theory */
 struct Propositional : public SolverTheory {
 protected:
-  virtual ref<ExprHandle> translate(Expr::Kind, const ArgumentsList &);
+  virtual ref<ExprHandle> translate(const ref<Expr> &, const ArgumentsList &);
 
 public:
   virtual ref<ExprHandle> land(const ref<ExprHandle> &lhs,

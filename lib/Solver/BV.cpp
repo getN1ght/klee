@@ -6,8 +6,8 @@
 
 using namespace klee;
 
-ref<ExprHandle> BV::translate(Expr::Kind kind, const ArgumentsList &args) {
-  switch (kind) {
+ref<ExprHandle> BV::translate(const ref<Expr> &expr, const ArgumentsList &args) {
+  switch (expr->getKind()) {
   case Expr::Kind::Constant: {
      return constant();
   }

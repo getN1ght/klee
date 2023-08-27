@@ -7,8 +7,8 @@
 
 using namespace klee;
 
-ref<ExprHandle> LIA::translate(Expr::Kind kind, const ArgumentsList &args) {
-  switch (kind) {
+ref<ExprHandle> LIA::translate(const ref<Expr> &expr, const ArgumentsList &args) {
+  switch (expr->getKind()) {
   case Expr::Kind::Add: {
     return add(args[0], args[1]);
   }

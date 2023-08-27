@@ -198,6 +198,9 @@ public:
 
   /* Arrays section */
 public:
+  virtual ref<ExprHandle> array(const ref<ExprHandle> &domainSort,
+                                const ref<ExprHandle> &rangeSort);
+
   virtual ref<ExprHandle> read(const ref<ExprHandle> &arr,
                                const ref<ExprHandle> &idx) {
     return nullptr;

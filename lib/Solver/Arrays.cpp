@@ -4,9 +4,9 @@
 
 using namespace klee;
 
-ref<ExprHandle> Arrays::translate(Expr::Kind kind,
-                                     const ArgumentsList &args) {
-  switch (kind) {
+ref<ExprHandle> Arrays::translate(const ref<Expr> &expr,
+                                  const ArgumentsList &args) {
+  switch (expr->getKind()) {
   case Expr::Kind::Read: {
     return read(args[0], args[1]);
   }
@@ -14,6 +14,11 @@ ref<ExprHandle> Arrays::translate(Expr::Kind kind,
     return nullptr;
   }
   }
+}
+
+ref<ExprHandle> Arrays::array(const ref<ExprHandle> &domainSort,
+                              const ref<ExprHandle> &rangeSort) { 
+  return solverAdapter->array(domainSort, rangeSort);
 }
 
 ref<ExprHandle> Arrays::read(const ref<ExprHandle> &arr,

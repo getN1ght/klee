@@ -13,20 +13,15 @@ class SolverTheory;
 template <typename> class ref;
 class Expr;
 
-
 /*
  * Base class for handles for all builders.
  * Maintains a inner representation for solver
  * and type of expression inside.
  */
-
 class ExprHandle {
 public:
-  enum Kind {
-    Z3,
-    STP,
-    METASMT
-  };
+  enum SolverKind { Z3, STP, METASMT };
+
 private:
   /* TODO: it is a sort. */
   // SolverTheory::Kind theory;
@@ -39,7 +34,6 @@ public:
   virtual ~ExprHandle() = default;
 };
 
-
 class SolverBuilder {
   friend class SolverBuilderFactory;
 
@@ -48,7 +42,8 @@ private:
   std::vector<ref<SolverTheory>> orderOfTheories;
 
   SolverBuilder(const std::vector<ref<SolverTheory>> &);
-  ref<ExprHandle> buildWithTheory(const ref<SolverTheory> &theory, const ref<Expr> &expr);
+  ref<ExprHandle> buildWithTheory(const ref<SolverTheory> &theory,
+                                  const ref<Expr> &expr);
 
 public:
   ref<ExprHandle> build(const ref<Expr> &expr);
