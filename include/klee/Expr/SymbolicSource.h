@@ -22,6 +22,8 @@ class Expr;
 class ConstantExpr;
 class KModule;
 
+typedef uint64_t ID_t;
+
 class SymbolicSource {
 protected:
   unsigned hashValue;
@@ -125,10 +127,13 @@ public:
 
 class SymbolicSizeConstantAddressSource : public SymbolicSource {
 public:
+  const ID_t ownerTypeID;
   const unsigned defaultValue;
   const unsigned version;
-  SymbolicSizeConstantAddressSource(unsigned _defaultValue, unsigned _version)
-      : defaultValue(_defaultValue), version(_version) {}
+  SymbolicSizeConstantAddressSource(ID_t ownerTypeID, unsigned _defaultValue,
+                                    unsigned _version)
+      : ownerTypeID(ownerTypeID), defaultValue(_defaultValue),
+        version(_version) {}
 
   Kind getKind() const override { return Kind::SymbolicSizeConstantAddress; }
   virtual std::string getName() const override {
@@ -150,6 +155,9 @@ public:
     }
     const SymbolicSizeConstantAddressSource &ssb =
         static_cast<const SymbolicSizeConstantAddressSource &>(b);
+    if (ownerTypeID != ssb.ownerTypeID) {
+      return ownerTypeID < ssb.ownerTypeID ? -1 : 1;
+    }
     if (defaultValue != ssb.defaultValue) {
       return defaultValue < ssb.defaultValue ? -1 : 1;
     }
@@ -222,8 +230,9 @@ public:
 
 class LazyInitializationAddressSource : public LazyInitializationSource {
 public:
-  LazyInitializationAddressSource(ref<Expr> pointer)
-      : LazyInitializationSource(pointer) {}
+  const ID_t ownerStateID;
+  LazyInitializationAddressSource(ID_t ownerStateID, ref<Expr> pointer)
+      : LazyInitializationSource(pointer), ownerStateID(ownerStateID) {}
   Kind getKind() const override { return Kind::LazyInitializationAddress; }
   virtual std::string getName() const override {
     return "lazyInitializationAddress";
@@ -233,6 +242,16 @@ public:
     return S->getKind() == Kind::LazyInitializationAddress;
   }
   static bool classof(const LazyInitializationAddressSource *) { return true; }
+
+  virtual int internalCompare(const SymbolicSource &b) const override {
+    if (const LazyInitializationAddressSource *liAddressSource =
+            dyn_cast<LazyInitializationAddressSource>(&b)) {
+      if (ownerStateID != liAddressSource->ownerStateID) {
+        return ownerStateID < liAddressSource->ownerStateID ? -1 : 1;
+      }
+    }
+    return LazyInitializationSource::internalCompare(b);
+  }
 };
 
 class LazyInitializationSizeSource : public LazyInitializationSource {
