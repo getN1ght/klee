@@ -5397,9 +5397,10 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   const Array *addressArray = makeArray(
       Expr::createPointer(pointerWidthInBits / CHAR_BIT),
       lazyInitializationSource
-          ? SourceBuilder::lazyInitializationAddress(lazyInitializationSource)
+          ? SourceBuilder::lazyInitializationAddress(state.getID(),
+                                                     lazyInitializationSource)
           : SourceBuilder::symbolicSizeConstantAddress(
-                0, updateNameVersion(state, "const_arr")));
+                state.getID(), 0, updateNameVersion(state, "const_arr")));
   ref<Expr> addressExpr =
       Expr::createTempRead(addressArray, pointerWidthInBits);
 
@@ -6394,12 +6395,12 @@ void Executor::updateStateWithSymcretes(ExecutionState &state,
 
 uint64_t Executor::updateNameVersion(ExecutionState &state,
                                      const std::string &name) {
-  static uint64_t id = 0;
-  // if (state.arrayNames.count(name)) {
-  //   id = state.arrayNames[name];
-  // }
-  // state.arrayNames[name] = id + 1;
-  return ++id;
+  uint64_t id = 0;
+  if (state.arrayNames.count(name)) {
+    id = state.arrayNames[name];
+  }
+  state.arrayNames[name] = id + 1;
+  return id;
 }
 
 const Array *Executor::makeArray(ref<Expr> size, ref<SymbolicSource> source) {
