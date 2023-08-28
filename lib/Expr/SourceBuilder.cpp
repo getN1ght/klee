@@ -18,11 +18,10 @@ ref<SymbolicSource> SourceBuilder::symbolicSizeConstant(unsigned defaultValue) {
   return r;
 }
 
-ref<SymbolicSource>
-SourceBuilder::symbolicSizeConstantAddress(unsigned defaultValue,
-                                           unsigned version) {
-  ref<SymbolicSource> r(
-      new SymbolicSizeConstantAddressSource(defaultValue, version));
+ref<SymbolicSource> SourceBuilder::symbolicSizeConstantAddress(
+    ID_t ownerTypeID, unsigned defaultValue, unsigned version) {
+  ref<SymbolicSource> r(new SymbolicSizeConstantAddressSource(
+      ownerTypeID, defaultValue, version));
   r->computeHash();
   return r;
 }
@@ -35,8 +34,9 @@ ref<SymbolicSource> SourceBuilder::makeSymbolic(const std::string &name,
 }
 
 ref<SymbolicSource>
-SourceBuilder::lazyInitializationAddress(ref<Expr> pointer) {
-  ref<SymbolicSource> r(new LazyInitializationAddressSource(pointer));
+SourceBuilder::lazyInitializationAddress(ID_t ownerTypeID, ref<Expr> pointer) {
+  ref<SymbolicSource> r(
+      new LazyInitializationAddressSource(ownerTypeID, pointer));
   r->computeHash();
   return r;
 }

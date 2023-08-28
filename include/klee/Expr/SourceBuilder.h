@@ -14,11 +14,13 @@ public:
   static ref<SymbolicSource>
   constant(const std::vector<ref<ConstantExpr>> &constantValues);
   static ref<SymbolicSource> symbolicSizeConstant(unsigned defaultValue);
-  static ref<SymbolicSource> symbolicSizeConstantAddress(unsigned defaultValue,
+  static ref<SymbolicSource> symbolicSizeConstantAddress(ID_t ownerTypeID,
+                                                         unsigned defaultValue,
                                                          unsigned version);
   static ref<SymbolicSource> makeSymbolic(const std::string &name,
                                           unsigned version);
-  static ref<SymbolicSource> lazyInitializationAddress(ref<Expr> pointer);
+  static ref<SymbolicSource> lazyInitializationAddress(ID_t ownerTypeID,
+                                                       ref<Expr> pointer);
   static ref<SymbolicSource> lazyInitializationSize(ref<Expr> pointer);
   static ref<SymbolicSource> lazyInitializationContent(ref<Expr> pointer);
   static ref<SymbolicSource> argument(const llvm::Argument &_allocSite,

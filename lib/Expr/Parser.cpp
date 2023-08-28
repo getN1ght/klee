@@ -540,7 +540,7 @@ SourceResult ParserImpl::ParseSymbolicSizeConstantAddressSource() {
   auto value = dyn_cast<ConstantExpr>(valueExpr);
   auto version = dyn_cast<ConstantExpr>(versionExpr);
   assert(value && version);
-  return SourceBuilder::symbolicSizeConstantAddress(value->getZExtValue(),
+  return SourceBuilder::symbolicSizeConstantAddress(0, value->getZExtValue(),
                                                     version->getZExtValue());
 }
 
@@ -560,7 +560,7 @@ SourceResult ParserImpl::ParseLazyInitializationContentSource() {
 
 SourceResult ParserImpl::ParseLazyInitializationAddressSource() {
   auto pointer = ParseExpr(TypeResult()).get();
-  return SourceBuilder::lazyInitializationAddress(pointer);
+  return SourceBuilder::lazyInitializationAddress(0, pointer);
 }
 
 SourceResult ParserImpl::ParseLazyInitializationSizeSource() {
