@@ -146,11 +146,12 @@ ObjectState::ObjectState(const MemoryObject *mo, const ObjectState &os)
       knownSymbolics[i] = os.knownSymbolics[i];
     }
   }
-
-  if (updates.root &&
-      (isa_and_nonnull<MakeSymbolicSource>(updates.root->source) ||
-       isa_and_nonnull<LazyInitializationContentSource>(
-           updates.root->source))) {
+  
+  // if (updates.root &&
+  //     (isa_and_nonnull<MakeSymbolicSource>(updates.root->source) ||
+  //      isa_and_nonnull<LazyInitializationContentSource>(
+  //          updates.root->source))) {
+  if (!wasZeroInitialized) {
     /* As now we cannot make only a part of object symbolic,
     we will mark all remain bytes as symbolic. */
     for (unsigned i = copyingRange; i < size; ++i) {
@@ -283,7 +284,8 @@ void ObjectState::initializeToZero() {
 }
 
 void ObjectState::initializeToRandom() {
-  makeConcrete();
+  makeSymbolic();
+  // makeConcrete();
   wasZeroInitialized = false;
   memset(concreteStore, 0xAB, size);
 }
