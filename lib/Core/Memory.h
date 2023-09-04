@@ -226,7 +226,7 @@ private:
   // mutable because we may need flush during read of const
   mutable UpdateList updates;
 
-  bool wasZeroInitialized = true;
+  bool wasZeroInitialized = false;
 
   ref<UpdateNode> lastUpdate;
 

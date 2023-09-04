@@ -93,6 +93,7 @@ ObjectState::ObjectState(const MemoryObject *mo, KType *dt)
         mo->getSizeExpr(), SourceBuilder::makeSymbolic("tmp_arr", ++id));
     updates = UpdateList(array, 0);
   }
+  makeSymbolic();
   memset(concreteStore, 0, size);
 }
 
@@ -270,6 +271,7 @@ void ObjectState::makeSymbolic() {
   assert(!updates.head &&
          "XXX makeSymbolic of objects with symbolic values is unsupported");
   // XXX simplify this, can just delete various arrays I guess
+  wasZeroInitialized = false;
   for (unsigned i = 0; i < size; i++) {
     markByteSymbolic(i);
     setKnownSymbolic(i, 0);
@@ -286,7 +288,6 @@ void ObjectState::initializeToZero() {
 void ObjectState::initializeToRandom() {
   makeSymbolic();
   // makeConcrete();
-  wasZeroInitialized = false;
   memset(concreteStore, 0xAB, size);
 }
 
