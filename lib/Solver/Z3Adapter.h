@@ -22,6 +22,9 @@ private:
   const z3::context ctx;
 
 public:
+  ref<ExprHandle> array(const ref<ExprHandle> &, const ref<ExprHandle> &) override;
+
+public:
   ref<ExprHandle> bvConst(const llvm::APInt &val) override;
   ref<ExprHandle> bvAdd(const ref<ExprHandle> &lhs,
                         const ref<ExprHandle> &rhs) override;

@@ -12,6 +12,15 @@ Z3ExprHandle::Z3ExprHandle(const z3::expr &node) : expr(node) {}
 
 Z3Adapter::Z3Adapter() : ctx(z3::context()) {}
 
+ref<ExprHandle> Z3Adapter::array(const ref<ExprHandle> &domainSort,
+                                 const ref<ExprHandle> &rangeSort) {
+  const ref<Z3ExprHandle> &domainSortZ3 = cast<Z3ExprHandle>(domainSort);
+  const ref<Z3ExprHandle> &rangeSortZ3 = cast<Z3ExprHandle>(rangeSort);
+  std::abort();
+  // return ctx.array_sort();
+  return nullptr;
+}
+
 ref<ExprHandle> Z3Adapter::bvConst(const llvm::APInt &val) {
   // ctx.bv_val()
   std::abort();

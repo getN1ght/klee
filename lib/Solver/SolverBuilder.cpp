@@ -35,7 +35,6 @@ ref<ExprHandle> SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
 ref<ExprHandle> SolverBuilder::build(const ref<Expr> &expr) {
   for (const auto &theory : orderOfTheories) {
     ref<ExprHandle> exprHandle = buildWithTheory(theory, expr);
-    /* We may do upcasts from the lowest theory */
 
     if (exprHandle) {
     }
