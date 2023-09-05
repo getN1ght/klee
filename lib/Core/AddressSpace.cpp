@@ -404,6 +404,7 @@ bool AddressSpace::copyInConcrete(const MemoryObject *mo, const ObjectState *os,
     } else {
       ObjectState *wos = getWriteable(mo, os);
       memcpy(wos->concreteStore, address, mo->size);
+      wos->makeConcrete();
     }
   }
   return true;

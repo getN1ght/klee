@@ -225,11 +225,10 @@ const UpdateList &ObjectState::getUpdates() const {
     }
 
     static unsigned id = 0;
-    std::string arrayName = "const_arr" + llvm::utostr(++id);
-    const Array *array = nullptr;
-
-    array = getArrayCache()->CreateArray(object->getSizeExpr(),
-                                          SourceBuilder::constant(contents));
+    const Array *array = array = getArrayCache()->CreateArray(
+        object->getSizeExpr(), !wasZeroInitialized
+                                   ? SourceBuilder::constant(contents)
+                                   : SourceBuilder::symbolicSizeConstant(0));
     updates = UpdateList(array, 0);
 
     // Apply the remaining (non-constant) writes.

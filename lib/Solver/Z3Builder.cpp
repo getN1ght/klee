@@ -254,7 +254,6 @@ Z3ASTHandle Z3Builder::getInitialArray(const Array *root) {
     std::string unique_name = root->getIdentifier() + unique_id;
     if (ref<SymbolicSizeConstantSource> symbolicSizeConstantSource =
             dyn_cast<SymbolicSizeConstantSource>(root->source)) {
-      std::abort();
       array_expr = buildConstantArray(unique_name.c_str(), root->getDomain(),
                                       root->getRange(),
                                       symbolicSizeConstantSource->defaultValue);
