@@ -1509,10 +1509,9 @@ bool Array::isConstantArray() const {
           llvm::APInt(constantSize->getWidth(), constantValuesSize));
     }
   }
-  // Array of symbolic size can not be constant.
-  //
-  // return isa<SymbolicSizeConstantSource>(source);
-  return false;
+  // Array of symbolic size can not be constant, BUT
+  // this source is used now for zero-initialized arrays.
+  return isa<SymbolicSizeConstantSource>(source);
 }
 
 /***/
