@@ -221,11 +221,13 @@ const UpdateList &ObjectState::getUpdates() const {
         break;
       }
 
-      contents[Index->getZExtValue()] = Value;
+      if (!wasZeroInitialized || !Value->getAPValue().isZero()) {
+        contents[Index->getZExtValue()] = Value;
+      }
     }
 
     static unsigned id = 0;
-    const Array *array = array = getArrayCache()->CreateArray(
+    const Array *array = getArrayCache()->CreateArray(
         object->getSizeExpr(), !wasZeroInitialized
                                    ? SourceBuilder::constant(contents)
                                    : SourceBuilder::symbolicSizeConstant(0));

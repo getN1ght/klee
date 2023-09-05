@@ -198,6 +198,12 @@ bool ExprOptimizer::computeIndexes(array2idx_ty &arrays, const ref<Expr> &e,
   // For each constant array found
   for (auto &element : arrays) {
     const Array *arr = element.first;
+    uint64_t cArraySizeVal = 0;
+    if (ref<ConstantExpr> cArraySizeExpr = dyn_cast<ConstantExpr>(arr->size)) {
+      cArraySizeVal = cArraySizeExpr->getZExtValue();
+    } else {
+      continue;
+    }
 
     assert(arr->isConstantArray() && "Array is not concrete");
     assert(element.second.size() == 1 && "Multiple indexes on the same array");
@@ -224,8 +230,7 @@ bool ExprOptimizer::computeIndexes(array2idx_ty &arrays, const ref<Expr> &e,
     // For each concrete value 'i' stored in the array
     if (ref<ConstantSource> constantSource =
             cast<ConstantSource>(arr->source)) {
-      for (size_t aIdx = 0; aIdx < constantSource->constantValues.size();
-           aIdx += width) {
+      for (size_t aIdx = 0; aIdx < cArraySizeVal; aIdx += width) {
         auto *a = new Assignment();
         std::vector<const Array *> objects;
         std::vector<std::vector<unsigned char>> values;
