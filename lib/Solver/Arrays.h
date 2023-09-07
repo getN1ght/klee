@@ -13,6 +13,7 @@ namespace klee {
 /* Arrays theory */
 struct Arrays : public SolverTheory {
 private:
+  // TODO: This code should be located in SolverBuilder.h  
   ref<ExprHandle> array(const ref<ReadExpr> &readExpr) {
     /*
      * Optimization on values on constant indices.
@@ -25,7 +26,6 @@ private:
       const std::vector<ref<ConstantExpr>> &constantValues =
           constantSource->constantValues;
       for (unsigned idx = 0; idx < constantValues.size(); ++idx) {
-        constantValues[idx];
         // TODO:
       }
     }
@@ -35,19 +35,22 @@ private:
 
     ref<UpdateNode> node = readExpr->updates.head;
     while (node != nullptr) {
-      result = write(result, node->index, node->value);
+      ref<ExprHandle> indexHandle;
+      ref<ExprHandle> valueHandle;
+ 
+      result = write(result, indexHandle, valueHandle);
       node = node->next;
     }
     return result;
   }
 
 protected:
-  ref<ExprHandle> translate(const ref<Expr> &expr, const ArgumentsList &args) override {
+  ref<ExprHandle> translate(const ref<Expr> &expr,
+                            const ArgumentsList &args) override {
     switch (expr->getKind()) {
     case Expr::Kind::Read: {
       ref<ReadExpr> readExpr = cast<ReadExpr>(expr);
-
-      return read(args[0], args[1]);
+      return read(array(readExpr), args[0]);
     }
     default: {
       return nullptr;

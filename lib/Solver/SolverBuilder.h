@@ -22,12 +22,10 @@ class ExprHandle {
 public:
   enum SolverKind { Z3, STP, METASMT };
 
-private:
-  /* TODO: it is a sort. */
-  // SolverTheory::Kind theory;
-
 public:
   class ReferenceCounter _refCount;
+
+  const SolverTheory::Sort sort;
   // SolverTheory::Kind type() const {
   //   return theory;
   // }
@@ -44,6 +42,9 @@ private:
   SolverBuilder(const std::vector<ref<SolverTheory>> &);
   ref<ExprHandle> buildWithTheory(const ref<SolverTheory> &theory,
                                   const ref<Expr> &expr);
+
+  ref<ExprHandle> castToTheory(const ref<ExprHandle> &arg,
+                               SolverTheory::Sort sort);
 
 public:
   ref<ExprHandle> build(const ref<Expr> &expr);
