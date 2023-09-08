@@ -2,15 +2,13 @@
 #define SOLVERBUILDER_H
 
 #include "klee/ADT/Ref.h"
+#include "SolverTheory.h"
 
 #include <memory>
 #include <vector>
 
 namespace klee {
 
-class SolverTheory;
-
-template <typename> class ref;
 class Expr;
 
 /*
@@ -19,16 +17,29 @@ class Expr;
  * and type of expression inside.
  */
 class ExprHandle {
+private:
+  ExprHandleList sideConstraints;
+
+public:
+  const ref<SolverTheory> parent;
+
 public:
   enum SolverKind { Z3, STP, METASMT };
 
 public:
   class ReferenceCounter _refCount;
 
-  const SolverTheory::Sort sort;
-  // SolverTheory::Kind type() const {
-  //   return theory;
-  // }
+  SolverTheory::Sort sort() const { return parent->theorySort; }
+
+  ref<ExprHandle> castTo(SolverTheory::Sort targetSort) {
+    return parent->castTo(targetSort, this);
+  }
+
+  void pushSideConstraint(const ref<ExprHandle> &constraint) {
+    sideConstraints.push_back(constraint);
+  }
+
+  ExprHandle(const ref<SolverTheory> &parent) : parent(parent) {}
   virtual ~ExprHandle() = default;
 };
 
@@ -37,7 +48,12 @@ class SolverBuilder {
 
 private:
   // exprCache cache;
-  std::vector<ref<SolverTheory>> orderOfTheories;
+  const std::vector<ref<SolverTheory>> orderOfTheories;
+
+  // Using for optimization
+  std::unordered_map<SolverTheory::Sort, uint64_t> positionsOfTheories;
+
+  uint64_t positionOf(SolverTheory::Sort) const;
 
   SolverBuilder(const std::vector<ref<SolverTheory>> &);
   ref<ExprHandle> buildWithTheory(const ref<SolverTheory> &theory,

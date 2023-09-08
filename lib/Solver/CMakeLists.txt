@@ -29,7 +29,6 @@ add_library(kleaverSolver
   SolverImpl.cpp
   SolverUtil.cpp
   SolverStats.cpp
-  SolverTheory.cpp
   STPBuilder.cpp
   STPSolver.cpp
   ValidatingSolver.cpp

@@ -6,22 +6,33 @@
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Expr.h"
 
-#include "SolverBuilder.h"
 #include "SolverAdapter.h"
+#include "SolverBuilder.h"
+
+#include <unordered_map>
 
 namespace klee {
 
-typedef std::vector<ref<ExprHandle>> ArgumentsList;
+typedef std::vector<ref<ExprHandle>> ExprHandleList;
 
 class SolverAdapter;
 
 struct SolverTheory {
-protected:
-  ref<SolverAdapter> solverAdapter;
-
 public:
   enum Sort { UNKNOWN, ARRAYS, BOOL, BV, FPBV, LIA };
-  Sort theorySort = Sort::UNKNOWN;
+  const Sort theorySort = Sort::UNKNOWN;
+
+  typedef ref<ExprHandle> (SolverTheory::*cast_function_t)(
+      const ref<ExprHandle> &);
+
+  /* FIXME: figure out better style */
+  std::unordered_map<SolverTheory::Sort, cast_function_t> castMapping;
+
+  /// @brief Required by klee::ref-managed objects
+  class ReferenceCounter _refCount;
+
+protected:
+  ref<SolverAdapter> solverAdapter;
 
 protected:
   virtual ref<ExprHandle> castToArray(const ref<ExprHandle> &arg) {
@@ -41,9 +52,19 @@ protected:
   }
 
 public:
+  SolverTheory() {
+    castMapping[ARRAYS] = &castToArray;
+    castMapping[BV] = &castToBV;
+    castMapping[BOOL] = &castToBool;
+    castMapping[FPBV] = &castToFPBV;
+    castMapping[LIA] = &castToLIA;
+  }
+
   virtual ref<ExprHandle> sort() = 0;
-  virtual ref<ExprHandle> translate(const ref<Expr> &, const ArgumentsList &) = 0;
-  
+  virtual ref<ExprHandle> translate(const ref<Expr> &,
+                                    const ExprHandleList &) = 0;
+
+  /* Common bool operators */
   ref<ExprHandle> land(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
     return solverAdapter->propAnd(lhs, rhs);
   }
@@ -67,32 +88,23 @@ public:
   }
 
   ref<ExprHandle> eq(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return nullptr;
-    // return solverAdapter->e
+    return solverAdapter->eq(lhs, rhs);
   }
 
-  ref<ExprHandle> castTo(Sort sort) {
-    switch (sort) {
-      case ARRAYS:
-        return castToArray(nullptr);
-      case BV:
-        return castToBV(nullptr);
-      case BOOL:
-        return castToBool(nullptr);
-      case FPBV:
-        return castToFPBV(nullptr);
-      case LIA:
-        return castToLIA(nullptr);
+  ref<ExprHandle> castTo(Sort sort, const ref<ExprHandle> &arg) {
+    if (castMapping.count(sort) == 0) {
+      return nullptr;
     }
+    const cast_function_t castFunction = castMapping.at(sort);
+    return (*this.*castFunction)(arg);
   }
 
   virtual ~SolverTheory() = default;
 };
 
-
 struct LIA : public SolverTheory {
 protected:
-  virtual ref<ExprHandle> translate(const ref<Expr> &, const ArgumentsList &);
+  virtual ref<ExprHandle> translate(const ref<Expr> &, const ExprHandleList &);
 
 public:
   virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,

@@ -4,8 +4,8 @@
 #include "SolverAdapter.h"
 #include "SolverTheory.h"
 
-#include "llvm/ADT/APInt.h"
 #include "z3++.h"
+#include "llvm/ADT/APInt.h"
 
 namespace klee {
 
@@ -19,10 +19,12 @@ public:
 
 class Z3Adapter : public SolverAdapter {
 private:
-  const z3::context ctx;
+  z3::context ctx;
 
 public:
-  ref<ExprHandle> array(const ref<ExprHandle> &, const ref<ExprHandle> &) override;
+  ref<ExprHandle> bv(uint64_t width) override;
+  ref<ExprHandle> array(const ref<ExprHandle> &,
+                        const ref<ExprHandle> &) override;
 
 public:
   ref<ExprHandle> bvConst(const llvm::APInt &val) override;

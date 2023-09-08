@@ -21,10 +21,22 @@ ref<ExprHandle> Z3Adapter::array(const ref<ExprHandle> &domainSort,
   return nullptr;
 }
 
-ref<ExprHandle> Z3Adapter::bvConst(const llvm::APInt &val) {
-  // ctx.bv_val()
+ref<ExprHandle> Z3Adapter::bv(uint64_t width) {
+  unsigned int bvWidth = static_cast<unsigned int>(width);
+  z3::sort sort = ctx.bv_sort(bvWidth);
   std::abort();
+  // TODO:
   return nullptr;
+}
+
+ref<ExprHandle> Z3Adapter::bvConst(const llvm::APInt &val) {
+  unsigned int valBitWidth = val.getBitWidth(); 
+  // FIXME: Which length?
+  llvm::SmallString<128> valStringRepresentation;
+  val.toStringUnsigned(valStringRepresentation);
+  z3::expr valExpr = ctx.bv_val(valStringRepresentation.c_str(), valBitWidth);
+  ExprHandle *handle = new Z3ExprHandle(valExpr);
+  return ref<ExprHandle>(handle);
 }
 
 ref<ExprHandle> Z3Adapter::bvAdd(const ref<ExprHandle> &lhs,

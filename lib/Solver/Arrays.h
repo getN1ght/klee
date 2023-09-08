@@ -26,6 +26,7 @@ private:
       const std::vector<ref<ConstantExpr>> &constantValues =
           constantSource->constantValues;
       for (unsigned idx = 0; idx < constantValues.size(); ++idx) {
+        
         // TODO:
       }
     }
@@ -37,7 +38,7 @@ private:
     while (node != nullptr) {
       ref<ExprHandle> indexHandle;
       ref<ExprHandle> valueHandle;
- 
+
       result = write(result, indexHandle, valueHandle);
       node = node->next;
     }
@@ -46,7 +47,7 @@ private:
 
 protected:
   ref<ExprHandle> translate(const ref<Expr> &expr,
-                            const ArgumentsList &args) override {
+                            const ExprHandleList &args) override {
     switch (expr->getKind()) {
     case Expr::Kind::Read: {
       ref<ReadExpr> readExpr = cast<ReadExpr>(expr);
@@ -59,10 +60,10 @@ protected:
   }
 
 public:
-  // ref<ExprHandle> sort(const ref<ExprHandle> &domainSort,
-  //                      const ref<ExprHandle> &rangeSort) override {
-  //   return solverAdapter->arraySort(domainSort, rangeSort);
-  // }
+  ref<ExprHandle> sort(const ref<ExprHandle> &domainSort,
+                       const ref<ExprHandle> &rangeSort) {
+    return solverAdapter->array(domainSort, rangeSort);
+  }
 
   ref<ExprHandle> read(const ref<ExprHandle> &array,
                        const ref<ExprHandle> &index) {

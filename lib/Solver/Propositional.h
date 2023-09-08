@@ -10,7 +10,7 @@ namespace klee {
 struct Propositional : public SolverTheory {
 
   ref<ExprHandle> Propositional::translate(Expr::Kind kind,
-                                           const ArgumentsList &args) {
+                                           const ExprHandleList &args) {
     switch (kind) {
     case Expr::Kind::And: {
       return land(args[0], args[1]);

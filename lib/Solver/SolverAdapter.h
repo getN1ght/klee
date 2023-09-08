@@ -12,6 +12,10 @@ class ExprHandle;
 
 class SolverAdapter {
 public:
+  virtual ref<ExprHandle> bv(uint64_t width) {
+    return nullptr;
+  }
+
   /* Floats section */
   virtual ref<ExprHandle> bvFAdd(const ref<ExprHandle> &lhs,
                                  const ref<ExprHandle> &rhs) {
@@ -231,6 +235,10 @@ public:
   virtual ref<ExprHandle> propIte(const ref<ExprHandle> &cond,
                                   const ref<ExprHandle> &onTrue,
                                   const ref<ExprHandle> &onFalse) {
+    return nullptr;
+  }
+
+  virtual ref<ExprHandle> eq(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
     return nullptr;
   }
 
