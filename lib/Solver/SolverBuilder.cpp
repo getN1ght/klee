@@ -1,5 +1,6 @@
 #include "SolverBuilder.h"
 
+#include "SolverAdapter.h"
 #include "SolverTheory.h"
 
 #include "klee/ADT/Ref.h"
@@ -20,7 +21,7 @@ SolverBuilder::SolverBuilder(const std::vector<ref<SolverTheory>> &theories)
 
   for (size_t pos = 0; pos < orderOfTheories.size(); ++pos) {
     const ref<SolverTheory> &theory = orderOfTheories.at(pos);
-    auto [_, ok] = positionsOfTheories.emplace(theory->sort(), pos);
+    [[maybe_unused]]bool ok = positionsOfTheories.emplace(theory->theorySort, pos).second;
     // TODO: print name of theory and replace assert
     assert(ok && "same theory appeared twice in theories sequence");
   }
@@ -47,7 +48,6 @@ ref<ExprHandle> SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   ExprHandleList kidsHandles;
   kidsHandles.reserve(expr->getNumKids());
 
-  SolverTheory::Sort leastCommonSort = SolverTheory::Sort::UNKNOWN;
   uint64_t positionOfLeastCommonSort = orderOfTheories.size();
 
   /* Figure out the least common sort for kid handles. */

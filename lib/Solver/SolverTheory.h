@@ -1,21 +1,23 @@
 #ifndef SOLVERTHEORY_H
 #define SOLVERTHEORY_H
 
-#include <unordered_map>
-
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Expr.h"
-
-#include "SolverAdapter.h"
-#include "SolverBuilder.h"
 
 #include <unordered_map>
 
 namespace klee {
 
-typedef std::vector<ref<ExprHandle>> ExprHandleList;
-
 class SolverAdapter;
+
+/*
+ * Base class for handles for all builders.
+ * Maintains a inner representation for solver
+ * and type of expression inside.
+ */
+
+class ExprHandle;
+typedef std::vector<ref<ExprHandle>> ExprHandleList;
 
 struct SolverTheory {
 public:
@@ -35,69 +37,34 @@ protected:
   ref<SolverAdapter> solverAdapter;
 
 protected:
-  virtual ref<ExprHandle> castToArray(const ref<ExprHandle> &arg) {
-    return nullptr;
-  }
-  virtual ref<ExprHandle> castToBV(const ref<ExprHandle> &arg) {
-    return nullptr;
-  }
-  virtual ref<ExprHandle> castToBool(const ref<ExprHandle> &arg) {
-    return nullptr;
-  }
-  virtual ref<ExprHandle> castToFPBV(const ref<ExprHandle> &arg) {
-    return nullptr;
-  }
-  virtual ref<ExprHandle> castToLIA(const ref<ExprHandle> &arg) {
-    return nullptr;
-  }
+  virtual ref<ExprHandle> castToArray(const ref<ExprHandle> &arg);
+  virtual ref<ExprHandle> castToBV(const ref<ExprHandle> &arg);
+  virtual ref<ExprHandle> castToBool(const ref<ExprHandle> &arg);
+  virtual ref<ExprHandle> castToFPBV(const ref<ExprHandle> &arg);
+  virtual ref<ExprHandle> castToLIA(const ref<ExprHandle> &arg);
 
 public:
-  SolverTheory() {
-    castMapping[ARRAYS] = &castToArray;
-    castMapping[BV] = &castToBV;
-    castMapping[BOOL] = &castToBool;
-    castMapping[FPBV] = &castToFPBV;
-    castMapping[LIA] = &castToLIA;
-  }
+  SolverTheory(const ref<SolverAdapter> &adapter);
 
-  virtual ref<ExprHandle> sort() = 0;
   virtual ref<ExprHandle> translate(const ref<Expr> &,
                                     const ExprHandleList &) = 0;
 
   /* Common bool operators */
-  ref<ExprHandle> land(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->propAnd(lhs, rhs);
-  }
+  ref<ExprHandle> land(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
 
-  ref<ExprHandle> lor(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->propOr(lhs, rhs);
-  }
+  ref<ExprHandle> lor(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
 
-  ref<ExprHandle> lxor(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->propXor(lhs, rhs);
-  }
+  ref<ExprHandle> lxor(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
 
-  ref<ExprHandle> lnot(const ref<ExprHandle> &arg) {
-    return solverAdapter->propNot(arg);
-  }
+  ref<ExprHandle> lnot(const ref<ExprHandle> &arg);
 
   ref<ExprHandle> lite(const ref<ExprHandle> &cond,
                        const ref<ExprHandle> &onTrue,
-                       const ref<ExprHandle> &onFalse) {
-    return solverAdapter->propIte(cond, onTrue, onFalse);
-  }
+                       const ref<ExprHandle> &onFalse);
 
-  ref<ExprHandle> eq(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->eq(lhs, rhs);
-  }
+  ref<ExprHandle> eq(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
 
-  ref<ExprHandle> castTo(Sort sort, const ref<ExprHandle> &arg) {
-    if (castMapping.count(sort) == 0) {
-      return nullptr;
-    }
-    const cast_function_t castFunction = castMapping.at(sort);
-    return (*this.*castFunction)(arg);
-  }
+  ref<ExprHandle> castTo(Sort sort, const ref<ExprHandle> &arg);
 
   virtual ~SolverTheory() = default;
 };
@@ -142,6 +109,26 @@ struct FPBV : public SolverTheory {
 
   virtual ref<ExprHandle> toInt(const ref<ExprHandle> &arg);
   virtual ref<ExprHandle> fromInt(const ref<ExprHandle> &arg);
+};
+
+class ExprHandle {
+private:
+  ExprHandleList sideConstraints;
+
+public:
+  ref<SolverTheory> parent;
+
+public:
+  class ReferenceCounter _refCount;
+
+  SolverTheory::Sort sort() const;
+
+  ref<ExprHandle> castTo(SolverTheory::Sort targetSort);
+
+  void pushSideConstraint(const ref<ExprHandle> &constraint);
+
+  ExprHandle() = default;
+  virtual ~ExprHandle() = default;
 };
 
 } // namespace klee

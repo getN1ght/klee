@@ -13,9 +13,6 @@ namespace klee {
  * bit words available on modern machines.
  */
 struct BV : public SolverTheory {
-private:
-  unsigned width;
-
 protected:
   ref<ExprHandle> translate(const ref<Expr> &expr,
                             const ExprHandleList &args) override {
@@ -70,9 +67,7 @@ protected:
   }
 
 public:
-  BV(uint32_t width) : width(width) {}
-
-  ref<ExprHandle> sort() override {
+  ref<ExprHandle> sort(unsigned width) {
     // TODO: how to choose width of bitvector?
     return solverAdapter->bv(width);
   }

@@ -11,38 +11,6 @@ namespace klee {
 
 class Expr;
 
-/*
- * Base class for handles for all builders.
- * Maintains a inner representation for solver
- * and type of expression inside.
- */
-class ExprHandle {
-private:
-  ExprHandleList sideConstraints;
-
-public:
-  const ref<SolverTheory> parent;
-
-public:
-  enum SolverKind { Z3, STP, METASMT };
-
-public:
-  class ReferenceCounter _refCount;
-
-  SolverTheory::Sort sort() const { return parent->theorySort; }
-
-  ref<ExprHandle> castTo(SolverTheory::Sort targetSort) {
-    return parent->castTo(targetSort, this);
-  }
-
-  void pushSideConstraint(const ref<ExprHandle> &constraint) {
-    sideConstraints.push_back(constraint);
-  }
-
-  ExprHandle(const ref<SolverTheory> &parent) : parent(parent) {}
-  virtual ~ExprHandle() = default;
-};
-
 class SolverBuilder {
   friend class SolverBuilderFactory;
 

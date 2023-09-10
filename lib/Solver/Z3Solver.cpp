@@ -133,10 +133,9 @@ public:
 Z3SolverImpl::Z3SolverImpl(Z3BuilderType type)
     : builderType(type), runStatusCode(SOLVER_RUN_STATUS_FAILURE) {
   SolverBuilderFactory::forSolver<Z3Adapter>()
-      .thenApply<Propositional>()
-      .thenApply<Arrays>()
-      .thenApply<LIA>()
-      .thenApply<BV>()
+      .thenApply<SolverTheory::Sort::ARRAYS>()
+      // .thenApply<SolverTheory::Sort::LIA>()
+      .thenApply<SolverTheory::Sort::BV>()
       .build();
 
   switch (type) {

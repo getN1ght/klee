@@ -9,13 +9,15 @@
 #include "SolverBuilder.h"
 #include "SolverTheory.h"
 
-
+#include "Arrays.h"
+#include "BV.h"
+// #include "LIA"
 
 namespace klee {  
-template <typename ST>
+template<typename ST>
 class SolverBuilderFactory {
 private:
-  std::vector<std::shared_ptr<SolverTheory>> orderOfTheories;
+  std::vector<ref<SolverTheory>> orderOfTheories;
 
   SolverBuilderFactory() = default;
 
@@ -24,11 +26,11 @@ public:
    * Constructs the factory for specified solver.
    * Takes class of adapter.
    */
-  template<typename fST>
-  static SolverBuilderFactory forSolver() {
-    static_assert(std::is_base_of_v<SolverAdapter, fST>,
+  template<typename ST>
+  static SolverBuilderFactory<ST> forSolver() {
+    static_assert(std::is_base_of_v<SolverAdapter, ST>,
                   "Solver adapter required to instantiate a factory");
-    SolverBuilderFactory<fST> solverBuilderFactory;
+    SolverBuilderFactory<ST> solverBuilderFactory;
     return solverBuilderFactory;
   }
 
@@ -37,10 +39,18 @@ public:
    * During builder construction these theories will be applied
    * in order of calls to this method.
    */
-  template <typename TT> SolverBuilderFactory thenApply() {
-    orderOfTheories.emplace_back(new typename std::remove_reference<decltype(*adapter)>::type::TT());
-    return *this;
+  template <SolverTheory::Sort S> SolverBuilderFactory thenApply();
+  template <> SolverBuilderFactory thenApply<SolverTheory::Sort::ARRAYS>() {
+    orderOfTheories.push_back(ref<SolverTheory>(new Arrays()));
   }
+  // FIXME: we should not select width on this stage
+  template <> SolverBuilderFactory thenApply<SolverTheory::Sort::BV>() {
+    orderOfTheories.push_back(ref<SolverTheory>(new BV()));
+  }
+  // template <> SolverBuilderFactory thenApply<SolverTheory::Sort::LIA>() {
+  //   orderOfTheories.push_back(ref<SolverTheory>(new LIA()));
+  // }
+
 
   SolverBuilder build() const { return SolverBuilder(orderOfTheories); }
 };

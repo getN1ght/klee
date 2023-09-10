@@ -30,7 +30,7 @@ ref<ExprHandle> Z3Adapter::bv(uint64_t width) {
 }
 
 ref<ExprHandle> Z3Adapter::bvConst(const llvm::APInt &val) {
-  unsigned int valBitWidth = val.getBitWidth(); 
+  unsigned int valBitWidth = val.getBitWidth();
   // FIXME: Which length?
   llvm::SmallString<128> valStringRepresentation;
   val.toStringUnsigned(valStringRepresentation);
