@@ -67,6 +67,8 @@ protected:
   }
 
 public:
+  BV(const ref<SolverAdapter> &solverAdapter) : SolverTheory(solverAdapter) {}
+
   ref<ExprHandle> sort(unsigned width) {
     // TODO: how to choose width of bitvector?
     return solverAdapter->bv(width);

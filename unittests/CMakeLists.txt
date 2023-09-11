@@ -273,6 +273,7 @@ endfunction()
 
 # Unit Tests
 add_subdirectory(Assignment)
+add_subdirectory(Builder)
 add_subdirectory(Expr)
 add_subdirectory(Ref)
 add_subdirectory(Solver)

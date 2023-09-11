@@ -4,7 +4,7 @@
 # https://klee.github.io/build-script/
 
 # Base folder where dependencies and KLEE itself are installed
-BASE=/space/klee_build
+BASE=$HOME/klee_build
 
 ## KLEE Required options
 # Build type for KLEE. The options are:

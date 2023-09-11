@@ -14,12 +14,13 @@
 // #include "LIA"
 
 namespace klee {  
-template<typename ST>
 class SolverBuilderFactory {
 private:
+  ref<SolverAdapter> solverAdapter;
   std::vector<ref<SolverTheory>> orderOfTheories;
 
-  SolverBuilderFactory() = default;
+  SolverBuilderFactory(const ref<SolverAdapter> &solverAdapter)
+      : solverAdapter(solverAdapter) {}
 
 public:
   /*
@@ -27,10 +28,10 @@ public:
    * Takes class of adapter.
    */
   template<typename ST>
-  static SolverBuilderFactory<ST> forSolver() {
+  static SolverBuilderFactory forSolver() {
     static_assert(std::is_base_of_v<SolverAdapter, ST>,
                   "Solver adapter required to instantiate a factory");
-    SolverBuilderFactory<ST> solverBuilderFactory;
+    SolverBuilderFactory solverBuilderFactory(ref<SolverAdapter>(new ST()));
     return solverBuilderFactory;
   }
 
@@ -40,13 +41,6 @@ public:
    * in order of calls to this method.
    */
   template <SolverTheory::Sort S> SolverBuilderFactory thenApply();
-  template <> SolverBuilderFactory thenApply<SolverTheory::Sort::ARRAYS>() {
-    orderOfTheories.push_back(ref<SolverTheory>(new Arrays()));
-  }
-  // FIXME: we should not select width on this stage
-  template <> SolverBuilderFactory thenApply<SolverTheory::Sort::BV>() {
-    orderOfTheories.push_back(ref<SolverTheory>(new BV()));
-  }
   // template <> SolverBuilderFactory thenApply<SolverTheory::Sort::LIA>() {
   //   orderOfTheories.push_back(ref<SolverTheory>(new LIA()));
   // }
@@ -54,6 +48,17 @@ public:
 
   SolverBuilder build() const { return SolverBuilder(orderOfTheories); }
 };
+
+template <>
+SolverBuilderFactory
+SolverBuilderFactory::thenApply<SolverTheory::Sort::ARRAYS>() {
+  orderOfTheories.push_back(ref<SolverTheory>(new Arrays(solverAdapter)));
+}
+// FIXME: we should not select width on this stage
+template <>
+SolverBuilderFactory SolverBuilderFactory::thenApply<SolverTheory::Sort::BV>() {
+  orderOfTheories.push_back(ref<SolverTheory>(new BV(solverAdapter)));
+}
 
 } // namespace klee
 

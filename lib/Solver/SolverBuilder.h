@@ -5,6 +5,7 @@
 #include "SolverTheory.h"
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace klee {
@@ -13,6 +14,10 @@ class Expr;
 
 class SolverBuilder {
   friend class SolverBuilderFactory;
+
+public:
+  /// @brief Required by klee::ref-managed objects
+  class ReferenceCounter _refCount;
 
 private:
   // exprCache cache;

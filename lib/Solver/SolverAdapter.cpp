@@ -237,3 +237,5 @@ ref<ExprHandle> SolverAdapter::eq(const ref<ExprHandle> &lhs,
                                   const ref<ExprHandle> &rhs) {
   return nullptr;
 }
+
+SolverAdapter::~SolverAdapter() {}
