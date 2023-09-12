@@ -3,6 +3,8 @@
 #include "SolverAdapter.h"
 #include "klee/ADT/Ref.h"
 
+#include "klee/Expr/ExprHashMap.h"
+
 using namespace klee;
 
 SolverTheory::SolverTheory(const ref<SolverAdapter> &solverAdapter)
@@ -67,10 +69,6 @@ ref<ExprHandle> ExprHandle::castTo(SolverTheory::Sort targetSort) {
   return parent->castTo(targetSort, ref<ExprHandle>(this));
 }
 
-void ExprHandle::pushSideConstraint(const ref<ExprHandle> &constraint) {
-  sideConstraints.push_back(constraint);
-}
-
 ref<ExprHandle> SolverTheory::castTo(SolverTheory::Sort sort,
                                      const ref<ExprHandle> &arg) {
   if (castMapping.count(sort) == 0) {
@@ -78,4 +76,21 @@ ref<ExprHandle> SolverTheory::castTo(SolverTheory::Sort sort,
   }
   const cast_function_t castFunction = castMapping.at(sort);
   return (*this.*castFunction)(arg);
+}
+
+ref<ExprHandle> CompleteResponse::expr() const {
+  return handle;
+}
+
+CompleteResponse
+IncompleteResponse::complete(const ExprHashMap<ref<ExprHandle>> &required) {
+  // TODO: accept a PROVIDER, not just just a MAP.
+  for (const ref<Expr> &expr : toBuild) {
+    if (required.count(expr) == 0) {
+      llvm::errs() << "Incomplete response error\n";
+      std::abort();
+    }
+  }
+
+  return CompleteResponse(completer(required));
 }

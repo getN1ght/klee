@@ -14,13 +14,13 @@ namespace klee {
  */
 struct BV : public SolverTheory {
 protected:
-  ref<ExprHandle> translate(const ref<Expr> &expr,
-                            const ExprHandleList &args) override {
+  ref<TheoryResponse> translate(const ref<Expr> &expr,
+                                const ExprHandleList &args) override {
     // Strongly advise to check the number of arguments in arguments list.
     // TODO:
     // https://stackoverflow.com/questions/27024238/c-template-mechanism-to-get-the-number-of-function-arguments-which-would-work
     typedef Expr::Kind Kind;
-    switch(expr->getKind()) {
+    switch (expr->getKind()) {
     case Kind::Add:
       return add(args[0], args[1]);
     case Kind::Sub:

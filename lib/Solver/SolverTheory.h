@@ -9,6 +9,7 @@
 namespace klee {
 
 class SolverAdapter;
+template <typename> class ExprHashMap;
 
 /*
  * Base class for handles for all builders.
@@ -46,7 +47,7 @@ protected:
 public:
   SolverTheory(const ref<SolverAdapter> &adapter);
 
-  virtual ref<ExprHandle> translate(const ref<Expr> &,
+  virtual ref<TheoryResponse> translate(const ref<Expr> &,
                                     const ExprHandleList &) = 0;
 
   /* Common bool operators */
@@ -71,7 +72,7 @@ public:
 
 struct LIA : public SolverTheory {
 protected:
-  virtual ref<ExprHandle> translate(const ref<Expr> &, const ExprHandleList &);
+  virtual ref<TheoryResponse> translate(const ref<Expr> &, const ExprHandleList &);
 
 public:
   virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
@@ -112,9 +113,6 @@ struct FPBV : public SolverTheory {
 };
 
 class ExprHandle {
-private:
-  ExprHandleList sideConstraints;
-
 public:
   ref<SolverTheory> parent;
 
@@ -125,10 +123,34 @@ public:
 
   ref<ExprHandle> castTo(SolverTheory::Sort targetSort);
 
-  void pushSideConstraint(const ref<ExprHandle> &constraint);
-
   ExprHandle() = default;
   virtual ~ExprHandle() = default;
+};
+
+class TheoryResponse {};
+
+class CompleteResponse : public TheoryResponse {
+  ref<ExprHandle> handle;
+
+public:
+  CompleteResponse(const ref<ExprHandle> &handle) : handle(handle) {}
+  ref<ExprHandle> expr() const;
+};
+
+class IncompleteResponse : public TheoryResponse {
+public:
+  typedef std::function<ref<ExprHandle>(const ExprHashMap<ref<ExprHandle>> &)>
+      completer_t;
+
+  const completer_t completer;
+  const std::vector<ref<Expr>> toBuild;
+
+public:
+  IncompleteResponse(const completer_t &completer,
+                     const std::vector<ref<Expr>> &required)
+      : completer(completer), toBuild(required) {}
+
+  CompleteResponse complete(const ExprHashMap<ref<ExprHandle>> &);
 };
 
 } // namespace klee

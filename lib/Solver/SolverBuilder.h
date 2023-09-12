@@ -4,7 +4,6 @@
 #include "klee/ADT/Ref.h"
 #include "SolverTheory.h"
 
-#include <memory>
 #include <unordered_map>
 #include <vector>
 

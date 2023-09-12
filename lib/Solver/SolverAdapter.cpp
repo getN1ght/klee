@@ -1,4 +1,5 @@
 #include "SolverAdapter.h"
+#include "SolverTheory.h"
 
 #include "klee/ADT/Ref.h"
 

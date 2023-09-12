@@ -7,7 +7,7 @@
 
 using namespace klee;
 
-ref<ExprHandle> LIA::translate(const ref<Expr> &expr, const ExprHandleList &args) {
+ref<TheoryResponse> LIA::translate(const ref<Expr> &expr, const ExprHandleList &args) {
   switch (expr->getKind()) {
   case Expr::Kind::Add: {
     return add(args[0], args[1]);

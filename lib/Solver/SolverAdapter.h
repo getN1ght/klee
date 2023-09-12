@@ -1,12 +1,12 @@
 #ifndef SOLVERADAPTER_H
 #define SOLVERADAPTER_H
 
-#include "SolverTheory.h"
-
 #include "klee/ADT/Ref.h"
-#include "llvm/ADT/APInt.h"
+#include <cstdint>
 
 namespace klee {
+
+class ExprHandle;
 
 class SolverAdapter {
 public:
