@@ -31,8 +31,7 @@ public:
   static SolverBuilderFactory forSolver() {
     static_assert(std::is_base_of_v<SolverAdapter, ST>,
                   "Solver adapter required to instantiate a factory");
-    SolverBuilderFactory solverBuilderFactory(ref<SolverAdapter>(new ST()));
-    return solverBuilderFactory;
+    return SolverBuilderFactory(ref<SolverAdapter>(new ST()));
   }
 
   /*
@@ -53,11 +52,13 @@ template <>
 SolverBuilderFactory
 SolverBuilderFactory::thenApply<SolverTheory::Sort::ARRAYS>() {
   orderOfTheories.push_back(ref<SolverTheory>(new Arrays(solverAdapter)));
+  return *this;
 }
 // FIXME: we should not select width on this stage
 template <>
 SolverBuilderFactory SolverBuilderFactory::thenApply<SolverTheory::Sort::BV>() {
   orderOfTheories.push_back(ref<SolverTheory>(new BV(solverAdapter)));
+  return *this;
 }
 
 } // namespace klee

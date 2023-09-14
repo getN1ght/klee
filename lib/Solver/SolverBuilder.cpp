@@ -48,15 +48,17 @@ ref<ExprHandle> SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   ExprHandleList kidsHandles;
   kidsHandles.reserve(expr->getNumKids());
 
+  if (expr->getNumKids() == 0) {
+    return theory->translate(expr, kidsHandles);
+  }
+
+
   uint64_t positionOfLeastCommonSort = orderOfTheories.size();
 
   /* Figure out the least common sort for kid handles. */
   for (const auto &expr : expr->kids()) {
     ref<ExprHandle> kidHandle = build(expr);
-    SolverTheory::Sort builtSort = kidHandle->sort();
-
-    // FIXME: optimize to one preprocessing.
-    uint64_t positionOfCurrentSort = positionOf(builtSort);
+    uint64_t positionOfCurrentSort = positionOf(kidHandle->sort());
 
     // TODO: install LLVM error handler. Do not use asserts, they are awful.
     assert(positionOfCurrentSort != orderOfTheories.size() &&

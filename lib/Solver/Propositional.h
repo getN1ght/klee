@@ -13,19 +13,19 @@ struct Propositional : public SolverTheory {
                                            const ExprHandleList &args) {
     switch (kind) {
     case Expr::Kind::And: {
-      return land(args[0], args[1]);
+      return apply(Propositional::land, args[0], args[1]);
     }
     case Expr::Kind::Or: {
-      return lor(args[0], args[1]);
+      return apply(Propositional::lor, args[0], args[1]);
     }
     case Expr::Kind::Xor: {
-      return lxor(args[0], args[1]);
+      return apply(Propositional::lxor, args[0], args[1]);
     }
     case Expr::Kind::Not: {
-      return lnot(args[0]);
+      return apply(Propositional::lnot, args[0]);
     }
     case Expr::Kind::Select: {
-      return lite(args[0], args[1], args[2]);
+      return apply(Propositional::lite, args[0], args[1], args[2]);
     }
     default: {
       return nullptr;

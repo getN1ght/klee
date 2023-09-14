@@ -13,11 +13,19 @@ namespace klee {
 
 /* Arrays theory */
 struct Arrays : public SolverTheory {
+  friend class SolverTheory;
+
 private:
 
   ref<TheoryResponse> array(const ref<ReadExpr> &readExpr) {
     ref<ExprHandle> result = nullptr;
     // ref<ExprHandle> result =< solverAdapter->array();
+
+    const Array *array = readExpr->updates.root;
+    
+    // Create bitvector sorts
+    array->getDomain();
+    array->getRange();
 
     ref<UpdateNode> node = readExpr->updates.head;
     
@@ -30,9 +38,9 @@ private:
       node = node->next;
     }
 
-    std::function<ref<ExprHandle>(const ExprHashMap<ref<ExprHandle>> &)>
-        completer = [*this, result,
-                     readExpr](const ExprHashMap<ref<ExprHandle>> &map) mutable
+    IncompleteResponse::completer_t completer =
+        [*this, result,
+         readExpr](const ExprHashMap<ref<ExprHandle>> &map) mutable
         -> ref<ExprHandle> {
       ref<UpdateNode> node = readExpr->updates.head;
       while (!node.isNull()) {
@@ -42,14 +50,12 @@ private:
       return result;
     };
 
-
     assert(0 && "Not implemented");
     // /*
     //  * Optimization on values on constant indices.
     //  * Forms expression in form of 
     //  * - ReadExpr Idx Array == ConstantExpr 
     //  */
-    // const Array *array = readExpr->updates.root;
     // if (ref<ConstantSource> constantSource =
     //         dyn_cast<ConstantSource>(array->source)) {
     //   const std::vector<ref<ConstantExpr>> &constantValues =
@@ -71,31 +77,7 @@ protected:
                                 const ExprHandleList &args) override {
     switch (expr->getKind()) {
     case Expr::Kind::Read: {
-      ref<ReadExpr> readExpr = cast<ReadExpr>(expr);
-
-      ref<ExprHandle> indexExprHandle = args[0];
-      ref<TheoryResponse> arrayResponse = array(readExpr);
-
-      if (ref<IncompleteResponse> arrayIncompleteResponse =
-              dyn_cast<IncompleteResponse>(arrayResponse)) {
-
-        IncompleteResponse::completer_t completer =
-            [*this, arrayIncompleteResponse, indexExprHandle](
-                const ExprHashMap<ref<ExprHandle>> &required) mutable
-            -> ref<ExprHandle> {
-          ref<ExprHandle> completerSubResponse =
-              arrayIncompleteResponse->completer(required);
-          return read(completerSubResponse, indexExprHandle);
-        };
-
-        return new IncompleteResponse(completer,
-                                      arrayIncompleteResponse->toBuild);
-      } else {
-        ref<CompleteResponse> arrayCompleteResponse =
-            cast<CompleteResponse>(arrayResponse);
-        return new CompleteResponse(
-            read(arrayCompleteResponse->expr(), indexExprHandle));
-      }
+      return apply(&Arrays::read, array(cast<ReadExpr>(expr)), args[1]);
     }
     default: {
       return nullptr;

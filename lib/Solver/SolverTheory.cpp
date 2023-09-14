@@ -32,32 +32,6 @@ ref<ExprHandle> SolverTheory::castToLIA(const ref<ExprHandle> &arg) {
   return nullptr;
 }
 
-/* Common bool operators */
-ref<ExprHandle> SolverTheory::land(const ref<ExprHandle> &lhs,
-                                   const ref<ExprHandle> &rhs) {
-  return solverAdapter->propAnd(lhs, rhs);
-}
-
-ref<ExprHandle> SolverTheory::lor(const ref<ExprHandle> &lhs,
-                                  const ref<ExprHandle> &rhs) {
-  return solverAdapter->propOr(lhs, rhs);
-}
-
-ref<ExprHandle> SolverTheory::lxor(const ref<ExprHandle> &lhs,
-                                   const ref<ExprHandle> &rhs) {
-  return solverAdapter->propXor(lhs, rhs);
-}
-
-ref<ExprHandle> SolverTheory::lnot(const ref<ExprHandle> &arg) {
-  return solverAdapter->propNot(arg);
-}
-
-ref<ExprHandle> SolverTheory::lite(const ref<ExprHandle> &cond,
-                                   const ref<ExprHandle> &onTrue,
-                                   const ref<ExprHandle> &onFalse) {
-  return solverAdapter->propIte(cond, onTrue, onFalse);
-}
-
 ref<ExprHandle> SolverTheory::eq(const ref<ExprHandle> &lhs,
                                  const ref<ExprHandle> &rhs) {
   return solverAdapter->eq(lhs, rhs);
@@ -75,7 +49,7 @@ ref<ExprHandle> SolverTheory::castTo(SolverTheory::Sort sort,
     return nullptr;
   }
   const cast_function_t castFunction = castMapping.at(sort);
-  return (*this.*castFunction)(arg);
+  return (this->*castFunction)(arg);
 }
 
 ref<ExprHandle> CompleteResponse::expr() const {

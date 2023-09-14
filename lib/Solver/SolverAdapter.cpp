@@ -2,6 +2,7 @@
 #include "SolverTheory.h"
 
 #include "klee/ADT/Ref.h"
+#include "llvm/ADT/APInt.h"
 
 #include <optional>
 

@@ -13,54 +13,55 @@ namespace klee {
  * bit words available on modern machines.
  */
 struct BV : public SolverTheory {
+  friend class SolverTheory;
+
 protected:
   ref<TheoryResponse> translate(const ref<Expr> &expr,
                                 const ExprHandleList &args) override {
-    // Strongly advise to check the number of arguments in arguments list.
-    // TODO:
-    // https://stackoverflow.com/questions/27024238/c-template-mechanism-to-get-the-number-of-function-arguments-which-would-work
     typedef Expr::Kind Kind;
     switch (expr->getKind()) {
+    case Kind::Constant:
+      return constant(expr);
     case Kind::Add:
-      return add(args[0], args[1]);
+      return apply(&BV::add, args[0], args[1]);
     case Kind::Sub:
-      return sub(args[0], args[1]);
+      return apply(&BV::sub, args[0], args[1]);
     case Kind::Mul:
-      return mul(args[0], args[1]);
+      return apply(&BV::mul, args[0], args[1]);
     case Kind::SDiv:
-      return sdiv(args[0], args[1]);
+      return apply(&BV::sdiv, args[0], args[1]);
     case Kind::UDiv:
-      return udiv(args[0], args[1]);
+      return apply(&BV::udiv, args[0], args[1]);
     case Kind::Shl:
-      return shl(args[0], args[1]);
+      return apply(&BV::shl, args[0], args[1]);
     case Kind::AShr:
-      return ashr(args[0], args[1]);
+      return apply(&BV::ashr, args[0], args[1]);
     case Kind::LShr:
-      return lshr(args[0], args[1]);
+      return apply(&BV::lshr, args[0], args[1]);
     case Kind::SExt:
-      return sext(args[0], args[1]);
+      return apply(&BV::sext, args[0], args[1]);
     case Kind::ZExt:
-      return zext(args[0], args[1]);
+      return apply(&BV::zext, args[0], args[1]);
     case Kind::And:
-      return band(args[0], args[1]);
+      return apply(&BV::band, args[0], args[1]);
     case Kind::Or:
-      return bor(args[0], args[1]);
+      return apply(&BV::bor, args[0], args[1]);
     case Kind::Xor:
-      return bxor(args[0], args[1]);
+      return apply(&BV::bxor, args[0], args[1]);
     case Kind::Not:
-      return bnot(args[0]);
+      return apply(&BV::bnot, args[0]);
     case Kind::Ule:
-      return ule(args[0], args[1]);
+      return apply(&BV::ule, args[0], args[1]);
     case Kind::Ult:
-      return ult(args[0], args[1]);
+      return apply(&BV::ult, args[0], args[1]);
     case Kind::Sle:
-      return sle(args[0], args[1]);
+      return apply(&BV::sle, args[0], args[1]);
     case Kind::Slt:
-      return slt(args[0], args[1]);
+      return apply(&BV::slt, args[0], args[1]);
     case Kind::Extract:
-      return extract(args[0], args[1], args[2]);
+      return apply(&BV::extract, args[0], args[1], args[2]);
     case Kind::Concat:
-      return concat(args[0], args[1]);
+      return apply(&BV::concat, args[0], args[1]);
     default:
       return nullptr;
     }
@@ -84,7 +85,7 @@ public:
     return solverAdapter->bvConst(cVal->getAPValue());
   }
 
-  ref<ExprHandle> add(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) { 
+  ref<ExprHandle> add(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
     return solverAdapter->bvAdd(lhs, rhs);
   }
 

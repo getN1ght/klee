@@ -4,6 +4,10 @@
 #include "klee/ADT/Ref.h"
 #include <cstdint>
 
+namespace llvm {
+  class APInt;
+}
+
 namespace klee {
 
 class ExprHandle;

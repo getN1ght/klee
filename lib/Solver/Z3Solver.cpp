@@ -132,11 +132,6 @@ public:
 
 Z3SolverImpl::Z3SolverImpl(Z3BuilderType type)
     : builderType(type), runStatusCode(SOLVER_RUN_STATUS_FAILURE) {
-  SolverBuilderFactory::forSolver<Z3Adapter>()
-      .thenApply<SolverTheory::Sort::ARRAYS>()
-      // .thenApply<SolverTheory::Sort::LIA>()
-      .thenApply<SolverTheory::Sort::BV>()
-      .build();
 
   switch (type) {
   case KLEE_CORE:
@@ -357,6 +352,17 @@ bool Z3SolverImpl::internalRunSolver(
     ValidityCore *validityCore, bool &hasSolution) {
 
   assert(!query.containsSymcretes());
+
+  SolverBuilder newSolverBuilder =
+      SolverBuilderFactory::forSolver<Z3Adapter>()
+          .thenApply<SolverTheory::Sort::ARRAYS>()
+          // // .thenApply<SolverTheory::Sort::LIA>()
+          .thenApply<SolverTheory::Sort::BV>()
+          .build();
+
+  llvm::errs() << "Building Query.expr " << query.expr << "\n\n";
+
+  newSolverBuilder.build(query.expr);
 
   if (ProduceUnsatCore && validityCore) {
     enableUnsatCore();

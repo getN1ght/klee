@@ -86,8 +86,6 @@ public:
                           const ref<ExprHandle> &onTrue,
                           const ref<ExprHandle> &onFalse) override;
 
-  Z3Adapter();
-
   ~Z3Adapter() = default;
 };
 
