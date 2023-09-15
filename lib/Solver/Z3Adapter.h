@@ -22,7 +22,7 @@ private:
   z3::context ctx;
 
 public:
-  ref<ExprHandle> bv(uint64_t width) override;
+  ref<ExprHandle> bvSort(uint64_t width) override;
   ref<ExprHandle> array(const ref<ExprHandle> &,
                         const ref<ExprHandle> &) override;
 

@@ -12,6 +12,7 @@
 namespace klee {
 
 /* Arrays theory */
+template<typename DS, typename RS>
 struct Arrays : public SolverTheory {
   friend class SolverTheory;
 
@@ -24,8 +25,9 @@ private:
     const Array *array = readExpr->updates.root;
     
     // Create bitvector sorts
-    array->getDomain();
-    array->getRange();
+
+    DS(solverAdapter).sort(array->getDomain());
+    RS(solverAdapter).sort(array->getRange());
 
     ref<UpdateNode> node = readExpr->updates.head;
     

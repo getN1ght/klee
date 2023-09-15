@@ -3,14 +3,18 @@
 
 #include "klee/ADT/Ref.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/APFloat.h"
 
 #include <optional>
 
 using namespace klee;
 
-ref<ExprHandle> SolverAdapter::bv(uint64_t width) { return nullptr; }
+ref<ExprHandle> SolverAdapter::bvSort(uint64_t width) { return nullptr; }
 
 /* Floats section */
+ref<ExprHandle> SolverAdapter::bvFConst(const llvm::APFloat &val) {
+  return nullptr;
+}
 ref<ExprHandle> SolverAdapter::bvFAdd(const ref<ExprHandle> &lhs,
                                       const ref<ExprHandle> &rhs) {
   return nullptr;
@@ -76,7 +80,7 @@ ref<ExprHandle> SolverAdapter::bvFRint(const ref<ExprHandle> &arg) {
 ref<ExprHandle> SolverAdapter::bvFAbs(const ref<ExprHandle> &arg) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::FNeg(const ref<ExprHandle> &arg) {
+ref<ExprHandle> SolverAdapter::bvFNeg(const ref<ExprHandle> &arg) {
   return nullptr;
 }
 
@@ -177,6 +181,9 @@ ref<ExprHandle> SolverAdapter::bvConcat(const ref<ExprHandle> &lhs,
   return nullptr;
 }
 
+ref<ExprHandle> SolverAdapter::liaConst(const llvm::APInt &val) {
+  return nullptr;
+}
 ref<ExprHandle> SolverAdapter::liaAdd(const ref<ExprHandle> &lhs,
                                       const ref<ExprHandle> &rhs) {
   return nullptr;
@@ -211,6 +218,10 @@ ref<ExprHandle> SolverAdapter::read(const ref<ExprHandle> &arr,
 ref<ExprHandle> SolverAdapter::write(const ref<ExprHandle> &arr,
                                      const ref<ExprHandle> &idx,
                                      const ref<ExprHandle> &val) {
+  return nullptr;
+}
+
+ref<ExprHandle> SolverAdapter::propConst(bool val) {
   return nullptr;
 }
 

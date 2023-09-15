@@ -11,7 +11,9 @@
 
 #include "Arrays.h"
 #include "BV.h"
-// #include "LIA"
+#include "FPBV.h"
+#include "LIA.h"
+#include "Propositional.h"
 
 namespace klee {  
 class SolverBuilderFactory {
@@ -39,27 +41,15 @@ public:
    * During builder construction these theories will be applied
    * in order of calls to this method.
    */
-  template <SolverTheory::Sort S> SolverBuilderFactory thenApply();
-  // template <> SolverBuilderFactory thenApply<SolverTheory::Sort::LIA>() {
-  //   orderOfTheories.push_back(ref<SolverTheory>(new LIA()));
-  // }
-
+  template <typename ST> SolverBuilderFactory thenApply() {
+    static_assert(std::is_base_of_v<SolverTheory, ST>,
+                  "Solver theory required to instantiate a factory");
+    orderOfTheories.push_back(new ST(solverAdapter));
+    return *this;
+  }
 
   SolverBuilder build() const { return SolverBuilder(orderOfTheories); }
 };
-
-template <>
-SolverBuilderFactory
-SolverBuilderFactory::thenApply<SolverTheory::Sort::ARRAYS>() {
-  orderOfTheories.push_back(ref<SolverTheory>(new Arrays(solverAdapter)));
-  return *this;
-}
-// FIXME: we should not select width on this stage
-template <>
-SolverBuilderFactory SolverBuilderFactory::thenApply<SolverTheory::Sort::BV>() {
-  orderOfTheories.push_back(ref<SolverTheory>(new BV(solverAdapter)));
-  return *this;
-}
 
 } // namespace klee
 

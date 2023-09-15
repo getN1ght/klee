@@ -19,7 +19,7 @@ ref<ExprHandle> Z3Adapter::array(const ref<ExprHandle> &domainSort,
   return nullptr;
 }
 
-ref<ExprHandle> Z3Adapter::bv(uint64_t width) {
+ref<ExprHandle> Z3Adapter::bvSort(uint64_t width) {
   static uint64_t id = 0;
 
   unsigned int bvWidth = static_cast<unsigned int>(width);

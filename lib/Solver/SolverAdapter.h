@@ -6,6 +6,7 @@
 
 namespace llvm {
   class APInt;
+  class APFloat;
 }
 
 namespace klee {
@@ -18,9 +19,10 @@ public:
   class ReferenceCounter _refCount;
 
 public:
-  virtual ref<ExprHandle> bv(uint64_t width);
+  virtual ref<ExprHandle> bvSort(uint64_t width);
 
   /* Floats section */
+  virtual ref<ExprHandle> bvFConst(const llvm::APFloat &val);  
   virtual ref<ExprHandle> bvFAdd(const ref<ExprHandle> &lhs,
                                  const ref<ExprHandle> &rhs);
   virtual ref<ExprHandle> bvFSub(const ref<ExprHandle> &lhs,
@@ -52,7 +54,7 @@ public:
   virtual ref<ExprHandle> bvFSqrt(const ref<ExprHandle> &arg);
   virtual ref<ExprHandle> bvFRint(const ref<ExprHandle> &arg);
   virtual ref<ExprHandle> bvFAbs(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> FNeg(const ref<ExprHandle> &arg);
+  virtual ref<ExprHandle> bvFNeg(const ref<ExprHandle> &arg);
 
   /* Arithmetics section */
 public:
@@ -108,6 +110,7 @@ public:
                                    const ref<ExprHandle> &rhs);
   /* LIA section */
 public:
+  virtual ref<ExprHandle> liaConst(const llvm::APInt &val);
   virtual ref<ExprHandle> liaAdd(const ref<ExprHandle> &lhs,
                                  const ref<ExprHandle> &rhs);
   virtual ref<ExprHandle> liaDub(const ref<ExprHandle> &lhs,
@@ -133,6 +136,7 @@ public:
 
   /* Propositional section */
 public:
+  virtual ref<ExprHandle> propConst(bool val);
   virtual ref<ExprHandle> propAnd(const ref<ExprHandle> &lhs,
                                   const ref<ExprHandle> &rhs);
   virtual ref<ExprHandle> propOr(const ref<ExprHandle> &lhs,

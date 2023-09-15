@@ -157,19 +157,6 @@ public:
   virtual ref<TheoryResponse> translate(const ref<Expr> &,
                                         const ExprHandleList &) = 0;
 
-  /* Common bool operators */
-  ref<ExprHandle> land(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
-
-  ref<ExprHandle> lor(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
-
-  ref<ExprHandle> lxor(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
-
-  ref<ExprHandle> lnot(const ref<ExprHandle> &arg);
-
-  ref<ExprHandle> lite(const ref<ExprHandle> &cond,
-                       const ref<ExprHandle> &onTrue,
-                       const ref<ExprHandle> &onFalse);
-
   ref<ExprHandle> eq(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
 
   ref<ExprHandle> castTo(Sort sort, const ref<ExprHandle> &arg);
@@ -177,60 +164,11 @@ public:
   virtual ~SolverTheory() = default;
 };
 
-struct LIA : public SolverTheory {
-protected:
-  virtual ref<TheoryResponse> translate(const ref<Expr> &,
-                                        const ExprHandleList &);
-
-public:
-  virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> sub(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> mul(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-
-  virtual ref<ExprHandle> sext(const ref<ExprHandle> &lhs,
-                               const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> zext(const ref<ExprHandle> &lhs,
-                               const ref<ExprHandle> &rhs);
-
-  virtual ref<ExprHandle> ult(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> ule(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-
-  virtual ref<ExprHandle> slt(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> sle(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-};
-
-struct FPBV : public SolverTheory {
-  virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> sub(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> mul(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> div(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-
-  virtual ref<ExprHandle> toInt(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> fromInt(const ref<ExprHandle> &arg);
-};
-
 class ExprHandle {
-  friend class Arrays;
-  friend class BV;
-  friend class Propositional;
- 
 public:
   ref<SolverTheory> parent;
 
-private:
   ExprHandle(const ref<SolverTheory> &parent) : parent(parent) {}
-
 public:
   class ReferenceCounter _refCount;
 
