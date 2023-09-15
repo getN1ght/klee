@@ -169,6 +169,7 @@ public:
   ref<SolverTheory> parent;
 
   ExprHandle(const ref<SolverTheory> &parent) : parent(parent) {}
+
 public:
   class ReferenceCounter _refCount;
 

@@ -11,6 +11,15 @@
 namespace klee {
 
 struct Propositional : public SolverTheory {
+
+protected:
+  ref<ExprHandle> castToBV(const ref<ExprHandle> &arg) override {
+    static const llvm::APInt zero(1, 0);
+    static const llvm::APInt one(1, 1);
+
+    return lite(arg, solverAdapter->bvConst(one), solverAdapter->bvConst(zero));
+  }
+
 public:
   Propositional(const ref<SolverAdapter> &adapter) : SolverTheory(adapter) {}
 

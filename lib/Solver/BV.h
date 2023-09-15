@@ -67,11 +67,14 @@ protected:
     }
   }
 
+  ref<ExprHandle> castToBool(const ref<ExprHandle> &handle) override {
+    return nullptr;
+  }
+
 public:
   BV(const ref<SolverAdapter> &solverAdapter) : SolverTheory(solverAdapter) {}
 
   ref<ExprHandle> sort(unsigned width) {
-    // TODO: how to choose width of bitvector?
     return solverAdapter->bvSort(width);
   }
 
