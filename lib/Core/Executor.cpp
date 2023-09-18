@@ -6658,8 +6658,8 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
       for (const auto &kfunction : kmodule->functions) {
         if (kfunction->getName().compare("reach_error") == 0) {
           KBlock *kCallBlock = kfunction->entryKBlock;
-          llvm::Optional<uint64_t> callBlockLine =
-              kCallBlock->getFirstInstruction()->info->line;
+          llvm::Optional<uint64_t> callBlockLine = 
+            kCallBlock->getFirstInstruction()->getLine();
           if (callBlockLine.hasValue()) {
             unsigned int callBlockLineValue =
                 static_cast<unsigned int>(callBlockLine.getValue());

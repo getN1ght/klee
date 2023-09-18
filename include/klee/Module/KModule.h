@@ -207,7 +207,7 @@ public:
 struct KBlockCompare {
   bool operator()(const KBlock *a, const KBlock *b) const {
     return a->parent->id < b->parent->id ||
-           (a->parent->id == b->parent->id && a->id < b->id);
+           (a->parent->id == b->parent->id && a->getId() < b->getId());
   }
 };
 

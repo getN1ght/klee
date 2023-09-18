@@ -670,13 +670,13 @@ void KleeHandler::processTestCase(const ExecutionState &state,
       }
 
       if (WriteCov) {
-        std::map<const std::string *, std::set<unsigned>> cov;
+        std::map<std::string, std::set<size_t>> cov;
         m_interpreter->getCoveredLines(state, cov);
         auto f = openTestFile("cov", id);
         if (f) {
           for (const auto &entry : cov) {
             for (const auto &line : entry.second) {
-              *f << *entry.first << ':' << line << '\n';
+              *f << entry.first << ':' << line << '\n';
             }
           }
         }
