@@ -23,7 +23,7 @@ template <typename> class ExprHashMap;
 class ExprHandle;
 typedef std::vector<ref<ExprHandle>> ExprHandleList;
 
-class TheoryResponse {
+class TheoryHandle {
 public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
@@ -35,26 +35,28 @@ private:
   const Kind kind;
 
 public:
-  TheoryResponse(Kind kind) : kind(kind) {}
+  TheoryHandle(Kind kind) : kind(kind) {}
+
+  SolverTheory::Sort sort();
 
   Kind getKind() const { return kind; }
-  virtual ~TheoryResponse() {}
+  virtual ~TheoryHandle() {}
 };
 
-class CompleteResponse : public TheoryResponse {
+class CompleteResponse : public TheoryHandle {
   ref<ExprHandle> handle;
 
 public:
   CompleteResponse(const ref<ExprHandle> &handle)
-      : TheoryResponse(COMPLETE), handle(handle) {}
+      : TheoryHandle(COMPLETE), handle(handle) {}
   ref<ExprHandle> expr() const;
 
-  static bool classof(const TheoryResponse *tr) {
-    return tr->getKind() == TheoryResponse::Kind::COMPLETE;
+  static bool classof(const TheoryHandle *tr) {
+    return tr->getKind() == TheoryHandle::Kind::COMPLETE;
   }
 };
 
-class IncompleteResponse : public TheoryResponse {
+class IncompleteResponse : public TheoryHandle {
 public:
   typedef std::function<ref<ExprHandle>(const ExprHashMap<ref<ExprHandle>> &)>
       completer_t;
@@ -65,12 +67,12 @@ public:
 public:
   IncompleteResponse(const completer_t &completer,
                      const std::vector<ref<Expr>> &required)
-      : TheoryResponse(INCOMPLETE), completer(completer), toBuild(required) {}
+      : TheoryHandle(INCOMPLETE), completer(completer), toBuild(required) {}
 
   CompleteResponse complete(const ExprHashMap<ref<ExprHandle>> &);
 
-  static bool classof(const TheoryResponse *tr) {
-    return tr->getKind() == TheoryResponse::Kind::INCOMPLETE;
+  static bool classof(const TheoryHandle *tr) {
+    return tr->getKind() == TheoryHandle::Kind::INCOMPLETE;
   }
 };
 
@@ -84,7 +86,7 @@ public:
 
 public:
   template <typename ClassName, typename... FArgs, typename... Args>
-  ref<TheoryResponse> apply(ref<ExprHandle> (ClassName::*fun)(FArgs...),
+  ref<TheoryHandle> apply(ref<ExprHandle> (ClassName::*fun)(FArgs...),
                             Args &&...args) {
     std::vector<ref<Expr>> toBuild;
     (
@@ -154,7 +156,7 @@ protected:
 public:
   SolverTheory(const ref<SolverAdapter> &adapter);
 
-  virtual ref<TheoryResponse> translate(const ref<Expr> &,
+  virtual ref<TheoryHandle> translate(const ref<Expr> &,
                                         const ExprHandleList &) = 0;
 
   ref<ExprHandle> eq(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
@@ -162,23 +164,6 @@ public:
   ref<ExprHandle> castTo(Sort sort, const ref<ExprHandle> &arg);
 
   virtual ~SolverTheory() = default;
-};
-
-class ExprHandle {
-public:
-  ref<SolverTheory> parent;
-
-  ExprHandle(const ref<SolverTheory> &parent) : parent(parent) {}
-
-public:
-  class ReferenceCounter _refCount;
-
-  SolverTheory::Sort sort() const;
-
-  ref<ExprHandle> castTo(SolverTheory::Sort targetSort);
-
-  ExprHandle() = default;
-  virtual ~ExprHandle() = default;
 };
 
 } // namespace klee

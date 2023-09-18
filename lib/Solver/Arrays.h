@@ -16,7 +16,7 @@ template <typename DS, typename RS> struct Arrays : public SolverTheory {
   friend class SolverTheory;
 
 private:
-  ref<TheoryResponse> array(const ref<ReadExpr> &readExpr) {
+  ref<TheoryHandle> array(const ref<ReadExpr> &readExpr) {
     const Array *array = readExpr->updates.root;
 
     // Create bitvector sorts
@@ -79,7 +79,7 @@ private:
   }
 
 protected:
-  ref<TheoryResponse> translate(const ref<Expr> &expr,
+  ref<TheoryHandle> translate(const ref<Expr> &expr,
                                 const ExprHandleList &args) override {
     switch (expr->getKind()) {
     case Expr::Kind::Read: {

@@ -15,8 +15,8 @@ public:
   LIA(ref<SolverAdapter> &adapter) : SolverTheory(adapter) {}
 
 protected:
-  virtual ref<TheoryResponse> translate(const ref<Expr> &expr,
-                                        const ExprHandleList &args) {
+  virtual ref<TheoryHandle> translate(const ref<Expr> &expr,
+                                      const ExprHandleList &args) {
     switch (expr->getKind()) {
     case Expr::Kind::Constant: {
       ref<ConstantExpr> ce = cast<ConstantExpr>(expr);
@@ -59,34 +59,50 @@ protected:
   }
 
 public:
-  virtual ref<ExprHandle> constant(const llvm::APInt &value) {
+  virtual ref<TheoryHandle> constant(const llvm::APInt &value) {
     return solverAdapter->liaConst(value);
   }
-  virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs) {
+  virtual ref<TheoryHandle> add(const ref<TheoryHandle> &lhs,
+                                const ref<TheoryHandle> &rhs) {
     return solverAdapter->liaAdd(lhs, rhs);
   }
-  virtual ref<ExprHandle> sub(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs) {
+  virtual ref<TheoryHandle> sub(const ref<TheoryHandle> &lhs,
+                                const ref<TheoryHandle> &rhs) {
+    // return solverAdapter->lia;
     return nullptr;
   }
-  virtual ref<ExprHandle> mul(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
+  virtual ref<TheoryHandle> mul(const ref<TheoryHandle> &lhs,
+                                const ref<TheoryHandle> &rhs) {
+    return solverAdapter->liaMul(lhs, rhs);
+  }
 
-  virtual ref<ExprHandle> sext(const ref<ExprHandle> &lhs,
-                               const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> zext(const ref<ExprHandle> &lhs,
-                               const ref<ExprHandle> &rhs);
+  virtual ref<TheoryHandle> sext(const ref<TheoryHandle> &lhs,
+                                 const ref<TheoryHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<TheoryHandle> zext(const ref<TheoryHandle> &lhs,
+                                 const ref<TheoryHandle> &rhs) {
+    return nullptr;
+  }
 
-  virtual ref<ExprHandle> ult(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> ule(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
+  virtual ref<TheoryHandle> ult(const ref<TheoryHandle> &lhs,
+                                const ref<TheoryHandle> &rhs) {
+    return nullptr;
+  }
 
-  virtual ref<ExprHandle> slt(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> sle(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs);
+  virtual ref<TheoryHandle> ule(const ref<TheoryHandle> &lhs,
+                                const ref<TheoryHandle> &rhs) {
+    return nullptr;
+  }
+
+  virtual ref<TheoryHandle> slt(const ref<TheoryHandle> &lhs,
+                                const ref<TheoryHandle> &rhs) {
+    return nullptr;
+  }
+  virtual ref<TheoryHandle> sle(const ref<TheoryHandle> &lhs,
+                                const ref<TheoryHandle> &rhs) {
+    return nullptr;
+  }
 };
 
 } // namespace klee

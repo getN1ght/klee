@@ -11,7 +11,16 @@ namespace llvm {
 
 namespace klee {
 
-class ExprHandle;
+class ExprHandle {
+public:
+  /// @brief Required by klee::ref-managed objects
+  class ReferenceCounter _refCount;
+
+  ref<ExprHandle> castTo(SolverTheory::Sort targetSort);
+
+  ExprHandle() = default;
+  virtual ~ExprHandle() = default;
+};
 
 class SolverAdapter {
 public:

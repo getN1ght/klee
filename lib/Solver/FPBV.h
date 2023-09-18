@@ -13,7 +13,7 @@ public:
   FPBV(const ref<SolverAdapter> &adapter) : SolverTheory(adapter) {}
 
 protected:
-  ref<TheoryResponse> translate(const ref<Expr> &expr,
+  ref<TheoryHandle> translate(const ref<Expr> &expr,
                                 const ExprHandleList &args) override {
     switch (expr->getKind()) {
     case Expr::Kind::Constant: {

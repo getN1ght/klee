@@ -16,7 +16,7 @@ struct BV : public SolverTheory {
   friend class SolverTheory;
 
 protected:
-  ref<TheoryResponse> translate(const ref<Expr> &expr,
+  ref<TheoryHandle> translate(const ref<Expr> &expr,
                                 const ExprHandleList &args) override {
     typedef Expr::Kind Kind;
     switch (expr->getKind()) {
