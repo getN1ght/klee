@@ -5,9 +5,9 @@
 #include <cstdint>
 
 namespace llvm {
-  class APInt;
-  class APFloat;
-}
+class APInt;
+class APFloat;
+} // namespace llvm
 
 namespace klee {
 
@@ -16,9 +16,7 @@ public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
 
-  ref<ExprHandle> castTo(SolverTheory::Sort targetSort);
-
-  ExprHandle() = default;
+public:
   virtual ~ExprHandle() = default;
 };
 
@@ -31,7 +29,7 @@ public:
   virtual ref<ExprHandle> bvSort(uint64_t width);
 
   /* Floats section */
-  virtual ref<ExprHandle> bvFConst(const llvm::APFloat &val);  
+  virtual ref<ExprHandle> bvFConst(const llvm::APFloat &val);
   virtual ref<ExprHandle> bvFAdd(const ref<ExprHandle> &lhs,
                                  const ref<ExprHandle> &rhs);
   virtual ref<ExprHandle> bvFSub(const ref<ExprHandle> &lhs,

@@ -35,20 +35,21 @@ private:
   const Kind kind;
 
 public:
-  TheoryHandle(Kind kind) : kind(kind) {}
-
-  SolverTheory::Sort sort();
+  const ref<SolverTheory> parent;
+  TheoryHandle(Kind kind, const ref<SolverTheory> &parent)
+      : kind(kind), parent(parent) {}
 
   Kind getKind() const { return kind; }
   virtual ~TheoryHandle() {}
 };
 
-class CompleteResponse : public TheoryHandle {
+class CompleteTheoryHandle : public TheoryHandle {
   ref<ExprHandle> handle;
 
 public:
-  CompleteResponse(const ref<ExprHandle> &handle)
-      : TheoryHandle(COMPLETE), handle(handle) {}
+  CompleteTheoryHandle(const ref<ExprHandle> &handle,
+                       const ref<SolverTheory> &parent)
+      : TheoryHandle(COMPLETE, parent), handle(handle) {}
   ref<ExprHandle> expr() const;
 
   static bool classof(const TheoryHandle *tr) {
@@ -65,11 +66,13 @@ public:
   const std::vector<ref<Expr>> toBuild;
 
 public:
-  IncompleteResponse(const completer_t &completer,
+  IncompleteResponse(const ref<SolverTheory> &parent,
+                     const completer_t &completer,
                      const std::vector<ref<Expr>> &required)
-      : TheoryHandle(INCOMPLETE), completer(completer), toBuild(required) {}
+      : TheoryHandle(INCOMPLETE, parent), completer(completer),
+        toBuild(required) {}
 
-  CompleteResponse complete(const ExprHashMap<ref<ExprHandle>> &);
+  CompleteTheoryHandle complete(const ExprHashMap<ref<ExprHandle>> &);
 
   static bool classof(const TheoryHandle *tr) {
     return tr->getKind() == TheoryHandle::Kind::INCOMPLETE;
@@ -87,12 +90,12 @@ public:
 public:
   template <typename ClassName, typename... FArgs, typename... Args>
   ref<TheoryHandle> apply(ref<ExprHandle> (ClassName::*fun)(FArgs...),
-                            Args &&...args) {
+                          Args &&...args) {
     std::vector<ref<Expr>> toBuild;
     (
         [&](auto arg) {
-          IncompleteResponse *incompleteResponse =
-              dynamic_cast<IncompleteResponse *>(arg.get());
+          ref<IncompleteResponse> incompleteResponse =
+              dyn_cast<IncompleteResponse>(arg);
           if (incompleteResponse == nullptr) {
             return;
           }
@@ -102,39 +105,30 @@ public:
         }(args),
         ...);
 
-    if (toBuild.empty()) {
-      auto unwrapCompleteResponse = [&](auto arg) -> ref<ExprHandle> {
-        CompleteResponse *completeResponse =
-            reinterpret_cast<CompleteResponse *>(arg.get());
-        // TODO: assert types. Here we return a ref<ExprHandle>.
-        if (completeResponse == nullptr) {
-          return arg;
-        }
-        return completeResponse->expr();
-      };
-
-      return new CompleteResponse((reinterpret_cast<ClassName *>(this)->*fun)(
-          unwrapCompleteResponse(args)...));
-    }
-
     IncompleteResponse::completer_t completer =
         [&](const ExprHashMap<ref<ExprHandle>> &required) {
           auto unwrap = [&](auto arg) -> ref<ExprHandle> {
-            if (IncompleteResponse *incompleteResponse =
-                    dynamic_cast<IncompleteResponse *>(arg.get())) {
+            if (ref<IncompleteResponse> incompleteResponse =
+                    dyn_cast<IncompleteResponse>(arg)) {
               return incompleteResponse->completer(required);
-            } else if (CompleteResponse *completeResponse =
-                           dynamic_cast<CompleteResponse *>(arg.get())) {
+            } else if (ref<CompleteTheoryHandle> completeResponse =
+                           dyn_cast<CompleteTheoryHandle>(arg)) {
               return completeResponse->expr();
             } else {
-              return arg;
+              // FIXME: handle error properly
+              std::abort();
+              return nullptr;
             }
           };
 
           return (reinterpret_cast<ClassName *>(this)->*fun)(unwrap(args)...);
         };
 
-    return new IncompleteResponse(completer, toBuild);
+    if (toBuild.empty()) {
+      return completer(ExprHashMap<ref<ExprHandle>>());
+    } else {
+      return new IncompleteResponse(completer, toBuild);
+    }
   }
 
   /* FIXME: figure out better style */
@@ -147,17 +141,17 @@ protected:
   ref<SolverAdapter> solverAdapter;
 
 protected:
-  virtual ref<ExprHandle> castToArray(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> castToBV(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> castToBool(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> castToFPBV(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> castToLIA(const ref<ExprHandle> &arg);
+  virtual ref<TheoryHandle> castToArray(const ref<TheoryHandle> &arg);
+  virtual ref<TheoryHandle> castToBV(const ref<TheoryHandle> &arg);
+  virtual ref<TheoryHandle> castToBool(const ref<TheoryHandle> &arg);
+  virtual ref<TheoryHandle> castToFPBV(const ref<TheoryHandle> &arg);
+  virtual ref<TheoryHandle> castToLIA(const ref<TheoryHandle> &arg);
 
 public:
   SolverTheory(const ref<SolverAdapter> &adapter);
 
   virtual ref<TheoryHandle> translate(const ref<Expr> &,
-                                        const ExprHandleList &) = 0;
+                                      const ExprHandleList &) = 0;
 
   ref<ExprHandle> eq(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
 

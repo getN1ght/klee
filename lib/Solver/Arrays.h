@@ -95,19 +95,22 @@ public:
   Arrays(const ref<SolverAdapter> &solverAdapter)
       : SolverTheory(solverAdapter) {}
 
-  ref<ExprHandle> sort(const ref<ExprHandle> &domainSort,
-                       const ref<ExprHandle> &rangeSort) {
-    return solverAdapter->array(domainSort, rangeSort);
+  ref<TheoryHandle> sort(const ref<TheoryHandle> &domainSort,
+                         const ref<TheoryHandle> &rangeSort) {
+    return apply(std::bind(std::mem_fn(&SolverAdapter::array), solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2), domainSort, rangeSort);
   }
 
-  ref<ExprHandle> read(const ref<ExprHandle> &array,
-                       const ref<ExprHandle> &index) {
-    return solverAdapter->read(array, index);
+  ref<TheoryHandle> read(const ref<TheoryHandle> &array,
+                         const ref<TheoryHandle> &index) {
+    return apply(std::bind(std::mem_fn(&SolverAdapter::read), solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2), array, index);
   }
 
-  ref<ExprHandle> write(const ref<ExprHandle> &array,
-                        const ref<ExprHandle> &index,
-                        const ref<ExprHandle> &value) {
+  ref<TheoryHandle> write(const ref<TheoryHandle> &array,
+                          const ref<TheoryHandle> &index,
+                          const ref<TheoryHandle> &value) {
+    
     return solverAdapter->write(array, index, value);
   }
 };
