@@ -44,7 +44,7 @@ private:
     }
 
     // TODO: add iterator in UpdateList
-    for (ref<UpdateNode> node = readExpr->updates.head; node != nullptr;
+    for (ref<UpdateNode> node = readExpr->updates.head; !node.isNull();
          node = node->next) {
       required.push_back(node->index);
       required.push_back(node->value);
@@ -105,9 +105,8 @@ public:
 
   ref<TheoryHandle> read(const ref<TheoryHandle> &array,
                          const ref<TheoryHandle> &index) {
-    return apply(std::bind(std::mem_fn(&SolverAdapter::read),
-                           solverAdapter.get(), std::placeholders::_1,
-                           std::placeholders::_2),
+    return apply(std::bind(std::mem_fn(&SolverAdapter::read), solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
                  array, index);
   }
 

@@ -57,8 +57,17 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   uint64_t positionOfLeastCommonSort = orderOfTheories.size();
 
   /* Figure out the least common sort for kid handles. */
+  
+  llvm::errs() << "IN ";
+  expr->dump();
+
   for (const auto &expr : expr->kids()) {
     ref<TheoryHandle> kidHandle = build(expr);
+    
+    llvm::errs() << "BUILT: "; 
+    expr->dump();
+    llvm::errs() << "\n";
+
     uint64_t positionOfCurrentSort = positionOf(kidHandle->parent->getSort());
 
     // TODO: install LLVM error handler. Do not use asserts, they are awful.
@@ -75,6 +84,8 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   for (ref<TheoryHandle> &kid : kidsHandles) {
     kid = castToTheory(kid, leastCommonSort);
   }
+
+  llvm::errs() << "OUT\n";
 
   return theory->translate(expr, kidsHandles);
 }
@@ -99,28 +110,36 @@ ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
  */
 ref<TheoryHandle> SolverBuilder::castToTheory(const ref<TheoryHandle> &arg,
                                               SolverTheory::Sort sort) {
-  // std::queue<ref<TheoryHandle>> castedHandlesQueue;
-  // castedHandlesQueue.push(arg);
+  std::queue<ref<TheoryHandle>> castedHandlesQueue;
+  castedHandlesQueue.push(arg); 
 
-  // while (!castedHandlesQueue.empty()) {
-  //   const ref<TheoryHandle> topCastedHandle = castedHandlesQueue.front();
-  //   castedHandlesQueue.pop();
+  std::unordered_set<SolverTheory::Sort> visited;
+  visited.insert(arg->parent->getSort());
 
-  //   if (topCastedHandle->sort() == sort) {
-  //     return topCastedHandle;
-  //   }
+  /* FIXME: We should mark visited theories */
+  while (!castedHandlesQueue.empty()) {
+    const ref<TheoryHandle> topCastedHandle = castedHandlesQueue.front();
+    castedHandlesQueue.pop();
 
-  //   // TODO: Do not dereference 2 times.
-  //   const ref<SolverTheory> &theoryOfTopCastedHandle =
-  //   topCastedHandle->parent;
+    if (topCastedHandle->parent->getSort() == sort) {
+      return topCastedHandle;
+    }
 
-  //   for (const auto &[kind, _] : theoryOfTopCastedHandle->castMapping) {
-  //     if (ref<TheoryHandle> nextCastedHandle = topCastedHandle->castTo(kind))
-  //     {
-  //       castedHandlesQueue.push(nextCastedHandle);
-  //     }
-  //   }
-  // }
+    // TODO: Do not dereference twice.
+    const ref<SolverTheory> &theoryOfTopCastedHandle =
+    topCastedHandle->parent;
+
+    for (const auto &[sort, _] : theoryOfTopCastedHandle->castMapping) {
+      if (visited.count(sort)) {
+        continue;
+      }
+
+      if (ref<TheoryHandle> nextCastedHandle = topCastedHandle->parent->castTo(sort, topCastedHandle)) {
+        castedHandlesQueue.push(nextCastedHandle);
+        visited.insert(sort);
+      }
+    }
+  }
 
   return nullptr;
 }
