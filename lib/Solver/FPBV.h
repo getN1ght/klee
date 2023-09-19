@@ -10,11 +10,12 @@
 namespace klee {
 struct FPBV : public SolverTheory {
 public:
-  FPBV(const ref<SolverAdapter> &adapter) : SolverTheory(adapter) {}
+  FPBV(const ref<SolverAdapter> &adapter)
+      : SolverTheory(SolverTheory::Sort::FPBV, adapter) {}
 
 protected:
   ref<TheoryHandle> translate(const ref<Expr> &expr,
-                                const ExprHandleList &args) override {
+                                const TheoryHandleList &args) override {
     switch (expr->getKind()) {
     case Expr::Kind::Constant: {
       return apply(&FPBV::constant, expr);
@@ -80,75 +81,75 @@ protected:
   }
 
 public:
-  virtual ref<ExprHandle> constant(const ref<Expr> &expr) {
+  virtual ref<SolverHandle> constant(const ref<Expr> &expr) {
     ref<ConstantExpr> ce = cast<ConstantExpr>(expr);
     if (!ce->isFloat()) {
       return nullptr;
     }
     return solverAdapter->bvFConst(ce->getAPFloatValue());
   }
-  virtual ref<ExprHandle> add(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs) {
+  virtual ref<SolverHandle> add(const ref<SolverHandle> &lhs,
+                              const ref<SolverHandle> &rhs) {
     return solverAdapter->bvFAdd(lhs, rhs);
   }
-  virtual ref<ExprHandle> sub(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs) {
+  virtual ref<SolverHandle> sub(const ref<SolverHandle> &lhs,
+                              const ref<SolverHandle> &rhs) {
     return solverAdapter->bvFSub(lhs, rhs);
   }
-  virtual ref<ExprHandle> mul(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs) {
+  virtual ref<SolverHandle> mul(const ref<SolverHandle> &lhs,
+                              const ref<SolverHandle> &rhs) {
     return solverAdapter->bvFMul(lhs, rhs);
   }
-  virtual ref<ExprHandle> div(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs) {
+  virtual ref<SolverHandle> div(const ref<SolverHandle> &lhs,
+                              const ref<SolverHandle> &rhs) {
     return solverAdapter->bvFDiv(lhs, rhs);
   }
-  virtual ref<ExprHandle> rem(const ref<ExprHandle> &lhs,
-                              const ref<ExprHandle> &rhs) {
+  virtual ref<SolverHandle> rem(const ref<SolverHandle> &lhs,
+                              const ref<SolverHandle> &rhs) {
     return solverAdapter->bvFRem(lhs, rhs);
   }
-  virtual ref<ExprHandle> neg(const ref<ExprHandle> &expr) {
+  virtual ref<SolverHandle> neg(const ref<SolverHandle> &expr) {
     return solverAdapter->bvFNeg(expr);
   }
-  virtual ref<ExprHandle> isInf(const ref<ExprHandle> &expr) {
+  virtual ref<SolverHandle> isInf(const ref<SolverHandle> &expr) {
     return solverAdapter->bvFIsInfinite(expr);
   }
-  virtual ref<ExprHandle> isNaN(const ref<ExprHandle> &expr) {
+  virtual ref<SolverHandle> isNaN(const ref<SolverHandle> &expr) {
     return solverAdapter->bvFIsNaN(expr);
   }
-  virtual ref<ExprHandle> isNormal(const ref<ExprHandle> &expr) {
+  virtual ref<SolverHandle> isNormal(const ref<SolverHandle> &expr) {
     return solverAdapter->bvFIsNormal(expr);
   }
-  virtual ref<ExprHandle> isSubNormal(const ref<ExprHandle> &expr) {
+  virtual ref<SolverHandle> isSubNormal(const ref<SolverHandle> &expr) {
     return solverAdapter->bvFIsSubnormal(expr);
   }
-  virtual ref<ExprHandle> fmax(const ref<ExprHandle> &lhs,
-                               const ref<ExprHandle> &rhs) {
+  virtual ref<SolverHandle> fmax(const ref<SolverHandle> &lhs,
+                               const ref<SolverHandle> &rhs) {
     return solverAdapter->bvFMax(lhs, rhs);
   }
-  virtual ref<ExprHandle> fmin(const ref<ExprHandle> &lhs,
-                               const ref<ExprHandle> &rhs) {
+  virtual ref<SolverHandle> fmin(const ref<SolverHandle> &lhs,
+                               const ref<SolverHandle> &rhs) {
     return solverAdapter->bvFMin(lhs, rhs);
   }
-  virtual ref<ExprHandle> lt(const ref<ExprHandle> &lhs,
-                             const ref<ExprHandle> &rhs) {
+  virtual ref<SolverHandle> lt(const ref<SolverHandle> &lhs,
+                             const ref<SolverHandle> &rhs) {
     return solverAdapter->bvFOLt(lhs, rhs);
   }
-  virtual ref<ExprHandle> le(const ref<ExprHandle> &lhs,
-                             const ref<ExprHandle> &rhs) {
+  virtual ref<SolverHandle> le(const ref<SolverHandle> &lhs,
+                             const ref<SolverHandle> &rhs) {
     return solverAdapter->bvFOLe(lhs, rhs);
   }
-  virtual ref<ExprHandle> eq(const ref<ExprHandle> &lhs,
-                             const ref<ExprHandle> &rhs) {
+  virtual ref<SolverHandle> eq(const ref<SolverHandle> &lhs,
+                             const ref<SolverHandle> &rhs) {
     return solverAdapter->bvFOEq(lhs, rhs);
   }
-  virtual ref<ExprHandle> sqrt(const ref<ExprHandle> &arg) {
+  virtual ref<SolverHandle> sqrt(const ref<SolverHandle> &arg) {
     return solverAdapter->bvFSqrt(arg);
   }
-  virtual ref<ExprHandle> rint(const ref<ExprHandle> &arg) {
+  virtual ref<SolverHandle> rint(const ref<SolverHandle> &arg) {
     return solverAdapter->bvFRint(arg);
   }
-  virtual ref<ExprHandle> abs(const ref<ExprHandle> &arg) {
+  virtual ref<SolverHandle> abs(const ref<SolverHandle> &arg) {
     return solverAdapter->bvFAbs(arg);
   }
 };

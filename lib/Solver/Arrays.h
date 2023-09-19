@@ -20,10 +20,12 @@ private:
     const Array *array = readExpr->updates.root;
 
     // Create bitvector sorts
-    ref<ExprHandle> domainSort = DS(solverAdapter).sort(array->getDomain());
-    ref<ExprHandle> rangeSort = RS(solverAdapter).sort(array->getRange());
+    ref<SortHandle> domainSort = DS(solverAdapter).sort(array->getDomain());
+    ref<SortHandle> rangeSort = RS(solverAdapter).sort(array->getRange());
+    ref<SortHandle> arraySort = solverAdapter->arraySort(domainSort, rangeSort);
 
-    ref<ExprHandle> result = solverAdapter->array(domainSort, rangeSort);
+    ref<TheoryHandle> arrayHandle = new CompleteTheoryHandle(
+        solverAdapter->array(array->getName(), arraySort), this);
 
     std::vector<ref<Expr>> required;
     ref<ConstantSource> constantSource =
@@ -49,9 +51,9 @@ private:
     }
 
     IncompleteResponse::completer_t completer =
-        [*this, result, readExpr,
-         constantSource](const ExprHashMap<ref<ExprHandle>> &map) mutable
-        -> ref<ExprHandle> {
+        [*this, arrayHandle, readExpr, constantSource](
+            const IncompleteResponse::TheoryHandleProvider &map) mutable
+        -> ref<TheoryHandle> {
       /*
        * TODO: should be located here, or somewhere else?
        *
@@ -63,27 +65,28 @@ private:
         const std::vector<ref<ConstantExpr>> &constantValues =
             constantSource->constantValues;
         for (unsigned idx = 0; idx < constantValues.size(); ++idx) {
-          ref<ExprHandle> constantAssertion = map.at(constantValues.at(idx));
+          ref<TheoryHandle> constantAssertion = map.at(constantValues.at(idx));
         }
       }
 
       ref<UpdateNode> node = readExpr->updates.head;
       while (!node.isNull()) {
-        result = write(result, map.at(node->index), map.at(node->value));
+        arrayHandle =
+            write(arrayHandle, map.at(node->index), map.at(node->value));
         node = node->next;
       }
-      return result;
+      return arrayHandle;
     };
 
-    return new IncompleteResponse(completer, required);
+    return new IncompleteResponse(this, completer, required);
   }
 
 protected:
   ref<TheoryHandle> translate(const ref<Expr> &expr,
-                                const ExprHandleList &args) override {
+                              const TheoryHandleList &args) override {
     switch (expr->getKind()) {
     case Expr::Kind::Read: {
-      return apply(&Arrays::read, array(cast<ReadExpr>(expr)), args[1]);
+      return read(array(cast<ReadExpr>(expr)), args[0]);
     }
     default: {
       return nullptr;
@@ -93,25 +96,32 @@ protected:
 
 public:
   Arrays(const ref<SolverAdapter> &solverAdapter)
-      : SolverTheory(solverAdapter) {}
+      : SolverTheory(SolverTheory::ARRAYS, solverAdapter) {}
 
-  ref<TheoryHandle> sort(const ref<TheoryHandle> &domainSort,
-                         const ref<TheoryHandle> &rangeSort) {
-    return apply(std::bind(std::mem_fn(&SolverAdapter::array), solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2), domainSort, rangeSort);
+  ref<SortHandle> sort(const ref<SortHandle> &domainSort,
+                       const ref<SortHandle> &rangeSort) {
+    return solverAdapter->arraySort(domainSort, rangeSort);
   }
 
   ref<TheoryHandle> read(const ref<TheoryHandle> &array,
                          const ref<TheoryHandle> &index) {
-    return apply(std::bind(std::mem_fn(&SolverAdapter::read), solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2), array, index);
+    return apply(std::bind(std::mem_fn(&SolverAdapter::read),
+                           solverAdapter.get(), std::placeholders::_1,
+                           std::placeholders::_2),
+                 array, index);
   }
 
   ref<TheoryHandle> write(const ref<TheoryHandle> &array,
                           const ref<TheoryHandle> &index,
                           const ref<TheoryHandle> &value) {
-    
-    return solverAdapter->write(array, index, value);
+    return apply(std::bind(std::mem_fn(&SolverAdapter::write),
+                           solverAdapter.get(), std::placeholders::_1,
+                           std::placeholders::_2, std::placeholders::_3),
+                 array, index, value);
+  }
+
+  static bool classof(const SolverTheory *th) {
+    return th->getSort() == Sort::ARRAYS;
   }
 };
 

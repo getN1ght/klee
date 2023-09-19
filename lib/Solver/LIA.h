@@ -12,11 +12,12 @@ namespace klee {
 
 struct LIA : public SolverTheory {
 public:
-  LIA(ref<SolverAdapter> &adapter) : SolverTheory(adapter) {}
+  LIA(ref<SolverAdapter> &adapter)
+      : SolverTheory(SolverTheory::Sort::LIA, adapter) {}
 
 protected:
   virtual ref<TheoryHandle> translate(const ref<Expr> &expr,
-                                      const ExprHandleList &args) {
+                                      const TheoryHandleList &args) {
     switch (expr->getKind()) {
     case Expr::Kind::Constant: {
       ref<ConstantExpr> ce = cast<ConstantExpr>(expr);

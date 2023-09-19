@@ -13,36 +13,43 @@ namespace klee {
 struct Propositional : public SolverTheory {
 
 protected:
-  ref<ExprHandle> castToBV(const ref<ExprHandle> &arg) override {
+  ref<TheoryHandle> castToBV(const ref<TheoryHandle> &arg) override {
     static const llvm::APInt zero(1, 0);
     static const llvm::APInt one(1, 1);
-
     return lite(arg, solverAdapter->bvConst(one), solverAdapter->bvConst(zero));
   }
 
+  ref<TheoryHandle> castToLIA(const ref<TheoryHandle> &arg) override {
+    static const llvm::APInt zero(1, 0);
+    static const llvm::APInt one(1, 1);
+    return lite(arg, solverAdapter->liaConst(one),
+                solverAdapter->liaConst(zero));
+  }
+
 public:
-  Propositional(const ref<SolverAdapter> &adapter) : SolverTheory(adapter) {}
+  Propositional(const ref<SolverAdapter> &adapter)
+      : SolverTheory(SolverTheory::Sort::BOOL, adapter) {}
 
   ref<TheoryHandle> translate(const ref<Expr> &expr,
-                                const ExprHandleList &args) override {
+                              const TheoryHandleList &args) override {
     switch (expr->getKind()) {
     case Expr::Kind::Constant: {
-      return apply(&Propositional::constant, expr);
+      return constant(expr);
     }
     case Expr::Kind::And: {
-      return apply(&Propositional::land, args[0], args[1]);
+      return land(args[0], args[1]);
     }
     case Expr::Kind::Or: {
-      return apply(&Propositional::lor, args[0], args[1]);
+      return lor(args[0], args[1]);
     }
     case Expr::Kind::Xor: {
-      return apply(&Propositional::lxor, args[0], args[1]);
+      return lxor(args[0], args[1]);
     }
     case Expr::Kind::Not: {
-      return apply(&Propositional::lnot, args[0]);
+      return lnot(args[0]);
     }
     case Expr::Kind::Select: {
-      return apply(&Propositional::lite, args[0], args[1], args[2]);
+      return lite(args[0], args[1], args[2]);
     }
     default: {
       return nullptr;
@@ -50,34 +57,49 @@ public:
     }
   }
 
-  ref<ExprHandle> constant(const ref<Expr> &expr) {
+  ref<TheoryHandle> constant(const ref<Expr> &expr) {
     ref<ConstantExpr> ce = cast<ConstantExpr>(expr);
     if (ce->getWidth() != 1) {
       return nullptr;
     }
-    return solverAdapter->propConst(ce->isTrue());
+    return new CompleteTheoryHandle(solverAdapter->propConst(ce->isTrue()),
+                                    this);
   }
 
-  ref<ExprHandle> land(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->propAnd(lhs, rhs);
+  ref<TheoryHandle> land(const ref<TheoryHandle> &lhs,
+                         const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(std::mem_fn(&SolverAdapter::propAnd), solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
   }
 
-  ref<ExprHandle> lor(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->propOr(lhs, rhs);
+  ref<TheoryHandle> lor(const ref<TheoryHandle> &lhs,
+                        const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::propOr, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
   }
 
-  ref<ExprHandle> lxor(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->propXor(lhs, rhs);
+  ref<TheoryHandle> lxor(const ref<TheoryHandle> &lhs,
+                         const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::propXor, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
   }
 
-  ref<ExprHandle> lnot(const ref<ExprHandle> &arg) {
-    return solverAdapter->propNot(arg);
+  ref<TheoryHandle> lnot(const ref<TheoryHandle> &arg) {
+    return apply(std::bind(&SolverAdapter::propNot, solverAdapter,
+                           std::placeholders::_1),
+                 arg);
   }
 
-  ref<ExprHandle> lite(const ref<ExprHandle> &cond,
-                       const ref<ExprHandle> &onTrue,
-                       const ref<ExprHandle> &onFalse) {
-    return solverAdapter->propIte(cond, onTrue, onFalse);
+  ref<TheoryHandle> lite(const ref<TheoryHandle> &cond,
+                         const ref<TheoryHandle> &onTrue,
+                         const ref<TheoryHandle> &onFalse) {
+    return apply(std::bind(&SolverAdapter::propIte, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2,
+                           std::placeholders::_3),
+                 cond, onTrue, onFalse);
   }
 };
 

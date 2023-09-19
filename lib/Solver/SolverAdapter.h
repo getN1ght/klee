@@ -11,13 +11,22 @@ class APFloat;
 
 namespace klee {
 
-class ExprHandle {
+class SolverHandle {
 public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
 
 public:
-  virtual ~ExprHandle() = default;
+  virtual ~SolverHandle() = default;
+};
+
+class SortHandle {
+public:
+  /// @brief Required by klee::ref-managed objects
+  class ReferenceCounter _refCount;
+
+public:
+  virtual ~SortHandle() = default;
 };
 
 class SolverAdapter {
@@ -26,137 +35,144 @@ public:
   class ReferenceCounter _refCount;
 
 public:
-  virtual ref<ExprHandle> bvSort(uint64_t width);
+  virtual ref<SortHandle> bvSort(uint64_t width);
 
   /* Floats section */
-  virtual ref<ExprHandle> bvFConst(const llvm::APFloat &val);
-  virtual ref<ExprHandle> bvFAdd(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvFSub(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  virtual ref<SolverHandle> bvFConst(const llvm::APFloat &val);
+  virtual ref<SolverHandle> bvFAdd(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvFSub(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
 
-  virtual ref<ExprHandle> bvFMul(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvFDiv(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvFRem(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvFMax(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvFMin(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  virtual ref<SolverHandle> bvFMul(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvFDiv(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvFRem(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvFMax(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvFMin(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
 
-  virtual ref<ExprHandle> bvFOEq(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvFOLt(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvFOLe(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  virtual ref<SolverHandle> bvFOEq(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvFOLt(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvFOLe(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
 
-  virtual ref<ExprHandle> bvFIsNaN(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> bvFIsInfinite(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> bvFIsNormal(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> bvFIsSubnormal(const ref<ExprHandle> &arg);
+  virtual ref<SolverHandle> bvFIsNaN(const ref<SolverHandle> &arg);
+  virtual ref<SolverHandle> bvFIsInfinite(const ref<SolverHandle> &arg);
+  virtual ref<SolverHandle> bvFIsNormal(const ref<SolverHandle> &arg);
+  virtual ref<SolverHandle> bvFIsSubnormal(const ref<SolverHandle> &arg);
 
-  virtual ref<ExprHandle> bvFSqrt(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> bvFRint(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> bvFAbs(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> bvFNeg(const ref<ExprHandle> &arg);
+  virtual ref<SolverHandle> bvFSqrt(const ref<SolverHandle> &arg);
+  virtual ref<SolverHandle> bvFRint(const ref<SolverHandle> &arg);
+  virtual ref<SolverHandle> bvFAbs(const ref<SolverHandle> &arg);
+  virtual ref<SolverHandle> bvFNeg(const ref<SolverHandle> &arg);
 
   /* Arithmetics section */
 public:
-  virtual ref<ExprHandle> bvConst(const llvm::APInt &val);
-  virtual ref<ExprHandle> bvAdd(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvSub(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvMul(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvUDiv(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvSDiv(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvURem(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvSRem(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  virtual ref<SolverHandle> bvConst(const llvm::APInt &val);
+  virtual ref<SolverHandle> bvAdd(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvSub(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvMul(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvUDiv(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvSDiv(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvURem(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvSRem(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
 
-  virtual ref<ExprHandle> bvAnd(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvOr(const ref<ExprHandle> &lhs,
-                               const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvXor(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvNot(const ref<ExprHandle> &arg);
+  virtual ref<SolverHandle> bvAnd(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvOr(const ref<SolverHandle> &lhs,
+                                 const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvXor(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvNot(const ref<SolverHandle> &arg);
 
-  virtual ref<ExprHandle> bvUle(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvSle(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvUlt(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvSlt(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
+  virtual ref<SolverHandle> bvUle(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvSle(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvUlt(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvSlt(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
 
-  virtual ref<ExprHandle> bvZExt(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvSExt(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  virtual ref<SolverHandle> bvZExt(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvSExt(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
 
-  virtual ref<ExprHandle> bvShl(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvAShr(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> bvLShr(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  virtual ref<SolverHandle> bvShl(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvAShr(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> bvLShr(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
 
-  virtual ref<ExprHandle> bvExtract(const ref<ExprHandle> &expr,
-                                    const ref<ExprHandle> &lb,
-                                    const ref<ExprHandle> &rb);
-  virtual ref<ExprHandle> bvConcat(const ref<ExprHandle> &lhs,
-                                   const ref<ExprHandle> &rhs);
+  virtual ref<SolverHandle> bvExtract(const ref<SolverHandle> &expr,
+                                      const ref<SolverHandle> &lb,
+                                      const ref<SolverHandle> &rb);
+  virtual ref<SolverHandle> bvConcat(const ref<SolverHandle> &lhs,
+                                     const ref<SolverHandle> &rhs);
   /* LIA section */
 public:
-  virtual ref<ExprHandle> liaConst(const llvm::APInt &val);
-  virtual ref<ExprHandle> liaAdd(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> liaDub(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> liaMul(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
+  virtual ref<SortHandle> liaSort();
 
-  virtual ref<ExprHandle> liaLe(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> liaLt(const ref<ExprHandle> &lhs,
-                                const ref<ExprHandle> &rhs);
+  virtual ref<SolverHandle> liaConst(const llvm::APInt &val);
+  virtual ref<SolverHandle> liaAdd(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> liaDub(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> liaMul(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+
+  virtual ref<SolverHandle> liaLe(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> liaLt(const ref<SolverHandle> &lhs,
+                                  const ref<SolverHandle> &rhs);
 
   /* Arrays section */
 public:
-  virtual ref<ExprHandle> array(const ref<ExprHandle> &domainSort,
-                                const ref<ExprHandle> &rangeSort);
+  virtual ref<SortHandle> arraySort(const ref<SortHandle> &domainSort,
+                                    const ref<SortHandle> &rangeSort);
 
-  virtual ref<ExprHandle> read(const ref<ExprHandle> &arr,
-                               const ref<ExprHandle> &idx);
-  virtual ref<ExprHandle> write(const ref<ExprHandle> &arr,
-                                const ref<ExprHandle> &idx,
-                                const ref<ExprHandle> &val);
+  virtual ref<SolverHandle> array(const std::string &name,
+                                  const ref<SortHandle> &sort);
+
+  virtual ref<SolverHandle> read(const ref<SolverHandle> &arr,
+                                 const ref<SolverHandle> &idx);
+  virtual ref<SolverHandle> write(const ref<SolverHandle> &arr,
+                                  const ref<SolverHandle> &idx,
+                                  const ref<SolverHandle> &val);
 
   /* Propositional section */
 public:
-  virtual ref<ExprHandle> propConst(bool val);
-  virtual ref<ExprHandle> propAnd(const ref<ExprHandle> &lhs,
-                                  const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> propOr(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> propXor(const ref<ExprHandle> &lhs,
-                                  const ref<ExprHandle> &rhs);
-  virtual ref<ExprHandle> propNot(const ref<ExprHandle> &arg);
-  virtual ref<ExprHandle> propIte(const ref<ExprHandle> &cond,
-                                  const ref<ExprHandle> &onTrue,
-                                  const ref<ExprHandle> &onFalse);
+  virtual ref<SortHandle> boolSort();
 
-  virtual ref<ExprHandle> eq(const ref<ExprHandle> &lhs,
-                             const ref<ExprHandle> &rhs);
+  virtual ref<SolverHandle> propConst(bool val);
+  virtual ref<SolverHandle> propAnd(const ref<SolverHandle> &lhs,
+                                    const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> propOr(const ref<SolverHandle> &lhs,
+                                   const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> propXor(const ref<SolverHandle> &lhs,
+                                    const ref<SolverHandle> &rhs);
+  virtual ref<SolverHandle> propNot(const ref<SolverHandle> &arg);
+  virtual ref<SolverHandle> propIte(const ref<SolverHandle> &cond,
+                                    const ref<SolverHandle> &onTrue,
+                                    const ref<SolverHandle> &onFalse);
+
+  virtual ref<SolverHandle> eq(const ref<SolverHandle> &lhs,
+                               const ref<SolverHandle> &rhs);
 
   virtual ~SolverAdapter() = 0;
 };

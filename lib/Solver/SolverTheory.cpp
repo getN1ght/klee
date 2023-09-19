@@ -7,8 +7,9 @@
 
 using namespace klee;
 
-SolverTheory::SolverTheory(const ref<SolverAdapter> &solverAdapter)
-    : solverAdapter(solverAdapter) {
+SolverTheory::SolverTheory(Sort theorySort,
+                           const ref<SolverAdapter> &solverAdapter)
+    : theorySort(theorySort), solverAdapter(solverAdapter) {
   castMapping[ARRAYS] = &SolverTheory::castToArray;
   castMapping[BV] = &SolverTheory::castToBV;
   castMapping[BOOL] = &SolverTheory::castToBool;
@@ -32,13 +33,14 @@ ref<TheoryHandle> SolverTheory::castToLIA(const ref<TheoryHandle> &arg) {
   return nullptr;
 }
 
-ref<ExprHandle> SolverTheory::eq(const ref<ExprHandle> &lhs,
-                                 const ref<ExprHandle> &rhs) {
-  return solverAdapter->eq(lhs, rhs);
+ref<TheoryHandle> SolverTheory::eq(const ref<TheoryHandle> &lhs,
+                                   const ref<TheoryHandle> &rhs) {
+  // return solverAdapter->eq(lhs, rhs);
+  return nullptr;
 }
 
-ref<ExprHandle> SolverTheory::castTo(SolverTheory::Sort sort,
-                                     const ref<ExprHandle> &arg) {
+ref<TheoryHandle> SolverTheory::castTo(SolverTheory::Sort sort,
+                                       const ref<TheoryHandle> &arg) {
   if (castMapping.count(sort) == 0) {
     return nullptr;
   }
@@ -46,12 +48,10 @@ ref<ExprHandle> SolverTheory::castTo(SolverTheory::Sort sort,
   return (this->*castFunction)(arg);
 }
 
-ref<ExprHandle> CompleteTheoryHandle::expr() const {
-  return handle;
-}
+ref<SolverHandle> CompleteTheoryHandle::expr() const { return handle; }
 
 CompleteTheoryHandle
-IncompleteResponse::complete(const ExprHashMap<ref<ExprHandle>> &required) {
+IncompleteResponse::complete(const TheoryHandleProvider &required) {
   // TODO: accept a PROVIDER, not just just a MAP.
   for (const ref<Expr> &expr : toBuild) {
     if (required.count(expr) == 0) {
@@ -60,5 +60,5 @@ IncompleteResponse::complete(const ExprHashMap<ref<ExprHandle>> &required) {
     }
   }
 
-  return CompleteTheoryHandle(parent, completer(required));
+  return CompleteTheoryHandle(completer(required), parent);
 }

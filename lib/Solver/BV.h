@@ -17,150 +17,223 @@ struct BV : public SolverTheory {
 
 protected:
   ref<TheoryHandle> translate(const ref<Expr> &expr,
-                                const ExprHandleList &args) override {
+                              const TheoryHandleList &args) override {
     typedef Expr::Kind Kind;
     switch (expr->getKind()) {
     case Kind::Constant:
       return constant(expr);
     case Kind::Add:
-      return apply(&BV::add, args[0], args[1]);
+      return add(args[0], args[1]);
     case Kind::Sub:
-      return apply(&BV::sub, args[0], args[1]);
+      return sub(args[0], args[1]);
     case Kind::Mul:
-      return apply(&BV::mul, args[0], args[1]);
+      return mul(args[0], args[1]);
     case Kind::SDiv:
-      return apply(&BV::sdiv, args[0], args[1]);
+      return sdiv(args[0], args[1]);
     case Kind::UDiv:
-      return apply(&BV::udiv, args[0], args[1]);
+      return udiv(args[0], args[1]);
     case Kind::Shl:
-      return apply(&BV::shl, args[0], args[1]);
+      return shl(args[0], args[1]);
     case Kind::AShr:
-      return apply(&BV::ashr, args[0], args[1]);
+      return ashr(args[0], args[1]);
     case Kind::LShr:
-      return apply(&BV::lshr, args[0], args[1]);
+      return lshr(args[0], args[1]);
     case Kind::SExt:
-      return apply(&BV::sext, args[0], args[1]);
+      return sext(args[0], args[1]);
     case Kind::ZExt:
-      return apply(&BV::zext, args[0], args[1]);
+      return zext(args[0], args[1]);
     case Kind::And:
-      return apply(&BV::band, args[0], args[1]);
+      return band(args[0], args[1]);
     case Kind::Or:
-      return apply(&BV::bor, args[0], args[1]);
+      return bor(args[0], args[1]);
     case Kind::Xor:
-      return apply(&BV::bxor, args[0], args[1]);
+      return bxor(args[0], args[1]);
     case Kind::Not:
-      return apply(&BV::bnot, args[0]);
+      return bnot(args[0]);
     case Kind::Ule:
-      return apply(&BV::ule, args[0], args[1]);
+      return ule(args[0], args[1]);
     case Kind::Ult:
-      return apply(&BV::ult, args[0], args[1]);
+      return ult(args[0], args[1]);
     case Kind::Sle:
-      return apply(&BV::sle, args[0], args[1]);
+      return sle(args[0], args[1]);
     case Kind::Slt:
-      return apply(&BV::slt, args[0], args[1]);
+      return slt(args[0], args[1]);
     case Kind::Extract:
-      return apply(&BV::extract, args[0], args[1], args[2]);
+      return extract(args[0], args[1], args[2]);
     case Kind::Concat:
-      return apply(&BV::concat, args[0], args[1]);
+      return concat(args[0], args[1]);
     default:
       return nullptr;
     }
   }
 
-  ref<ExprHandle> castToBool(const ref<ExprHandle> &handle) override {
+  ref<TheoryHandle> castToBool(const ref<TheoryHandle> &handle) override {
+    // SelectExpr::create()
     return nullptr;
   }
 
 public:
-  BV(const ref<SolverAdapter> &solverAdapter) : SolverTheory(solverAdapter) {}
+  BV(const ref<SolverAdapter> &solverAdapter)
+      : SolverTheory(SolverTheory::Sort::BV, solverAdapter) {}
 
-  ref<ExprHandle> sort(unsigned width) {
+  ref<SortHandle> sort(unsigned width) {
     return solverAdapter->bvSort(width);
   }
 
-  ref<ExprHandle> constant(const ref<Expr> &val) {
+  ref<TheoryHandle> constant(const ref<Expr> &val) {
     ref<ConstantExpr> cVal = dyn_cast<ConstantExpr>(val);
     if (!cVal) {
       // llvm::report_fatal_error()
       // TODO: REPORT FATAL ERROR
       std::abort();
     }
-    return solverAdapter->bvConst(cVal->getAPValue());
+    return new CompleteTheoryHandle(solverAdapter->bvConst(cVal->getAPValue()),
+                                    this);
   }
 
-  ref<ExprHandle> add(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvAdd(lhs, rhs);
+  ref<TheoryHandle> add(const ref<TheoryHandle> &lhs,
+                        const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvAdd, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
   }
 
-  ref<ExprHandle> sub(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvSub(lhs, rhs);
-  }
-  ref<ExprHandle> mul(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvMul(lhs, rhs);
-  }
-  ref<ExprHandle> udiv(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvUDiv(lhs, rhs);
-  }
-  ref<ExprHandle> sdiv(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvSDiv(lhs, rhs);
+  ref<TheoryHandle> sub(const ref<TheoryHandle> &lhs,
+                        const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvSub, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
   }
 
-  ref<ExprHandle> shl(const ref<ExprHandle> &arg, const ref<ExprHandle> &wth) {
-    return solverAdapter->bvShl(arg, wth);
-  }
-  ref<ExprHandle> ashr(const ref<ExprHandle> &arg, const ref<ExprHandle> &wth) {
-    return solverAdapter->bvAShr(arg, wth);
-  }
-  ref<ExprHandle> lshr(const ref<ExprHandle> &arg, const ref<ExprHandle> &wth) {
-    return solverAdapter->bvLShr(arg, wth);
+  ref<TheoryHandle> mul(const ref<TheoryHandle> &lhs,
+                        const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvMul, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
   }
 
-  ref<ExprHandle> sext(const ref<ExprHandle> &arg, const ref<ExprHandle> &wth) {
-    return solverAdapter->bvSExt(arg, wth);
+  ref<TheoryHandle> udiv(const ref<TheoryHandle> &lhs,
+                         const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvUDiv, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
   }
 
-  ref<ExprHandle> zext(const ref<ExprHandle> &arg, const ref<ExprHandle> &wth) {
-    return solverAdapter->bvZExt(arg, wth);
+  ref<TheoryHandle> sdiv(const ref<TheoryHandle> &lhs,
+                         const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvSDiv, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
   }
 
-  ref<ExprHandle> band(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvAnd(lhs, rhs);
-  }
-  ref<ExprHandle> bor(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvOr(lhs, rhs);
-  }
-  ref<ExprHandle> bxor(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvXor(lhs, rhs);
+  ref<TheoryHandle> shl(const ref<TheoryHandle> &arg,
+                        const ref<TheoryHandle> &wth) {
+    return apply(std::bind(&SolverAdapter::bvShl, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 arg, wth);
   }
 
-  ref<ExprHandle> bnot(const ref<ExprHandle> &arg) {
-    return solverAdapter->bvNot(arg);
+  ref<TheoryHandle> ashr(const ref<TheoryHandle> &arg,
+                         const ref<TheoryHandle> &wth) {
+    return apply(std::bind(&SolverAdapter::bvAShr, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 arg, wth);
   }
 
-  ref<ExprHandle> ult(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvUlt(lhs, rhs);
+  ref<TheoryHandle> lshr(const ref<TheoryHandle> &arg,
+                         const ref<TheoryHandle> &wth) {
+    return apply(std::bind(&SolverAdapter::bvLShr, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 arg, wth);
   }
 
-  ref<ExprHandle> ule(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvUle(lhs, rhs);
+  ref<TheoryHandle> sext(const ref<TheoryHandle> &arg,
+                         const ref<TheoryHandle> &wth) {
+    return apply(std::bind(&SolverAdapter::bvSExt, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 arg, wth);
   }
 
-  ref<ExprHandle> slt(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvSlt(lhs, rhs);
-  }
-  ref<ExprHandle> sle(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvSle(lhs, rhs);
-  }
-
-  ref<ExprHandle> extract(const ref<ExprHandle> &expr,
-                          const ref<ExprHandle> &off,
-                          const ref<ExprHandle> &len) {
-    return solverAdapter->bvExtract(expr, off, len);
+  ref<TheoryHandle> zext(const ref<TheoryHandle> &arg,
+                         const ref<TheoryHandle> &wth) {
+    return apply(std::bind(&SolverAdapter::bvZExt, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 arg, wth);
   }
 
-  ref<ExprHandle> concat(const ref<ExprHandle> &lhs,
-                         const ref<ExprHandle> &rhs) {
-    return solverAdapter->bvConcat(lhs, rhs);
+  ref<TheoryHandle> band(const ref<TheoryHandle> &lhs,
+                         const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvAnd, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
+  }
+
+  ref<TheoryHandle> bor(const ref<TheoryHandle> &lhs,
+                        const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvOr, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
+  }
+
+  ref<TheoryHandle> bxor(const ref<TheoryHandle> &lhs,
+                         const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvXor, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
+  }
+
+  ref<TheoryHandle> bnot(const ref<TheoryHandle> &arg) {
+    return apply(
+        std::bind(&SolverAdapter::bvNot, solverAdapter, std::placeholders::_1),
+        arg);
+  }
+
+  ref<TheoryHandle> ult(const ref<TheoryHandle> &lhs,
+                        const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvUlt, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
+  }
+
+  ref<TheoryHandle> ule(const ref<TheoryHandle> &lhs,
+                        const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvUle, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
+  }
+
+  ref<TheoryHandle> slt(const ref<TheoryHandle> &lhs,
+                        const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvSlt, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
+  }
+
+  ref<TheoryHandle> sle(const ref<TheoryHandle> &lhs,
+                        const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvSle, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
+  }
+
+  ref<TheoryHandle> extract(const ref<TheoryHandle> &expr,
+                            const ref<TheoryHandle> &off,
+                            const ref<TheoryHandle> &len) {
+    return apply(std::bind(&SolverAdapter::bvExtract, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2,
+                           std::placeholders::_3),
+                 expr, off, len);
+  }
+
+  ref<TheoryHandle> concat(const ref<TheoryHandle> &lhs,
+                           const ref<TheoryHandle> &rhs) {
+    return apply(std::bind(&SolverAdapter::bvConcat, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
+  }
+
+  static bool classof(const SolverTheory *th) {
+    return th->getSort() == Sort::BV;
   }
 };
 

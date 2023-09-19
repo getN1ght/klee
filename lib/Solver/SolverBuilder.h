@@ -1,8 +1,8 @@
 #ifndef SOLVERBUILDER_H
 #define SOLVERBUILDER_H
 
-#include "klee/ADT/Ref.h"
 #include "SolverTheory.h"
+#include "klee/ADT/Ref.h"
 
 #include <unordered_map>
 #include <vector>
@@ -28,14 +28,14 @@ private:
   uint64_t positionOf(SolverTheory::Sort) const;
 
   SolverBuilder(const std::vector<ref<SolverTheory>> &);
-  ref<ExprHandle> buildWithTheory(const ref<SolverTheory> &theory,
-                                  const ref<Expr> &expr);
+  ref<TheoryHandle> buildWithTheory(const ref<SolverTheory> &theory,
+                                    const ref<Expr> &expr);
 
-  ref<ExprHandle> castToTheory(const ref<ExprHandle> &arg,
-                               SolverTheory::Sort sort);
+  ref<TheoryHandle> castToTheory(const ref<TheoryHandle> &arg,
+                                 SolverTheory::Sort sort);
 
 public:
-  ref<ExprHandle> build(const ref<Expr> &expr);
+  ref<TheoryHandle> build(const ref<Expr> &expr);
 };
 } // namespace klee
 

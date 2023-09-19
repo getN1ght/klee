@@ -38,8 +38,8 @@
 
 #include "Arrays.h"
 #include "BV.h"
-#include "FPBV.h"
-#include "LIA.h"
+// #include "FPBV.h"
+// #include "LIA.h"
 #include "Propositional.h"
 
 
@@ -365,7 +365,7 @@ bool Z3SolverImpl::internalRunSolver(
           .thenApply<Arrays<BV, BV>>()
           .thenApply<Propositional>()
           // // .thenApply<SolverTheory::Sort::LIA>()
-          .thenApply<FPBV>()
+          // .thenApply<FPBV>()
           .thenApply<BV>()
           .build();
 

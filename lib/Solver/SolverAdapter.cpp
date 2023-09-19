@@ -2,252 +2,258 @@
 #include "SolverTheory.h"
 
 #include "klee/ADT/Ref.h"
-#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APInt.h"
 
 #include <optional>
 
 using namespace klee;
 
-ref<ExprHandle> SolverAdapter::bvSort(uint64_t width) { return nullptr; }
+ref<SortHandle> SolverAdapter::bvSort(uint64_t width) { return nullptr; }
 
 /* Floats section */
-ref<ExprHandle> SolverAdapter::bvFConst(const llvm::APFloat &val) {
+ref<SolverHandle> SolverAdapter::bvFConst(const llvm::APFloat &val) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvFAdd(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFAdd(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvFSub(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-
-ref<ExprHandle> SolverAdapter::bvFMul(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvFDiv(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvFRem(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvFMax(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvFMin(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFSub(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
 
-ref<ExprHandle> SolverAdapter::bvFOEq(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFMul(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvFOLt(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFDiv(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvFOLe(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFRem(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-
-ref<ExprHandle> SolverAdapter::bvFIsNaN(const ref<ExprHandle> &arg) {
+ref<SolverHandle> SolverAdapter::bvFMax(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvFIsInfinite(const ref<ExprHandle> &arg) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvFIsNormal(const ref<ExprHandle> &arg) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvFIsSubnormal(const ref<ExprHandle> &arg) {
+ref<SolverHandle> SolverAdapter::bvFMin(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
 
-ref<ExprHandle> SolverAdapter::bvFSqrt(const ref<ExprHandle> &arg) {
+ref<SolverHandle> SolverAdapter::bvFOEq(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvFRint(const ref<ExprHandle> &arg) {
+ref<SolverHandle> SolverAdapter::bvFOLt(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvFAbs(const ref<ExprHandle> &arg) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvFNeg(const ref<ExprHandle> &arg) {
-  return nullptr;
-}
-
-ref<ExprHandle> SolverAdapter::bvConst(const llvm::APInt &val) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvAdd(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvSub(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvMul(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvUDiv(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvSDiv(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvURem(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::bvSRem(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFOLe(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
 
-ref<ExprHandle> SolverAdapter::bvAnd(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFIsNaN(const ref<SolverHandle> &arg) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvOr(const ref<ExprHandle> &lhs,
-                                    const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFIsInfinite(const ref<SolverHandle> &arg) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvXor(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFIsNormal(const ref<SolverHandle> &arg) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvNot(const ref<ExprHandle> &arg) {
+ref<SolverHandle> SolverAdapter::bvFIsSubnormal(const ref<SolverHandle> &arg) {
   return nullptr;
 }
 
-ref<ExprHandle> SolverAdapter::bvUle(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFSqrt(const ref<SolverHandle> &arg) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvSle(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFRint(const ref<SolverHandle> &arg) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvUlt(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFAbs(const ref<SolverHandle> &arg) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvSlt(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvFNeg(const ref<SolverHandle> &arg) {
   return nullptr;
 }
 
-ref<ExprHandle> SolverAdapter::bvZExt(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvConst(const llvm::APInt &val) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvSExt(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvAdd(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-
-ref<ExprHandle> SolverAdapter::bvShl(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvSub(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvAShr(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvMul(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvLShr(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvUDiv(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-
-ref<ExprHandle> SolverAdapter::bvExtract(const ref<ExprHandle> &expr,
-                                         const ref<ExprHandle> &lb,
-                                         const ref<ExprHandle> &rb) {
+ref<SolverHandle> SolverAdapter::bvSDiv(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::bvConcat(const ref<ExprHandle> &lhs,
-                                        const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvURem(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-
-ref<ExprHandle> SolverAdapter::liaConst(const llvm::APInt &val) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::liaAdd(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::liaDub(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::liaMul(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvSRem(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
 
-ref<ExprHandle> SolverAdapter::liaLe(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvAnd(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::liaLt(const ref<ExprHandle> &lhs,
-                                     const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvOr(const ref<SolverHandle> &lhs,
+                                      const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-
-ref<ExprHandle> SolverAdapter::array(const ref<ExprHandle> &domainSort,
-                                     const ref<ExprHandle> &rangeSort) {
+ref<SolverHandle> SolverAdapter::bvXor(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-
-ref<ExprHandle> SolverAdapter::read(const ref<ExprHandle> &arr,
-                                    const ref<ExprHandle> &idx) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::write(const ref<ExprHandle> &arr,
-                                     const ref<ExprHandle> &idx,
-                                     const ref<ExprHandle> &val) {
+ref<SolverHandle> SolverAdapter::bvNot(const ref<SolverHandle> &arg) {
   return nullptr;
 }
 
-ref<ExprHandle> SolverAdapter::propConst(bool val) {
+ref<SolverHandle> SolverAdapter::bvUle(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::bvSle(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::bvUlt(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::bvSlt(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
   return nullptr;
 }
 
-ref<ExprHandle> SolverAdapter::propAnd(const ref<ExprHandle> &lhs,
-                                       const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvZExt(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
-ref<ExprHandle> SolverAdapter::propOr(const ref<ExprHandle> &lhs,
-                                      const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::propXor(const ref<ExprHandle> &lhs,
-                                       const ref<ExprHandle> &rhs) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::propNot(const ref<ExprHandle> &arg) {
-  return nullptr;
-}
-ref<ExprHandle> SolverAdapter::propIte(const ref<ExprHandle> &cond,
-                                       const ref<ExprHandle> &onTrue,
-                                       const ref<ExprHandle> &onFalse) {
+ref<SolverHandle> SolverAdapter::bvSExt(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
   return nullptr;
 }
 
-ref<ExprHandle> SolverAdapter::eq(const ref<ExprHandle> &lhs,
-                                  const ref<ExprHandle> &rhs) {
+ref<SolverHandle> SolverAdapter::bvShl(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::bvAShr(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::bvLShr(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+
+ref<SolverHandle> SolverAdapter::bvExtract(const ref<SolverHandle> &expr,
+                                           const ref<SolverHandle> &lb,
+                                           const ref<SolverHandle> &rb) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::bvConcat(const ref<SolverHandle> &lhs,
+                                          const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+
+ref<SortHandle> SolverAdapter::liaSort() { return nullptr; }
+ref<SolverHandle> SolverAdapter::liaConst(const llvm::APInt &val) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::liaAdd(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::liaDub(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::liaMul(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+
+ref<SolverHandle> SolverAdapter::liaLe(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::liaLt(const ref<SolverHandle> &lhs,
+                                       const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+
+ref<SortHandle> SolverAdapter::arraySort(const ref<SortHandle> &domainSort,
+                                         const ref<SortHandle> &rangeSort) {
+  return nullptr;
+}
+
+ref<SolverHandle> SolverAdapter::array(const std::string &name,
+                                       const ref<SortHandle> &sort) {
+  return nullptr;
+}
+
+ref<SolverHandle> SolverAdapter::read(const ref<SolverHandle> &arr,
+                                      const ref<SolverHandle> &idx) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::write(const ref<SolverHandle> &arr,
+                                       const ref<SolverHandle> &idx,
+                                       const ref<SolverHandle> &val) {
+  return nullptr;
+}
+
+ref<SortHandle> SolverAdapter::boolSort() { return nullptr; }
+
+ref<SolverHandle> SolverAdapter::propConst(bool val) { return nullptr; }
+
+ref<SolverHandle> SolverAdapter::propAnd(const ref<SolverHandle> &lhs,
+                                         const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::propOr(const ref<SolverHandle> &lhs,
+                                        const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::propXor(const ref<SolverHandle> &lhs,
+                                         const ref<SolverHandle> &rhs) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::propNot(const ref<SolverHandle> &arg) {
+  return nullptr;
+}
+ref<SolverHandle> SolverAdapter::propIte(const ref<SolverHandle> &cond,
+                                         const ref<SolverHandle> &onTrue,
+                                         const ref<SolverHandle> &onFalse) {
+  return nullptr;
+}
+
+ref<SolverHandle> SolverAdapter::eq(const ref<SolverHandle> &lhs,
+                                    const ref<SolverHandle> &rhs) {
   return nullptr;
 }
 

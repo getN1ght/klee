@@ -20,8 +20,9 @@ template <typename> class ExprHashMap;
  * and type of expression inside.
  */
 
-class ExprHandle;
-typedef std::vector<ref<ExprHandle>> ExprHandleList;
+struct SolverTheory;
+
+class SolverHandle;
 
 class TheoryHandle {
 public:
@@ -29,6 +30,7 @@ public:
   class ReferenceCounter _refCount;
 
 protected:
+  /// Discriminator for LLVM-style RTTI (dyn_cast<> et al.)
   enum Kind { COMPLETE, INCOMPLETE };
 
 private:
@@ -43,14 +45,16 @@ public:
   virtual ~TheoryHandle() {}
 };
 
+typedef std::vector<ref<TheoryHandle>> TheoryHandleList;
+
 class CompleteTheoryHandle : public TheoryHandle {
-  ref<ExprHandle> handle;
+  ref<SolverHandle> handle;
 
 public:
-  CompleteTheoryHandle(const ref<ExprHandle> &handle,
+  CompleteTheoryHandle(const ref<SolverHandle> &handle,
                        const ref<SolverTheory> &parent)
       : TheoryHandle(COMPLETE, parent), handle(handle) {}
-  ref<ExprHandle> expr() const;
+  ref<SolverHandle> expr() const;
 
   static bool classof(const TheoryHandle *tr) {
     return tr->getKind() == TheoryHandle::Kind::COMPLETE;
@@ -59,7 +63,8 @@ public:
 
 class IncompleteResponse : public TheoryHandle {
 public:
-  typedef std::function<ref<ExprHandle>(const ExprHashMap<ref<ExprHandle>> &)>
+  typedef ExprHashMap<ref<TheoryHandle>> TheoryHandleProvider;
+  typedef std::function<ref<SolverHandle>(const TheoryHandleProvider &)>
       completer_t;
 
   const completer_t completer;
@@ -72,7 +77,7 @@ public:
       : TheoryHandle(INCOMPLETE, parent), completer(completer),
         toBuild(required) {}
 
-  CompleteTheoryHandle complete(const ExprHashMap<ref<ExprHandle>> &);
+  CompleteTheoryHandle complete(const TheoryHandleProvider &);
 
   static bool classof(const TheoryHandle *tr) {
     return tr->getKind() == TheoryHandle::Kind::INCOMPLETE;
@@ -81,61 +86,61 @@ public:
 
 struct SolverTheory {
 public:
-  enum Sort { UNKNOWN, ARRAYS, BOOL, BV, FPBV, LIA };
-  const Sort theorySort = Sort::UNKNOWN;
-
-  typedef ref<ExprHandle> (SolverTheory::*cast_function_t)(
-      const ref<ExprHandle> &);
+  /// @brief Required by klee::ref-managed objects
+  class ReferenceCounter _refCount;
 
 public:
-  template <typename ClassName, typename... FArgs, typename... Args>
-  ref<TheoryHandle> apply(ref<ExprHandle> (ClassName::*fun)(FArgs...),
-                          Args &&...args) {
+  enum Sort { ARRAYS, BOOL, BV, FPBV, LIA };
+  const Sort theorySort;
+
+  typedef ref<TheoryHandle> (SolverTheory::*cast_function_t)(
+      const ref<TheoryHandle> &);
+
+public:
+  template <typename Functor, typename... Args>
+  ref<TheoryHandle> apply(const Functor &functor, Args &&...args) {
     std::vector<ref<Expr>> toBuild;
     (
-        [&](auto arg) {
-          ref<IncompleteResponse> incompleteResponse =
-              dyn_cast<IncompleteResponse>(arg);
-          if (incompleteResponse == nullptr) {
-            return;
-          }
-          for (const ref<Expr> &raw : incompleteResponse->toBuild) {
-            toBuild.push_back(raw);
+        [&](auto arg) -> void {
+          if (ref<IncompleteResponse> incompleteResponse =
+                  dyn_cast<IncompleteResponse>(arg)) {
+            for (const ref<Expr> &raw : incompleteResponse->toBuild) {
+              toBuild.push_back(raw);
+            }
           }
         }(args),
         ...);
 
     IncompleteResponse::completer_t completer =
-        [&](const ExprHashMap<ref<ExprHandle>> &required) {
-          auto unwrap = [&](auto arg) -> ref<ExprHandle> {
-            if (ref<IncompleteResponse> incompleteResponse =
-                    dyn_cast<IncompleteResponse>(arg)) {
-              return incompleteResponse->completer(required);
-            } else if (ref<CompleteTheoryHandle> completeResponse =
-                           dyn_cast<CompleteTheoryHandle>(arg)) {
-              return completeResponse->expr();
-            } else {
-              // FIXME: handle error properly
-              std::abort();
-              return nullptr;
-            }
-          };
+        [&](const IncompleteResponse::TheoryHandleProvider &required)
+        -> ref<SolverHandle> {
 
-          return (reinterpret_cast<ClassName *>(this)->*fun)(unwrap(args)...);
-        };
+      auto unwrap = [&](auto arg) -> ref<SolverHandle> {
+        if (ref<IncompleteResponse> incompleteTheoryHandle =
+                dyn_cast<IncompleteResponse>(arg)) {
+          arg = incompleteTheoryHandle->completer(required);
+        }
+        if (ref<CompleteTheoryHandle> completeTheoryHandle =
+                dyn_cast<CompleteTheoryHandle>(arg)) {
+          return completeTheoryHandle->expr();
+        }
+        std::abort();
+        return nullptr;
+      };
+
+      return functor(unwrap(args)...);
+    };
 
     if (toBuild.empty()) {
-      return completer(ExprHashMap<ref<ExprHandle>>());
+      return new CompleteTheoryHandle(
+          completer(IncompleteResponse::TheoryHandleProvider()), this);
     } else {
-      return new IncompleteResponse(completer, toBuild);
+      return new IncompleteResponse(this, completer, toBuild);
     }
   }
 
   /* FIXME: figure out better style */
   std::unordered_map<SolverTheory::Sort, cast_function_t> castMapping;
-
-  /// @brief Required by klee::ref-managed objects
-  class ReferenceCounter _refCount;
 
 protected:
   ref<SolverAdapter> solverAdapter;
@@ -148,14 +153,17 @@ protected:
   virtual ref<TheoryHandle> castToLIA(const ref<TheoryHandle> &arg);
 
 public:
-  SolverTheory(const ref<SolverAdapter> &adapter);
+  SolverTheory(Sort, const ref<SolverAdapter> &);
 
   virtual ref<TheoryHandle> translate(const ref<Expr> &,
-                                      const ExprHandleList &) = 0;
+                                      const TheoryHandleList &) = 0;
 
-  ref<ExprHandle> eq(const ref<ExprHandle> &lhs, const ref<ExprHandle> &rhs);
+  ref<TheoryHandle> eq(const ref<TheoryHandle> &lhs,
+                       const ref<TheoryHandle> &rhs);
 
-  ref<ExprHandle> castTo(Sort sort, const ref<ExprHandle> &arg);
+  ref<TheoryHandle> castTo(Sort sort, const ref<TheoryHandle> &arg);
+
+  Sort getSort() const { return theorySort; }
 
   virtual ~SolverTheory() = default;
 };
