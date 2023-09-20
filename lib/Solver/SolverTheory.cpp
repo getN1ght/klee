@@ -33,12 +33,6 @@ ref<TheoryHandle> SolverTheory::castToLIA(const ref<TheoryHandle> &arg) {
   return nullptr;
 }
 
-ref<TheoryHandle> SolverTheory::eq(const ref<TheoryHandle> &lhs,
-                                   const ref<TheoryHandle> &rhs) {
-  // return solverAdapter->eq(lhs, rhs);
-  return nullptr;
-}
-
 ref<TheoryHandle> SolverTheory::castTo(SolverTheory::Sort sort,
                                        const ref<TheoryHandle> &arg) {
   if (castMapping.count(sort) == 0) {

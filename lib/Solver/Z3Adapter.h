@@ -28,6 +28,10 @@ private:
   z3::context ctx;
 
 public:
+  ref<SolverHandle> eq(const ref<SolverHandle> &lhs,
+                       const ref<SolverHandle> &rhs) override;
+
+public:
   ref<SortHandle> bvSort(uint64_t width) override;
   ref<SortHandle> arraySort(const ref<SortHandle> &,
                             const ref<SortHandle> &) override;

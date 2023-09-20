@@ -50,7 +50,9 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   TheoryHandleList kidsHandles;
   kidsHandles.reserve(expr->getNumKids());
 
+  llvm::errs() << "IN " << expr << "\n";
   if (expr->getNumKids() == 0) {
+    llvm::errs() << "OUT " << expr << "\n";
     return theory->translate(expr, kidsHandles);
   }
 
@@ -58,15 +60,14 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
 
   /* Figure out the least common sort for kid handles. */
   
-  llvm::errs() << "IN ";
-  expr->dump();
 
-  for (const auto &expr : expr->kids()) {
-    ref<TheoryHandle> kidHandle = build(expr);
+  for (const auto &child : expr->kids()) {
+    ref<TheoryHandle> kidHandle = build(child);
     
-    llvm::errs() << "BUILT: "; 
-    expr->dump();
-    llvm::errs() << "\n";
+    if (kidHandle.isNull()) {
+      llvm::errs() << "Could not construct" << child << "\nAborting...\n";
+      std::abort();
+    }
 
     uint64_t positionOfCurrentSort = positionOf(kidHandle->parent->getSort());
 
@@ -83,9 +84,12 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
       orderOfTheories.at(positionOfLeastCommonSort)->theorySort;
   for (ref<TheoryHandle> &kid : kidsHandles) {
     kid = castToTheory(kid, leastCommonSort);
+    if (kid.isNull()) {
+      llvm::errs() << "WARNING: casted to nullptr\n";
+    }
   }
 
-  llvm::errs() << "OUT\n";
+  llvm::errs() << "OUT " << expr << "\n";
 
   return theory->translate(expr, kidsHandles);
 }
@@ -126,20 +130,23 @@ ref<TheoryHandle> SolverBuilder::castToTheory(const ref<TheoryHandle> &arg,
     }
 
     // TODO: Do not dereference twice.
-    const ref<SolverTheory> &theoryOfTopCastedHandle =
-    topCastedHandle->parent;
+    const ref<SolverTheory> &theoryOfTopCastedHandle = topCastedHandle->parent;
 
-    for (const auto &[sort, _] : theoryOfTopCastedHandle->castMapping) {
-      if (visited.count(sort)) {
+    for (const auto &[toSort, _] : theoryOfTopCastedHandle->castMapping) {
+      if (visited.count(toSort)) {
         continue;
       }
 
-      if (ref<TheoryHandle> nextCastedHandle = topCastedHandle->parent->castTo(sort, topCastedHandle)) {
+      if (ref<TheoryHandle> nextCastedHandle =
+              topCastedHandle->parent->castTo(toSort, topCastedHandle)) {
         castedHandlesQueue.push(nextCastedHandle);
-        visited.insert(sort);
+        visited.insert(toSort);
       }
     }
   }
 
+  llvm::errs() << "Can not cast to " << sort << "\n";
+
+  std::abort();
   return nullptr;
 }

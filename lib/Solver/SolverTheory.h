@@ -37,7 +37,8 @@ private:
   const Kind kind;
 
 public:
-  const ref<SolverTheory> parent;
+  // TODO: should we have a reference to a parent theory?
+  ref<SolverTheory> parent;
   TheoryHandle(Kind kind, const ref<SolverTheory> &parent)
       : kind(kind), parent(parent) {}
 
@@ -100,22 +101,29 @@ public:
   template <typename Functor, typename... Args>
   ref<TheoryHandle> apply(const Functor &functor, Args &&...args) {
     std::vector<ref<Expr>> toBuild;
-    (
-        [&](auto arg) -> void {
-          if (ref<IncompleteResponse> incompleteResponse =
-                  dyn_cast<IncompleteResponse>(arg)) {
-            for (const ref<Expr> &raw : incompleteResponse->toBuild) {
-              toBuild.push_back(raw);
-            }
-          }
-        }(args),
-        ...);
+    bool allConstructable = ([&](auto arg) -> bool {
+      if (arg.isNull()) {
+        return false;
+      }
+
+      if (ref<IncompleteResponse> incompleteResponse =
+              dyn_cast<IncompleteResponse>(arg)) {
+        for (const ref<Expr> &raw : incompleteResponse->toBuild) {
+          toBuild.push_back(raw);
+        }
+      }
+      return true;
+    }(args) && ...);
+
+    if (!allConstructable) {
+      return nullptr;
+    }
 
     IncompleteResponse::completer_t completer =
-        [&](const IncompleteResponse::TheoryHandleProvider &required)
+        [functor,
+         args...](const IncompleteResponse::TheoryHandleProvider &required)
         -> ref<SolverHandle> {
-
-      auto unwrap = [&](auto arg) -> ref<SolverHandle> {
+      auto unwrap = [&required](auto arg) -> ref<SolverHandle> {
         if (ref<IncompleteResponse> incompleteTheoryHandle =
                 dyn_cast<IncompleteResponse>(arg)) {
           arg = incompleteTheoryHandle->completer(required);
@@ -157,9 +165,6 @@ public:
 
   virtual ref<TheoryHandle> translate(const ref<Expr> &,
                                       const TheoryHandleList &) = 0;
-
-  ref<TheoryHandle> eq(const ref<TheoryHandle> &lhs,
-                       const ref<TheoryHandle> &rhs);
 
   ref<TheoryHandle> castTo(Sort sort, const ref<TheoryHandle> &arg);
 

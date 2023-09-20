@@ -50,6 +50,10 @@ private:
       required.push_back(node->value);
     }
 
+    if (required.size() == 0) {
+      return arrayHandle;
+    } 
+
     IncompleteResponse::completer_t completer =
         [*this, arrayHandle, readExpr, constantSource](
             const IncompleteResponse::TheoryHandleProvider &map) mutable
@@ -105,19 +109,23 @@ public:
 
   ref<TheoryHandle> read(const ref<TheoryHandle> &array,
                          const ref<TheoryHandle> &index) {
-    return apply(std::bind(std::mem_fn(&SolverAdapter::read), solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2),
-                 array, index);
+    ref<TheoryHandle> readHandle =
+        apply(std::bind(&SolverAdapter::read, solverAdapter,
+                        std::placeholders::_1, std::placeholders::_2),
+              array, index);
+    // FIXME: we should NOT create a new instance of theory
+    readHandle->parent = new RS(solverAdapter);
+    return readHandle;
   }
 
   ref<TheoryHandle> write(const ref<TheoryHandle> &array,
                           const ref<TheoryHandle> &index,
                           const ref<TheoryHandle> &value) {
-    return apply(std::bind(std::mem_fn(&SolverAdapter::write),
-                           solverAdapter.get(), std::placeholders::_1,
-                           std::placeholders::_2, std::placeholders::_3),
+    return apply(std::bind(&SolverAdapter::write, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2,
+                           std::placeholders::_3),
                  array, index, value);
-  }
+  } 
 
   static bool classof(const SolverTheory *th) {
     return th->getSort() == Sort::ARRAYS;

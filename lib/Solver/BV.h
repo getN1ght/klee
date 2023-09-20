@@ -6,6 +6,8 @@
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Expr.h"
 
+#include "Propositional.h"
+
 namespace klee {
 
 /*
@@ -62,6 +64,8 @@ protected:
       return extract(args[0], args[1], args[2]);
     case Kind::Concat:
       return concat(args[0], args[1]);
+    case Kind::Eq:
+      return eq(args[0], args[1]);
     default:
       return nullptr;
     }
@@ -230,6 +234,15 @@ public:
     return apply(std::bind(&SolverAdapter::bvConcat, solverAdapter,
                            std::placeholders::_1, std::placeholders::_2),
                  lhs, rhs);
+  }
+
+  ref<TheoryHandle> eq(const ref<TheoryHandle> &lhs,
+                       const ref<TheoryHandle> &rhs) {
+    ref<TheoryHandle> eqHandle = apply(std::bind(&SolverAdapter::eq, solverAdapter,
+                           std::placeholders::_1, std::placeholders::_2),
+                 lhs, rhs);
+    eqHandle->parent = new Propositional(solverAdapter);
+    return eqHandle;
   }
 
   static bool classof(const SolverTheory *th) {

@@ -13,14 +13,16 @@ Z3SortSolverHandle::Z3SortSolverHandle(const z3::sort &sort) : sort(sort) {}
 
 ref<SortHandle> Z3Adapter::arraySort(const ref<SortHandle> &domainSort,
                                      const ref<SortHandle> &rangeSort) {
-  const ref<Z3SortSolverHandle> domainSortZ3 = cast<Z3SortSolverHandle>(domainSort);
-  const ref<Z3SortSolverHandle> rangeSortZ3 = cast<Z3SortSolverHandle>(rangeSort);
+  const ref<Z3SortSolverHandle> domainSortZ3 =
+      cast<Z3SortSolverHandle>(domainSort);
+  const ref<Z3SortSolverHandle> rangeSortZ3 =
+      cast<Z3SortSolverHandle>(rangeSort);
   return new Z3SortSolverHandle(
       ctx.array_sort(domainSortZ3->sort, rangeSortZ3->sort));
 }
 
 ref<SortHandle> Z3Adapter::bvSort(uint64_t width) {
-  unsigned int bvWidth = static_cast<unsigned int>(width);  
+  unsigned int bvWidth = static_cast<unsigned int>(width);
   return new Z3SortSolverHandle(ctx.bv_sort(bvWidth));
 }
 
@@ -32,6 +34,13 @@ ref<SortHandle> Z3Adapter::boolSort() {
   return new Z3SortSolverHandle(ctx.bool_sort());
 }
 
+ref<SolverHandle> Z3Adapter::eq(const ref<SolverHandle> &lhs,
+                                const ref<SolverHandle> &rhs) {
+  const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
+  const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
+  SolverHandle *handle = new Z3SolverHandle(lhsZ3->expr == rhsZ3->expr);
+  return ref<SolverHandle>(handle);
+}
 
 // ref<SolverHandle> Z3Adapter::bvConst(uint64_t width) {
 //   static uint64_t id = 0;
@@ -260,7 +269,8 @@ ref<SolverHandle> Z3Adapter::propIte(const ref<SolverHandle> &cond,
   return ref<SolverHandle>(handle);
 }
 
-ref<SolverHandle> Z3Adapter::array(const std::string &name, const ref<SortHandle> &sort) {
+ref<SolverHandle> Z3Adapter::array(const std::string &name,
+                                   const ref<SortHandle> &sort) {
   const ref<Z3SortSolverHandle> sortZ3 = cast<Z3SortSolverHandle>(sort);
   return new Z3SolverHandle(ctx.constant(name.c_str(), sortZ3->sort));
 }

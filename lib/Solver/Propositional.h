@@ -51,6 +51,9 @@ public:
     case Expr::Kind::Select: {
       return lite(args[0], args[1], args[2]);
     }
+    case Expr::Kind::Eq: {
+      return land(args[0], args[1]);  
+    }
     default: {
       return nullptr;
     }
@@ -96,10 +99,16 @@ public:
   ref<TheoryHandle> lite(const ref<TheoryHandle> &cond,
                          const ref<TheoryHandle> &onTrue,
                          const ref<TheoryHandle> &onFalse) {
-    return apply(std::bind(&SolverAdapter::propIte, solverAdapter,
+    if (onTrue->parent->getSort() != onFalse->parent->getSort()) {
+      llvm::errs() << "sorts mismatch in ITE expression\n";
+      std::abort();
+    }
+    ref<TheoryHandle> iteHandle = apply(std::bind(&SolverAdapter::propIte, solverAdapter,
                            std::placeholders::_1, std::placeholders::_2,
                            std::placeholders::_3),
                  cond, onTrue, onFalse);
+    iteHandle->parent = onTrue->parent;
+    return iteHandle;
   }
 };
 
