@@ -589,6 +589,13 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &userModules,
   preservedFunctions.push_back("memcmp");
   preservedFunctions.push_back("memmove");
 
+  if (CoverageErrorCall) {
+    // prevent elimination of `call reach_error()`
+    auto f = kmodule->module->getFunction("reach_error");
+    if (f)
+      f->addFnAttr(Attribute::OptimizeNone);
+  }
+
   kmodule->optimiseAndPrepare(opts, preservedFunctions);
   kmodule->checkModule();
 
