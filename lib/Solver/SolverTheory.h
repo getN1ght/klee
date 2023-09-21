@@ -31,7 +31,7 @@ public:
 
 protected:
   /// Discriminator for LLVM-style RTTI (dyn_cast<> et al.)
-  enum Kind { COMPLETE, INCOMPLETE };
+  enum Kind { COMPLETE, INCOMPLETE, BROKEN };
 
 private:
   const Kind kind;
@@ -82,6 +82,21 @@ public:
 
   static bool classof(const TheoryHandle *tr) {
     return tr->getKind() == TheoryHandle::Kind::INCOMPLETE;
+  }
+};
+
+class BrokenTheoryHandle : public TheoryHandle {
+private:
+  ref<Expr> expr;
+
+public:
+  ref<Expr> cause() const { return expr; }
+
+  BrokenTheoryHandle(const ref<Expr> &expr)
+      : TheoryHandle(BROKEN, nullptr), expr(expr) {}
+
+  static bool classof(const TheoryHandle *tr) {
+    return tr->getKind() == TheoryHandle::Kind::BROKEN;
   }
 };
 

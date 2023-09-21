@@ -63,10 +63,9 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
 
   for (const auto &child : expr->kids()) {
     ref<TheoryHandle> kidHandle = build(child);
-    
-    if (kidHandle.isNull()) {
-      llvm::errs() << "Could not construct" << child << "\nAborting...\n";
-      std::abort();
+    if (ref<BrokenTheoryHandle> brokenKidHandle =
+            dyn_cast<BrokenTheoryHandle>(kidHandle)) {
+      return kidHandle;
     }
 
     uint64_t positionOfCurrentSort = positionOf(kidHandle->parent->getSort());
@@ -87,20 +86,26 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
     if (kid.isNull()) {
       llvm::errs() << "WARNING: casted to nullptr\n";
     }
+
   }
 
   llvm::errs() << "OUT " << expr << "\n";
 
-  return theory->translate(expr, kidsHandles);
+  if (ref<TheoryHandle> theoryHandle = theory->translate(expr, kidsHandles)) {
+    return theoryHandle;
+  } else {
+    return new BrokenTheoryHandle(expr);
+  }
 }
 
 ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
   for (const auto &theory : orderOfTheories) {
-    if (ref<TheoryHandle> exprHandle = buildWithTheory(theory, expr)) {
+    ref<TheoryHandle> exprHandle = buildWithTheory(theory, expr);
+    if (!isa<BrokenTheoryHandle>(exprHandle)) {
       return exprHandle;
     }
   }
-  return nullptr;
+  return new BrokenTheoryHandle(expr);
 }
 
 /*
