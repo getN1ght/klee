@@ -14,6 +14,32 @@ namespace klee {
 class SolverAdapter;
 template <typename> class ExprHashMap;
 
+
+
+/* TODO: implement event-driven model. */
+class Notifiable;
+
+class Listenable {
+private:
+  std::vector<ref<Notifiable>> listeners;
+public:
+  void listen(const ref<Notifiable> &listener) {
+    listeners.push_back(listener);
+  }
+  void notifyAll() {
+    for (const auto &listener : listeners) {
+      listener->notify();
+    }
+  }
+};
+
+class Notifiable {
+  friend class Listenable;
+protected:
+  virtual void notify() {}
+};
+
+
 /*
  * Base class for handles for all builders.
  * Maintains a inner representation for solver
@@ -37,6 +63,9 @@ private:
   const Kind kind;
 
 public:
+  // TODO: implement
+  const ref<Expr> source = nullptr;
+  
   // TODO: should we have a reference to a parent theory?
   ref<SolverTheory> parent;
   TheoryHandle(Kind kind, const ref<SolverTheory> &parent)
