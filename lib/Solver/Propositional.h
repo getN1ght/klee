@@ -52,10 +52,10 @@ public:
       return lite(args[0], args[1], args[2]);
     }
     case Expr::Kind::Eq: {
-      return land(args[0], args[1]);  
+      return eq(args[0], args[1]);  
     }
     default: {
-      return nullptr;
+      return new BrokenTheoryHandle(expr);
     }
     }
   }
@@ -63,7 +63,7 @@ public:
   ref<TheoryHandle> constant(const ref<Expr> &expr) {
     ref<ConstantExpr> ce = cast<ConstantExpr>(expr);
     if (ce->getWidth() != 1) {
-      return nullptr;
+      return new BrokenTheoryHandle(expr);
     }
     return new CompleteTheoryHandle(solverAdapter->propConst(ce->isTrue()),
                                     this);
@@ -109,6 +109,15 @@ public:
                  cond, onTrue, onFalse);
     iteHandle->parent = onTrue->parent;
     return iteHandle;
+  }
+
+  ref<TheoryHandle> eq(const ref<TheoryHandle> &lhs,
+                       const ref<TheoryHandle> &rhs) {
+    // FIXME: add type checking
+    if (lhs->parent->getSort() != BOOL || rhs->parent->getSort() != BOOL) {
+      return new BrokenTheoryHandle(Expr::createFalse());
+    }
+    return land(lhs, rhs);
   }
 };
 

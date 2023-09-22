@@ -6,6 +6,8 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/Support/Casting.h"
 
+#include <iostream>
+
 using namespace klee;
 
 Z3SolverHandle::Z3SolverHandle(const z3::expr &node) : expr(node) {}
@@ -38,8 +40,7 @@ ref<SolverHandle> Z3Adapter::eq(const ref<SolverHandle> &lhs,
                                 const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(lhsZ3->expr == rhsZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(lhsZ3->expr == rhsZ3->expr);
 }
 
 // ref<SolverHandle> Z3Adapter::bvConst(uint64_t width) {
@@ -57,8 +58,7 @@ ref<SolverHandle> Z3Adapter::bvConst(const llvm::APInt &val) {
   llvm::SmallString<128> valStringRepresentation;
   val.toStringUnsigned(valStringRepresentation);
   z3::expr valExpr = ctx.bv_val(valStringRepresentation.c_str(), valBitWidth);
-  SolverHandle *handle = new Z3SolverHandle(valExpr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(valExpr);
 }
 
 ref<SolverHandle> Z3Adapter::bvAdd(const ref<SolverHandle> &lhs,
@@ -81,131 +81,114 @@ ref<SolverHandle> Z3Adapter::bvMul(const ref<SolverHandle> &lhs,
                                    const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(lhsZ3->expr * rhsZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(lhsZ3->expr * rhsZ3->expr);
 }
 
 ref<SolverHandle> Z3Adapter::bvUDiv(const ref<SolverHandle> &lhs,
                                     const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(z3::udiv(lhsZ3->expr, rhsZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(z3::udiv(lhsZ3->expr, rhsZ3->expr));
 }
 
 ref<SolverHandle> Z3Adapter::bvSDiv(const ref<SolverHandle> &lhs,
                                     const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(lhsZ3->expr / rhsZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(lhsZ3->expr / rhsZ3->expr);
 }
 
 ref<SolverHandle> Z3Adapter::bvAnd(const ref<SolverHandle> &lhs,
                                    const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(lhsZ3->expr & rhsZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(lhsZ3->expr & rhsZ3->expr);
 }
 
 ref<SolverHandle> Z3Adapter::bvOr(const ref<SolverHandle> &lhs,
                                   const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(lhsZ3->expr & rhsZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(lhsZ3->expr & rhsZ3->expr);
 }
 
 ref<SolverHandle> Z3Adapter::bvXor(const ref<SolverHandle> &lhs,
                                    const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(lhsZ3->expr ^ rhsZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(lhsZ3->expr ^ rhsZ3->expr);
 }
 
 ref<SolverHandle> Z3Adapter::bvNot(const ref<SolverHandle> &arg) {
   const ref<Z3SolverHandle> argZ3 = cast<Z3SolverHandle>(arg);
-  SolverHandle *handle = new Z3SolverHandle(~argZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(~argZ3->expr);
 }
 
 ref<SolverHandle> Z3Adapter::bvSle(const ref<SolverHandle> &lhs,
                                    const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(z3::sle(lhsZ3->expr, rhsZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(z3::sle(lhsZ3->expr, rhsZ3->expr));
 }
 
 ref<SolverHandle> Z3Adapter::bvSlt(const ref<SolverHandle> &lhs,
                                    const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(z3::slt(lhsZ3->expr, rhsZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(z3::slt(lhsZ3->expr, rhsZ3->expr));
 }
 
 ref<SolverHandle> Z3Adapter::bvUle(const ref<SolverHandle> &lhs,
                                    const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(z3::ule(lhsZ3->expr, rhsZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(z3::ule(lhsZ3->expr, rhsZ3->expr));
 }
 
 ref<SolverHandle> Z3Adapter::bvUlt(const ref<SolverHandle> &lhs,
                                    const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(z3::ult(lhsZ3->expr, rhsZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(z3::ult(lhsZ3->expr, rhsZ3->expr));
 }
 
 ref<SolverHandle> Z3Adapter::bvZExt(const ref<SolverHandle> &arg,
                                     const ref<SolverHandle> &width) {
   const ref<Z3SolverHandle> argZ3 = cast<Z3SolverHandle>(arg);
   const ref<Z3SolverHandle> widthZ3 = cast<Z3SolverHandle>(width);
-  SolverHandle *handle =
-      new Z3SolverHandle(z3::zext(argZ3->expr, widthZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(
+      z3::zext(argZ3->expr, widthZ3->expr.get_numeral_uint() -
+                                argZ3->expr.get_sort().bv_size()));
 }
 
 ref<SolverHandle> Z3Adapter::bvSExt(const ref<SolverHandle> &arg,
                                     const ref<SolverHandle> &width) {
   const ref<Z3SolverHandle> argZ3 = cast<Z3SolverHandle>(arg);
   const ref<Z3SolverHandle> widthZ3 = cast<Z3SolverHandle>(width);
-  SolverHandle *handle =
-      new Z3SolverHandle(z3::sext(argZ3->expr, widthZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(
+      z3::sext(argZ3->expr, widthZ3->expr.get_numeral_uint() -
+                                argZ3->expr.get_sort().bv_size()));
 }
 
 ref<SolverHandle> Z3Adapter::bvShl(const ref<SolverHandle> &arg,
                                    const ref<SolverHandle> &width) {
   const ref<Z3SolverHandle> argZ3 = cast<Z3SolverHandle>(arg);
   const ref<Z3SolverHandle> widthZ3 = cast<Z3SolverHandle>(width);
-  SolverHandle *handle =
-      new Z3SolverHandle(z3::shl(argZ3->expr, widthZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(z3::shl(argZ3->expr, widthZ3->expr));
 }
 
 ref<SolverHandle> Z3Adapter::bvLShr(const ref<SolverHandle> &arg,
                                     const ref<SolverHandle> &width) {
   const ref<Z3SolverHandle> argZ3 = cast<Z3SolverHandle>(arg);
   const ref<Z3SolverHandle> widthZ3 = cast<Z3SolverHandle>(width);
-  SolverHandle *handle =
-      new Z3SolverHandle(z3::lshr(argZ3->expr, widthZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(z3::lshr(argZ3->expr, widthZ3->expr));
 }
 
 ref<SolverHandle> Z3Adapter::bvAShr(const ref<SolverHandle> &arg,
                                     const ref<SolverHandle> &width) {
   const ref<Z3SolverHandle> argZ3 = cast<Z3SolverHandle>(arg);
   const ref<Z3SolverHandle> widthZ3 = cast<Z3SolverHandle>(width);
-  SolverHandle *handle =
-      new Z3SolverHandle(z3::ashr(argZ3->expr, widthZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(z3::ashr(argZ3->expr, widthZ3->expr));
 }
 
 ref<SolverHandle> Z3Adapter::bvExtract(const ref<SolverHandle> &expr,
@@ -214,48 +197,42 @@ ref<SolverHandle> Z3Adapter::bvExtract(const ref<SolverHandle> &expr,
   const ref<Z3SolverHandle> exprZ3 = cast<Z3SolverHandle>(expr);
   const ref<Z3SolverHandle> offZ3 = cast<Z3SolverHandle>(off);
   const ref<Z3SolverHandle> lenZ3 = cast<Z3SolverHandle>(len);
-  SolverHandle *handle =
-      new Z3SolverHandle(exprZ3->expr.extract(offZ3->expr, lenZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(exprZ3->expr.extract(
+      offZ3->expr.get_numeral_uint() + lenZ3->expr.get_numeral_uint(),
+      offZ3->expr.get_numeral_uint()));
 }
 
 ref<SolverHandle> Z3Adapter::bvConcat(const ref<SolverHandle> &lhs,
                                       const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle =
-      new Z3SolverHandle(z3::concat(lhsZ3->expr, rhsZ3->expr));
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(z3::concat(lhsZ3->expr, rhsZ3->expr));
 }
 
 ref<SolverHandle> Z3Adapter::propAnd(const ref<SolverHandle> &lhs,
                                      const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(lhsZ3->expr && rhsZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(lhsZ3->expr && rhsZ3->expr);
 }
 
 ref<SolverHandle> Z3Adapter::propOr(const ref<SolverHandle> &lhs,
                                     const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(lhsZ3->expr || rhsZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(lhsZ3->expr || rhsZ3->expr);
 }
 
 ref<SolverHandle> Z3Adapter::propXor(const ref<SolverHandle> &lhs,
                                      const ref<SolverHandle> &rhs) {
   const ref<Z3SolverHandle> lhsZ3 = cast<Z3SolverHandle>(lhs);
   const ref<Z3SolverHandle> rhsZ3 = cast<Z3SolverHandle>(rhs);
-  SolverHandle *handle = new Z3SolverHandle(lhsZ3->expr ^ rhsZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(lhsZ3->expr ^ rhsZ3->expr);
 }
 
 ref<SolverHandle> Z3Adapter::propNot(const ref<SolverHandle> &arg) {
   const ref<Z3SolverHandle> argZ3 = cast<Z3SolverHandle>(arg);
-  SolverHandle *handle = new Z3SolverHandle(!argZ3->expr);
-  return ref<SolverHandle>(handle);
+  return new Z3SolverHandle(!argZ3->expr);
 }
 
 ref<SolverHandle> Z3Adapter::propIte(const ref<SolverHandle> &cond,
@@ -264,9 +241,8 @@ ref<SolverHandle> Z3Adapter::propIte(const ref<SolverHandle> &cond,
   const ref<Z3SolverHandle> condZ3 = cast<Z3SolverHandle>(cond);
   const ref<Z3SolverHandle> onTrueZ3 = cast<Z3SolverHandle>(onTrue);
   const ref<Z3SolverHandle> onFalseZ3 = cast<Z3SolverHandle>(onFalse);
-  SolverHandle *handle = new Z3SolverHandle(
+  return new Z3SolverHandle(
       z3::ite(condZ3->expr, onTrueZ3->expr, onFalseZ3->expr));
-  return ref<SolverHandle>(handle);
 }
 
 ref<SolverHandle> Z3Adapter::array(const std::string &name,

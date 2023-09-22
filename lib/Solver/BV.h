@@ -8,6 +8,8 @@
 
 #include "Propositional.h"
 
+#include <iostream>
+
 namespace klee {
 
 /*
@@ -41,9 +43,15 @@ protected:
     case Kind::LShr:
       return lshr(args[0], args[1]);
     case Kind::SExt:
-      return sext(args[0], args[1]);
+      // FIXME: remove complex logic
+      return sext(args[0],
+                  constant(ConstantExpr::create(
+                      expr->getWidth(), sizeof(expr->getWidth()) * CHAR_BIT)));
     case Kind::ZExt:
-      return zext(args[0], args[1]);
+      // FIXME: remove complex logic
+      return zext(args[0],
+                  constant(ConstantExpr::create(
+                      expr->getWidth(), sizeof(expr->getWidth()) * CHAR_BIT)));
     case Kind::And:
       return band(args[0], args[1]);
     case Kind::Or:
@@ -61,18 +69,19 @@ protected:
     case Kind::Slt:
       return slt(args[0], args[1]);
     case Kind::Extract:
-      return extract(args[0], args[1], args[2]);
+      return extract(expr, args[0]);
     case Kind::Concat:
       return concat(args[0], args[1]);
     case Kind::Eq:
       return eq(args[0], args[1]);
     default:
-      return nullptr;
+      return new BrokenTheoryHandle(expr);
     }
   }
 
   ref<TheoryHandle> castToBool(const ref<TheoryHandle> &handle) override {
     // SelectExpr::create()
+    std::abort();
     return nullptr;
   }
 
@@ -80,9 +89,7 @@ public:
   BV(const ref<SolverAdapter> &solverAdapter)
       : SolverTheory(SolverTheory::Sort::BV, solverAdapter) {}
 
-  ref<SortHandle> sort(unsigned width) {
-    return solverAdapter->bvSort(width);
-  }
+  ref<SortHandle> sort(unsigned width) { return solverAdapter->bvSort(width); }
 
   ref<TheoryHandle> constant(const ref<Expr> &val) {
     ref<ConstantExpr> cVal = dyn_cast<ConstantExpr>(val);
@@ -194,39 +201,57 @@ public:
 
   ref<TheoryHandle> ult(const ref<TheoryHandle> &lhs,
                         const ref<TheoryHandle> &rhs) {
-    return apply(std::bind(&SolverAdapter::bvUlt, solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2),
-                 lhs, rhs);
+    ref<TheoryHandle> theoryHandle =
+        apply(std::bind(&SolverAdapter::bvUlt, solverAdapter,
+                        std::placeholders::_1, std::placeholders::_2),
+              lhs, rhs);
+    theoryHandle->parent = new Propositional(solverAdapter);
+    return theoryHandle;
   }
 
   ref<TheoryHandle> ule(const ref<TheoryHandle> &lhs,
                         const ref<TheoryHandle> &rhs) {
-    return apply(std::bind(&SolverAdapter::bvUle, solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2),
-                 lhs, rhs);
+    ref<TheoryHandle> theoryHandle =
+        apply(std::bind(&SolverAdapter::bvUle, solverAdapter,
+                        std::placeholders::_1, std::placeholders::_2),
+              lhs, rhs);
+    theoryHandle->parent = new Propositional(solverAdapter);
+    return theoryHandle;
   }
 
   ref<TheoryHandle> slt(const ref<TheoryHandle> &lhs,
                         const ref<TheoryHandle> &rhs) {
-    return apply(std::bind(&SolverAdapter::bvSlt, solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2),
-                 lhs, rhs);
+    ref<TheoryHandle> theoryHandle =
+        apply(std::bind(&SolverAdapter::bvSlt, solverAdapter,
+                        std::placeholders::_1, std::placeholders::_2),
+              lhs, rhs);
+    theoryHandle->parent = new Propositional(solverAdapter);
+    return theoryHandle;
   }
 
   ref<TheoryHandle> sle(const ref<TheoryHandle> &lhs,
                         const ref<TheoryHandle> &rhs) {
-    return apply(std::bind(&SolverAdapter::bvSle, solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2),
-                 lhs, rhs);
+    ref<TheoryHandle> theoryHandle =
+        apply(std::bind(&SolverAdapter::bvSle, solverAdapter,
+                        std::placeholders::_1, std::placeholders::_2),
+              lhs, rhs);
+    theoryHandle->parent = new Propositional(solverAdapter);
+    return theoryHandle;
   }
 
-  ref<TheoryHandle> extract(const ref<TheoryHandle> &expr,
-                            const ref<TheoryHandle> &off,
-                            const ref<TheoryHandle> &len) {
-    return apply(std::bind(&SolverAdapter::bvExtract, solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2,
-                           std::placeholders::_3),
-                 expr, off, len);
+  ref<TheoryHandle> extract(const ref<Expr> &expr,
+                            const ref<TheoryHandle> &arg) {
+    ref<ExtractExpr> extractExpr = dyn_cast<ExtractExpr>(expr);
+    return apply(
+        std::bind(&SolverAdapter::bvExtract, solverAdapter,
+                  std::placeholders::_1, std::placeholders::_2,
+                  std::placeholders::_3),
+        arg,
+        constant(ConstantExpr::create(extractExpr->offset,
+                                      sizeof(extractExpr->offset) * CHAR_BIT)),
+        constant(
+            ConstantExpr::create(extractExpr->getWidth(),
+                                 sizeof(extractExpr->getWidth()) * CHAR_BIT)));
   }
 
   ref<TheoryHandle> concat(const ref<TheoryHandle> &lhs,
@@ -238,9 +263,10 @@ public:
 
   ref<TheoryHandle> eq(const ref<TheoryHandle> &lhs,
                        const ref<TheoryHandle> &rhs) {
-    ref<TheoryHandle> eqHandle = apply(std::bind(&SolverAdapter::eq, solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2),
-                 lhs, rhs);
+    ref<TheoryHandle> eqHandle =
+        apply(std::bind(&SolverAdapter::eq, solverAdapter,
+                        std::placeholders::_1, std::placeholders::_2),
+              lhs, rhs);
     eqHandle->parent = new Propositional(solverAdapter);
     return eqHandle;
   }

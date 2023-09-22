@@ -3,6 +3,7 @@
 
 #include "SolverTheory.h"
 #include "klee/ADT/Ref.h"
+#include "klee/Expr/ExprHashMap.h"
 
 #include <unordered_map>
 #include <vector>
@@ -13,18 +14,21 @@ class Expr;
 
 class SolverBuilder {
   friend class SolverBuilderFactory;
+  typedef ExprHashMap<ref<TheoryHandle>> cache_t;
 
 public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
 
 private:
-  // exprCache cache;
-  const std::vector<ref<SolverTheory>> orderOfTheories;
+  /* Cache for already built expressions. */
+  cache_t cache;
 
+  // TODO: union following 2 maps in structure. PositionsOfTheories
+  // should not be located here. 
+  const std::vector<ref<SolverTheory>> orderOfTheories;
   // Using for optimization
   std::unordered_map<SolverTheory::Sort, uint64_t> positionsOfTheories;
-
   uint64_t positionOf(SolverTheory::Sort) const;
 
   SolverBuilder(const std::vector<ref<SolverTheory>> &);

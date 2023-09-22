@@ -93,7 +93,7 @@ protected:
       return read(array(cast<ReadExpr>(expr)), args[0]);
     }
     default: {
-      return nullptr;
+      return new BrokenTheoryHandle(expr);
     }
     }
   }

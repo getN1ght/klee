@@ -90,22 +90,26 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   }
 
   llvm::errs() << "OUT " << expr << "\n";
-
-  if (ref<TheoryHandle> theoryHandle = theory->translate(expr, kidsHandles)) {
-    return theoryHandle;
-  } else {
-    return new BrokenTheoryHandle(expr);
-  }
+  return theory->translate(expr, kidsHandles);
 }
 
 ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
+  if (cache.count(expr)) {
+    return cache.at(expr);
+  }
+
   for (const auto &theory : orderOfTheories) {
     ref<TheoryHandle> exprHandle = buildWithTheory(theory, expr);
     if (!isa<BrokenTheoryHandle>(exprHandle)) {
+      // TODO: if exprHandle is incomplete, then we should subscribe
+      // on it in order to wait until iw will be constructed and then
+      // add it to cache.
+      cache.emplace(expr, exprHandle);
       return exprHandle;
     }
   }
-  return new BrokenTheoryHandle(expr);
+  cache.emplace(expr, new BrokenTheoryHandle(expr));
+  return cache.at(expr);
 }
 
 /*

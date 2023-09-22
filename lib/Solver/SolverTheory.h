@@ -85,6 +85,10 @@ public:
   }
 };
 
+/* 
+ * Reports that the parent theory can not construct
+ * handle for a given expression.
+ */
 class BrokenTheoryHandle : public TheoryHandle {
 private:
   ref<Expr> expr;
@@ -117,7 +121,7 @@ public:
   ref<TheoryHandle> apply(const Functor &functor, Args &&...args) {
     std::vector<ref<Expr>> toBuild;
     bool allConstructable = ([&](auto arg) -> bool {
-      if (arg.isNull()) {
+      if (isa<BrokenTheoryHandle>(arg)) {
         return false;
       }
 
@@ -131,7 +135,8 @@ public:
     }(args) && ...);
 
     if (!allConstructable) {
-      return nullptr;
+      // FIXME: report with correct expression.
+      return new BrokenTheoryHandle(Expr::createFalse());
     }
 
     IncompleteResponse::completer_t completer =
