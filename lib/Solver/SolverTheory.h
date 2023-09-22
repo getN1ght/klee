@@ -16,28 +16,28 @@ template <typename> class ExprHashMap;
 
 
 
-/* TODO: implement event-driven model. */
-class Notifiable;
+// /* TODO: implement event-driven model. */
+// class Notifiable;
 
-class Listenable {
-private:
-  std::vector<ref<Notifiable>> listeners;
-public:
-  void listen(const ref<Notifiable> &listener) {
-    listeners.push_back(listener);
-  }
-  void notifyAll() {
-    for (const auto &listener : listeners) {
-      listener->notify();
-    }
-  }
-};
+// class Listenable {
+// private:
+//   std::vector<ref<Notifiable>> listeners;
+// public:
+//   void listen(const ref<Notifiable> &listener) {
+//     listeners.push_back(listener);
+//   }
+//   void notifyAll() {
+//     for (const auto &listener : listeners) {
+//       listener->notify();
+//     }
+//   }
+// };
 
-class Notifiable {
-  friend class Listenable;
-protected:
-  virtual void notify() {}
-};
+// class Notifiable {
+//   friend class Listenable;
+// protected:
+//   virtual void notify() {}
+// };
 
 
 /*
@@ -211,6 +211,13 @@ protected:
 
 public:
   SolverTheory(Sort, const ref<SolverAdapter> &);
+
+  int compare(const SolverTheory &rhs) const {
+    if (getSort() < rhs.getSort()) {
+      return -1;
+    }
+    return getSort() > rhs.getSort();
+  }
 
   virtual ref<TheoryHandle> translate(const ref<Expr> &,
                                       const TheoryHandleList &) = 0;

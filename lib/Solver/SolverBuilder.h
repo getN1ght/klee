@@ -2,11 +2,16 @@
 #define SOLVERBUILDER_H
 
 #include "SolverTheory.h"
+
 #include "klee/ADT/Ref.h"
+#include "klee/ADT/BiMap.h"
+
 #include "klee/Expr/ExprHashMap.h"
 
 #include <unordered_map>
 #include <vector>
+#include <functional>
+
 
 namespace klee {
 
@@ -24,12 +29,7 @@ private:
   /* Cache for already built expressions. */
   cache_t cache;
 
-  // TODO: union following 2 maps in structure. PositionsOfTheories
-  // should not be located here. 
-  const std::vector<ref<SolverTheory>> orderOfTheories;
-  // Using for optimization
-  std::unordered_map<SolverTheory::Sort, uint64_t> positionsOfTheories;
-  uint64_t positionOf(SolverTheory::Sort) const;
+  BiArray<ref<SolverTheory>> orderOfTheories;
 
   SolverBuilder(const std::vector<ref<SolverTheory>> &);
   ref<TheoryHandle> buildWithTheory(const ref<SolverTheory> &theory,

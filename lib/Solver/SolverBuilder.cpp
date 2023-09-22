@@ -11,28 +11,18 @@
 
 using namespace klee;
 
-SolverBuilder::SolverBuilder(const std::vector<ref<SolverTheory>> &theories)
-    : orderOfTheories(theories) {
+SolverBuilder::SolverBuilder(const std::vector<ref<SolverTheory>> &theories) {
   // TODO: raise error
-  if (orderOfTheories.empty()) {
+  if (theories.empty()) {
     assert(0);
     exit(1);
   }
 
-  for (size_t pos = 0; pos < orderOfTheories.size(); ++pos) {
-    const ref<SolverTheory> &theory = orderOfTheories.at(pos);
-    [[maybe_unused]] bool ok =
-        positionsOfTheories.emplace(theory->theorySort, pos).second;
+  for (size_t pos = 0; pos < theories.size(); ++pos) {
+    [[maybe_unused]] bool ok = orderOfTheories.put(pos, theories.at(pos));
     // TODO: print name of theory and replace assert
     assert(ok && "same theory appeared twice in theories sequence");
   }
-}
-
-uint64_t SolverBuilder::positionOf(SolverTheory::Sort sort) const {
-  if (positionsOfTheories.count(sort)) {
-    return positionsOfTheories.at(sort);
-  }
-  return orderOfTheories.size();
 }
 
 ref<TheoryHandle>
@@ -67,26 +57,19 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
             dyn_cast<BrokenTheoryHandle>(kidHandle)) {
       return kidHandle;
     }
-
-    uint64_t positionOfCurrentSort = positionOf(kidHandle->parent->getSort());
-
-    // TODO: install LLVM error handler. Do not use asserts, they are awful.
-    assert(positionOfCurrentSort != orderOfTheories.size() &&
-           "Can not find sort of built expression in specified theories");
     positionOfLeastCommonSort =
-        std::min(positionOfCurrentSort, positionOfLeastCommonSort);
-
+        std::min(orderOfTheories.getByValue(kidHandle->parent),
+                 positionOfLeastCommonSort);
     kidsHandles.push_back(kidHandle);
   }
 
   SolverTheory::Sort leastCommonSort =
-      orderOfTheories.at(positionOfLeastCommonSort)->theorySort;
-  for (ref<TheoryHandle> &kid : kidsHandles) {
+      orderOfTheories.getByKey(positionOfLeastCommonSort)->getSort();
+  for (auto &kid : kidsHandles) {
     kid = castToTheory(kid, leastCommonSort);
     if (kid.isNull()) {
       llvm::errs() << "WARNING: casted to nullptr\n";
     }
-
   }
 
   llvm::errs() << "OUT " << expr << "\n";
@@ -98,8 +81,8 @@ ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
     return cache.at(expr);
   }
 
-  for (const auto &theory : orderOfTheories) {
-    ref<TheoryHandle> exprHandle = buildWithTheory(theory, expr);
+  for (const auto &it : orderOfTheories) {
+    ref<TheoryHandle> exprHandle = buildWithTheory(it.second, expr);
     if (!isa<BrokenTheoryHandle>(exprHandle)) {
       // TODO: if exprHandle is incomplete, then we should subscribe
       // on it in order to wait until iw will be constructed and then
