@@ -81,6 +81,10 @@ protected:
   }
 
 public:
+  std::string toString() const override {
+    return "Floating Point BitVectors"; 
+  }
+
   virtual ref<SolverHandle> constant(const ref<Expr> &expr) {
     ref<ConstantExpr> ce = cast<ConstantExpr>(expr);
     if (!ce->isFloat()) {

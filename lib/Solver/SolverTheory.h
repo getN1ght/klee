@@ -189,6 +189,8 @@ protected:
 public:
   SolverTheory(Sort, const ref<SolverAdapter> &);
 
+  virtual std::string toString() const = 0;
+
   int compare(const SolverTheory &rhs) const {
     if (getSort() < rhs.getSort()) {
       return -1;

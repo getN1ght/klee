@@ -7,30 +7,29 @@
 #include "klee/Expr/Expr.h"
 #include "klee/util/EDM.h"
 
+#include "klee/Support/ErrorHandling.h"
+
 #include <cstdio>
 #include <queue>
 
 using namespace klee;
 
 SolverBuilder::SolverBuilder(const std::vector<ref<SolverTheory>> &theories) {
-  // TODO: raise error
   if (theories.empty()) {
-    assert(0);
-    exit(1);
+    klee_error("no theories specified for the builder");
   }
 
   for (size_t pos = 0; pos < theories.size(); ++pos) {
-    [[maybe_unused]] bool ok = orderOfTheories.put(pos, theories.at(pos));
-    if (!ok) {
-      // TODO: print name of theory and replace assert
-      assert(ok && "same theory appeared twice in theories sequence");
+    if (!orderOfTheories.put(pos, theories.at(pos))) {
+      klee_error("same theory appeared twice in theories sequence : %s",
+                 theories.at(pos)->toString().c_str());
     }
   }
 }
 
 void SolverBuilder::onNotify(
     const std::pair<ref<Expr>, ref<TheoryHandle>> &completed) {
-  cache.insert(completed);
+  cache[completed.first] = completed.second;
 }
 
 ref<TheoryHandle>
@@ -55,7 +54,6 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   uint64_t positionOfLeastCommonSort = orderOfTheories.size();
 
   /* Figure out the least common sort for kid handles. */
-
   for (const auto &child : expr->kids()) {
     ref<TheoryHandle> kidHandle = build(child);
     if (ref<BrokenTheoryHandle> brokenKidHandle =
@@ -72,14 +70,18 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
       orderOfTheories.getByKey(positionOfLeastCommonSort)->getSort();
   for (auto &kid : kidsHandles) {
     kid = castToTheory(kid, leastCommonSort);
-    if (kid.isNull()) {
-      llvm::errs() << "WARNING: casted to nullptr\n";
+    if (isa<BrokenTheoryHandle>(kid)) {
+      return new BrokenTheoryHandle(expr);
     }
   }
 
   return theory->translate(expr, kidsHandles);
 }
 
+/*
+ * Translates KLEE's inner representation of expression
+ * to the expression for the solver, specified in solverAdapter.
+ */
 ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
   if (cache.count(expr)) {
     return cache.at(expr);
@@ -87,20 +89,33 @@ ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
 
   for (const auto &it : orderOfTheories) {
     ref<TheoryHandle> exprHandle = buildWithTheory(it.second, expr);
-    if (!isa<BrokenTheoryHandle>(exprHandle)) {
-      // TODO: if exprHandle is incomplete, then we should subscribe
-      // on it in order to wait until iw will be constructed and then
-      // add it to cache.
 
-      if (ref<IncompleteResponse> incompleteExprHandle =
-              dyn_cast<IncompleteResponse>(exprHandle)) {
-        incompleteExprHandle->listen(this);
-      }
-
-      cache.emplace(expr, exprHandle);
-      return exprHandle;
+    /*
+     * If handle is broken, then expression can not be built
+     * in that theory. Try another one.
+     */
+    if (isa<BrokenTheoryHandle>(exprHandle)) {
+      continue;
     }
+
+    /*
+     * If handle is incomplete, then we should subscribe
+     * on it in order to cache it as soon as we will be able to construct it.
+     */
+    if (ref<IncompleteResponse> incompleteExprHandle =
+            dyn_cast<IncompleteResponse>(exprHandle)) {
+      incompleteExprHandle->listen(this);
+    }
+
+    cache.emplace(expr, exprHandle);
+    return exprHandle;
   }
+
+  /*
+   * All theories can not be use to translate current expression
+   * in solver's expression. Memoize that we can not build it
+   * and return broken handle.
+   */
   cache.emplace(expr, new BrokenTheoryHandle(expr));
   return cache.at(expr);
 }
@@ -121,7 +136,6 @@ ref<TheoryHandle> SolverBuilder::castToTheory(const ref<TheoryHandle> &arg,
 
   std::unordered_set<SolverTheory::Sort> visited = {arg->parent->getSort()};
 
-  /* FIXME: We should mark visited theories */
   while (!castedHandlesQueue.empty()) {
     const ref<TheoryHandle> topCastedHandle = castedHandlesQueue.front();
     castedHandlesQueue.pop();
@@ -130,10 +144,9 @@ ref<TheoryHandle> SolverBuilder::castToTheory(const ref<TheoryHandle> &arg,
       return topCastedHandle;
     }
 
-    // TODO: Do not dereference twice.
     const ref<SolverTheory> &theoryOfTopCastedHandle = topCastedHandle->parent;
-
-    for (const auto &[toSort, _] : theoryOfTopCastedHandle->castMapping) {
+    for (const auto &it : theoryOfTopCastedHandle->castMapping) {
+      SolverTheory::Sort toSort = it.first;
       if (visited.count(toSort)) {
         continue;
       }
@@ -146,8 +159,5 @@ ref<TheoryHandle> SolverBuilder::castToTheory(const ref<TheoryHandle> &arg,
     }
   }
 
-  llvm::errs() << "Can not cast to " << sort << "\n";
-
-  std::abort();
-  return nullptr;
+  return new BrokenTheoryHandle(arg->source);
 }

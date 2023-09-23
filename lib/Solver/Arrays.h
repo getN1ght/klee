@@ -100,6 +100,10 @@ public:
   Arrays(const ref<SolverAdapter> &solverAdapter)
       : SolverTheory(SolverTheory::ARRAYS, solverAdapter) {}
 
+  std::string toString() const override {
+    return "Arrays"; 
+  }
+
   ref<SortHandle> sort(const ref<SortHandle> &domainSort,
                        const ref<SortHandle> &rangeSort) {
     return solverAdapter->arraySort(domainSort, rangeSort);

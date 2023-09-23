@@ -60,6 +60,10 @@ protected:
   }
 
 public:
+  std::string toString() const override {
+    return "Linear Integer Arithmetic"; 
+  }
+
   virtual ref<TheoryHandle> constant(const llvm::APInt &value) {
     return solverAdapter->liaConst(value);
   }

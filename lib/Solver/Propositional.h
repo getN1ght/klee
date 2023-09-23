@@ -60,6 +60,10 @@ public:
     }
   }
 
+  std::string toString() const override {
+    return "Boolean"; 
+  }
+
   ref<TheoryHandle> constant(const ref<Expr> &expr) {
     ref<ConstantExpr> ce = cast<ConstantExpr>(expr);
     if (ce->getWidth() != 1) {

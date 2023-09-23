@@ -89,6 +89,8 @@ public:
   BV(const ref<SolverAdapter> &solverAdapter)
       : SolverTheory(SolverTheory::Sort::BV, solverAdapter) {}
 
+  std::string toString() const override { return "BitVectors"; }
+
   ref<SortHandle> sort(unsigned width) { return solverAdapter->bvSort(width); }
 
   ref<TheoryHandle> constant(const ref<Expr> &val) {

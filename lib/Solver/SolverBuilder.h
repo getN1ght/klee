@@ -28,12 +28,14 @@ public:
   class ReferenceCounter _refCount;
 
 protected:
+  /* Listens to cache just completed Incomplete Handles */
   void onNotify(const std::pair<ref<Expr>, ref<TheoryHandle>> &completed) override;
 
 private:
-  /* Cache for already built expressions. */
+  /* Cache for already built expressions */
   cache_t cache;
 
+  /* Array of theories which may be applied in this builder */
   BiArray<ref<SolverTheory>> orderOfTheories;
 
   SolverBuilder(const std::vector<ref<SolverTheory>> &);
