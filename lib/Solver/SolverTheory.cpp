@@ -44,15 +44,18 @@ ref<TheoryHandle> SolverTheory::castTo(SolverTheory::Sort sort,
 
 ref<SolverHandle> CompleteTheoryHandle::expr() const { return handle; }
 
-CompleteTheoryHandle
+ref<CompleteTheoryHandle>
 IncompleteResponse::complete(const TheoryHandleProvider &required) {
-  // TODO: accept a PROVIDER, not just just a MAP.
   for (const ref<Expr> &expr : toBuild) {
     if (required.count(expr) == 0) {
+      // return this;
       llvm::errs() << "Incomplete response error\n";
       std::abort();
     }
   }
 
-  return CompleteTheoryHandle(completer(required), parent);
+  ref<CompleteTheoryHandle> completedTheoryHandle =
+      new CompleteTheoryHandle(completer(required), parent);
+  notifyAll({source, completedTheoryHandle});
+  return completedTheoryHandle;
 }

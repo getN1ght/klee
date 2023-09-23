@@ -8,6 +8,8 @@
 
 #include "klee/Expr/ExprHashMap.h"
 
+#include "klee/util/EDM.h"
+
 #include <unordered_map>
 #include <vector>
 #include <functional>
@@ -17,13 +19,16 @@ namespace klee {
 
 class Expr;
 
-class SolverBuilder {
+class SolverBuilder : public Notifiable<std::pair<ref<Expr>, ref<TheoryHandle>>> {
   friend class SolverBuilderFactory;
   typedef ExprHashMap<ref<TheoryHandle>> cache_t;
 
 public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
+
+protected:
+  void onNotify(const std::pair<ref<Expr>, ref<TheoryHandle>> &completed) override;
 
 private:
   /* Cache for already built expressions. */

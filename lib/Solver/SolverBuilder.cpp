@@ -5,6 +5,7 @@
 
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Expr.h"
+#include "klee/util/EDM.h"
 
 #include <cstdio>
 #include <queue>
@@ -20,9 +21,16 @@ SolverBuilder::SolverBuilder(const std::vector<ref<SolverTheory>> &theories) {
 
   for (size_t pos = 0; pos < theories.size(); ++pos) {
     [[maybe_unused]] bool ok = orderOfTheories.put(pos, theories.at(pos));
-    // TODO: print name of theory and replace assert
-    assert(ok && "same theory appeared twice in theories sequence");
+    if (!ok) {
+      // TODO: print name of theory and replace assert
+      assert(ok && "same theory appeared twice in theories sequence");
+    }
   }
+}
+
+void SolverBuilder::onNotify(
+    const std::pair<ref<Expr>, ref<TheoryHandle>> &completed) {
+  cache.insert(completed);
 }
 
 ref<TheoryHandle>
@@ -40,16 +48,13 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   TheoryHandleList kidsHandles;
   kidsHandles.reserve(expr->getNumKids());
 
-  llvm::errs() << "IN " << expr << "\n";
   if (expr->getNumKids() == 0) {
-    llvm::errs() << "OUT " << expr << "\n";
     return theory->translate(expr, kidsHandles);
   }
 
   uint64_t positionOfLeastCommonSort = orderOfTheories.size();
 
   /* Figure out the least common sort for kid handles. */
-  
 
   for (const auto &child : expr->kids()) {
     ref<TheoryHandle> kidHandle = build(child);
@@ -72,7 +77,6 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
     }
   }
 
-  llvm::errs() << "OUT " << expr << "\n";
   return theory->translate(expr, kidsHandles);
 }
 
@@ -87,6 +91,12 @@ ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
       // TODO: if exprHandle is incomplete, then we should subscribe
       // on it in order to wait until iw will be constructed and then
       // add it to cache.
+
+      if (ref<IncompleteResponse> incompleteExprHandle =
+              dyn_cast<IncompleteResponse>(exprHandle)) {
+        incompleteExprHandle->listen(this);
+      }
+
       cache.emplace(expr, exprHandle);
       return exprHandle;
     }
@@ -107,10 +117,9 @@ ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
 ref<TheoryHandle> SolverBuilder::castToTheory(const ref<TheoryHandle> &arg,
                                               SolverTheory::Sort sort) {
   std::queue<ref<TheoryHandle>> castedHandlesQueue;
-  castedHandlesQueue.push(arg); 
+  castedHandlesQueue.push(arg);
 
-  std::unordered_set<SolverTheory::Sort> visited;
-  visited.insert(arg->parent->getSort());
+  std::unordered_set<SolverTheory::Sort> visited = {arg->parent->getSort()};
 
   /* FIXME: We should mark visited theories */
   while (!castedHandlesQueue.empty()) {

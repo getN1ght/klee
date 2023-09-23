@@ -3,6 +3,7 @@
 
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Expr.h"
+#include "klee/util/EDM.h"
 
 #include "llvm/Support/Casting.h"
 
@@ -14,30 +15,6 @@ namespace klee {
 class SolverAdapter;
 template <typename> class ExprHashMap;
 
-
-
-// /* TODO: implement event-driven model. */
-// class Notifiable;
-
-// class Listenable {
-// private:
-//   std::vector<ref<Notifiable>> listeners;
-// public:
-//   void listen(const ref<Notifiable> &listener) {
-//     listeners.push_back(listener);
-//   }
-//   void notifyAll() {
-//     for (const auto &listener : listeners) {
-//       listener->notify();
-//     }
-//   }
-// };
-
-// class Notifiable {
-//   friend class Listenable;
-// protected:
-//   virtual void notify() {}
-// };
 
 
 /*
@@ -91,7 +68,7 @@ public:
   }
 };
 
-class IncompleteResponse : public TheoryHandle {
+class IncompleteResponse : public TheoryHandle, public Listenable<std::pair<ref<Expr>, ref<TheoryHandle>>> {
 public:
   typedef ExprHashMap<ref<TheoryHandle>> TheoryHandleProvider;
   typedef std::function<ref<SolverHandle>(const TheoryHandleProvider &)>
@@ -107,7 +84,7 @@ public:
       : TheoryHandle(INCOMPLETE, parent), completer(completer),
         toBuild(required) {}
 
-  CompleteTheoryHandle complete(const TheoryHandleProvider &);
+  ref<CompleteTheoryHandle> complete(const TheoryHandleProvider &);
 
   static bool classof(const TheoryHandle *tr) {
     return tr->getKind() == TheoryHandle::Kind::INCOMPLETE;
@@ -175,7 +152,7 @@ public:
       auto unwrap = [&required](auto arg) -> ref<SolverHandle> {
         if (ref<IncompleteResponse> incompleteTheoryHandle =
                 dyn_cast<IncompleteResponse>(arg)) {
-          arg = incompleteTheoryHandle->completer(required);
+          arg = incompleteTheoryHandle->complete(required);
         }
         if (ref<CompleteTheoryHandle> completeTheoryHandle =
                 dyn_cast<CompleteTheoryHandle>(arg)) {

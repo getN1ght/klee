@@ -369,8 +369,6 @@ bool Z3SolverImpl::internalRunSolver(
           .thenApply<BV>()
           .build();
 
-  llvm::errs() << "Building Query.expr " << query.expr << "\n\n";
-
   newSolverBuilder.build(query.expr);
 
   if (ProduceUnsatCore && validityCore) {
