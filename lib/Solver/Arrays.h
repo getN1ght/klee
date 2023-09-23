@@ -43,9 +43,7 @@ private:
       required.reserve(exprToBuildInUpdateList);
     }
 
-    // TODO: add iterator in UpdateList
-    for (ref<UpdateNode> node = readExpr->updates.head; !node.isNull();
-         node = node->next) {
+    for (const ref<UpdateNode> &node : readExpr->updates) {
       required.push_back(node->index);
       required.push_back(node->value);
     }

@@ -648,6 +648,38 @@ public:
 class UpdateList {
   friend class ReadExpr; // for default constructor
 
+private:
+  struct Iterator {
+    using iterator_category = std::input_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = ref<UpdateNode>;
+    using pointer = ref<UpdateNode> *;
+    using reference = ref<UpdateNode> &;
+
+  private:
+    ref<UpdateNode> node;
+
+  public:
+    Iterator(const ref<UpdateNode> &node) : node(node) {}
+    Iterator &operator++() {
+      node = node->next;
+      return *this;
+    }
+    Iterator operator++(int) {
+      Iterator snap = *this;;
+      node = node->next;
+      return snap;
+    }
+
+    ref<UpdateNode> operator*() const { return node; }
+
+    bool operator==(const Iterator &other) const { 
+      return node.get() == other.node.get();
+    }
+
+    bool operator!=(const Iterator &other) const { return !(*this == other); }
+  };
+
 public:
   const Array *root = nullptr;
 
@@ -672,6 +704,14 @@ public:
   bool operator<(const UpdateList &rhs) const { return compare(rhs) < 0; }
 
   unsigned hash() const;
+
+  Iterator begin() const {
+    return Iterator(head);
+  }
+
+  Iterator end() const {
+    return Iterator(nullptr);
+  }
 };
 
 /// Class representing a one byte read from an array.
