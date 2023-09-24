@@ -8,6 +8,8 @@
 #include "klee/ADT/Ref.h"
 #include "llvm/Support/Casting.h"
 
+#include "klee/Support/ErrorHandling.h"
+
 namespace klee {
 
 struct Propositional : public SolverTheory {
@@ -52,7 +54,7 @@ public:
       return lite(args[0], args[1], args[2]);
     }
     case Expr::Kind::Eq: {
-      return eq(args[0], args[1]);  
+      return eq(args[0], args[1]);
     }
     default: {
       return new BrokenTheoryHandle(expr);
@@ -60,9 +62,7 @@ public:
     }
   }
 
-  std::string toString() const override {
-    return "Boolean"; 
-  }
+  std::string toString() const override { return "Boolean"; }
 
   ref<TheoryHandle> constant(const ref<Expr> &expr) {
     ref<ConstantExpr> ce = cast<ConstantExpr>(expr);
@@ -103,21 +103,16 @@ public:
   ref<TheoryHandle> lite(const ref<TheoryHandle> &cond,
                          const ref<TheoryHandle> &onTrue,
                          const ref<TheoryHandle> &onFalse) {
-    if (onTrue->parent->getSort() != onFalse->parent->getSort()) {
-      llvm::errs() << "sorts mismatch in ITE expression\n";
-      std::abort();
-    }
-    ref<TheoryHandle> iteHandle = apply(std::bind(&SolverAdapter::propIte, solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2,
-                           std::placeholders::_3),
-                 cond, onTrue, onFalse);
+    ref<TheoryHandle> iteHandle = apply(
+        std::bind(&SolverAdapter::propIte, solverAdapter, std::placeholders::_1,
+                  std::placeholders::_2, std::placeholders::_3),
+        cond, onTrue, onFalse);
     iteHandle->parent = onTrue->parent;
     return iteHandle;
   }
 
   ref<TheoryHandle> eq(const ref<TheoryHandle> &lhs,
                        const ref<TheoryHandle> &rhs) {
-    // FIXME: add type checking
     if (lhs->parent->getSort() != BOOL || rhs->parent->getSort() != BOOL) {
       return new BrokenTheoryHandle(Expr::createFalse());
     }
