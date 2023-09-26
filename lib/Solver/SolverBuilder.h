@@ -3,25 +3,24 @@
 
 #include "SolverTheory.h"
 
-#include "klee/ADT/Ref.h"
 #include "klee/ADT/BiMap.h"
+#include "klee/ADT/Ref.h"
 
 #include "klee/Expr/ExprHashMap.h"
 
 #include "klee/util/EDM.h"
 
+#include <functional>
 #include <unordered_map>
 #include <vector>
-#include <functional>
-
 
 namespace klee {
 
 class Expr;
 
-class SolverBuilder : public Notifiable<std::pair<ref<Expr>, ref<TheoryHandle>>> {
+class SolverBuilder {
   friend class SolverBuilderFactory;
-  typedef ExprHashMap<ref<TheoryHandle>> cache_t;
+  typedef ExprHashMap<ref<TheoryHandle<>>> cache_t;
 
 public:
   /// @brief Required by klee::ref-managed objects
@@ -29,7 +28,8 @@ public:
 
 protected:
   /* Listens to cache just completed Incomplete Handles */
-  void onNotify(const std::pair<ref<Expr>, ref<TheoryHandle>> &completed) override;
+  // void
+  // onNotify(const std::pair<ref<Expr>, ref<TheoryHandle<T>>> &completed) override;
 
 private:
   /* Cache for already built expressions */
@@ -39,14 +39,16 @@ private:
   BiArray<ref<SolverTheory>> orderOfTheories;
 
   SolverBuilder(const std::vector<ref<SolverTheory>> &);
-  ref<TheoryHandle> buildWithTheory(const ref<SolverTheory> &theory,
-                                    const ref<Expr> &expr);
 
-  ref<TheoryHandle> castToTheory(const ref<TheoryHandle> &arg,
-                                 SolverTheory::Sort sort);
+  template <typename RT, typename AT>
+  ref<TheoryHandle<RT>> buildWithTheory(const ref<SolverTheory<AT>> &theory,
+                                        const ref<Expr> &expr);
+
+  // ref<TheoryHandle> castToTheory(const ref<TheoryHandle> &arg,
+  //                                SolverTheory::Sort sort);
 
 public:
-  ref<TheoryHandle> build(const ref<Expr> &expr);
+  template <typename RT> ref<TheoryHandle<RT>> build(const ref<Expr> &expr);
 };
 } // namespace klee
 

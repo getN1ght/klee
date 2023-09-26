@@ -41,7 +41,7 @@ public:
    * During builder construction these theories will be applied
    * in order of calls to this method.
    */
-  template <typename ST> SolverBuilderFactory thenApply() {
+  template <typename ST> constexpr SolverBuilderFactory thenApply() noexcept {
     static_assert(std::is_base_of_v<SolverTheory, ST>,
                   "Solver theory required to instantiate a factory");
     orderOfTheories.push_back(new ST(solverAdapter));

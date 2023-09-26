@@ -12,7 +12,7 @@
 
 namespace klee {
 
-struct Propositional : public SolverTheory {
+struct Propositional : public SolverTheory<Propositional> {
 
 protected:
   ref<TheoryHandle> castToBV(const ref<TheoryHandle> &arg) override {
@@ -64,45 +64,46 @@ public:
 
   std::string toString() const override { return "Boolean"; }
 
-  ref<TheoryHandle> constant(const ref<Expr> &expr) {
+  ref<TheoryHandle<Propositional>> constant(const ref<Expr> &expr) {
     ref<ConstantExpr> ce = cast<ConstantExpr>(expr);
     if (ce->getWidth() != 1) {
-      return new BrokenTheoryHandle(expr);
+      return new BrokenTheoryHandle<Propositional>(expr);
     }
-    return new CompleteTheoryHandle(solverAdapter->propConst(ce->isTrue()),
-                                    this);
+    return new CompleteTheoryHandle<Propositional>(
+        solverAdapter->propConst(ce->isTrue()), this);
   }
 
-  ref<TheoryHandle> land(const ref<TheoryHandle> &lhs,
-                         const ref<TheoryHandle> &rhs) {
+  ref<TheoryHandle<Propositional>> land(const ref<TheoryHandle<Propositional>> &lhs,
+                         const ref<TheoryHandle<Propositional>> &rhs) {
     return apply(std::bind(std::mem_fn(&SolverAdapter::propAnd), solverAdapter,
                            std::placeholders::_1, std::placeholders::_2),
                  lhs, rhs);
   }
 
-  ref<TheoryHandle> lor(const ref<TheoryHandle> &lhs,
-                        const ref<TheoryHandle> &rhs) {
+  ref<TheoryHandle<Propositional>> lor(const ref<TheoryHandle<Propositional>> &lhs,
+                        const ref<TheoryHandle<Propositional>> &rhs) {
     return apply(std::bind(&SolverAdapter::propOr, solverAdapter,
                            std::placeholders::_1, std::placeholders::_2),
                  lhs, rhs);
   }
 
-  ref<TheoryHandle> lxor(const ref<TheoryHandle> &lhs,
-                         const ref<TheoryHandle> &rhs) {
+  ref<TheoryHandle<Propositional>> lxor(const ref<TheoryHandle<Propositional>> &lhs,
+                         const ref<TheoryHandle<Propositional>> &rhs) {
     return apply(std::bind(&SolverAdapter::propXor, solverAdapter,
                            std::placeholders::_1, std::placeholders::_2),
                  lhs, rhs);
   }
 
-  ref<TheoryHandle> lnot(const ref<TheoryHandle> &arg) {
+  ref<TheoryHandle<Propositional>> lnot(const ref<TheoryHandle<Propositional>> &arg) {
     return apply(std::bind(&SolverAdapter::propNot, solverAdapter,
                            std::placeholders::_1),
                  arg);
   }
 
-  ref<TheoryHandle> lite(const ref<TheoryHandle> &cond,
-                         const ref<TheoryHandle> &onTrue,
-                         const ref<TheoryHandle> &onFalse) {
+  template<typename RT>
+  ref<TheoryHandle<RT>> lite(const ref<TheoryHandle<Propositional>> &cond,
+                         const ref<TheoryHandle<RT>> &onTrue,
+                         const ref<TheoryHandle<RT>> &onFalse) {
     ref<TheoryHandle> iteHandle = apply(
         std::bind(&SolverAdapter::propIte, solverAdapter, std::placeholders::_1,
                   std::placeholders::_2, std::placeholders::_3),
@@ -111,11 +112,9 @@ public:
     return iteHandle;
   }
 
-  ref<TheoryHandle> eq(const ref<TheoryHandle> &lhs,
-                       const ref<TheoryHandle> &rhs) {
-    if (lhs->parent->getSort() != BOOL || rhs->parent->getSort() != BOOL) {
-      return new BrokenTheoryHandle(Expr::createFalse());
-    }
+  ref<TheoryHandle<Propositional>>
+  eq(const ref<TheoryHandle<Propositional>> &lhs,
+     const ref<TheoryHandle<Propositional>> &rhs) {
     return land(lhs, rhs);
   }
 };
