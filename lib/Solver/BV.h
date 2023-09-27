@@ -108,7 +108,7 @@ public:
 
   template<typename ...Args>
   ref<TheoryHandle<BV>> add(const Args... &&args) {
-    return new BrokenTheoryHandle<BV>(nullptr);
+    return new BrokenTheoryHandle(nullptr);
   }
 
   ref<TheoryHandle<BV>> add(const ref<TheoryHandle<BV>> &lhs,
@@ -229,7 +229,7 @@ public:
                  lhs, rhs);
   }
 
-  ref<TheoryHandle<BV>> sle(const ref<TheoryHandle<BV>> &lhs,
+  ref<TheoryHandle<Propositional>> sle(const ref<TheoryHandle<BV>> &lhs,
                             const ref<TheoryHandle<BV>> &rhs) {
     return apply(std::bind(&SolverAdapter::bvSle, solverAdapter,
                            std::placeholders::_1, std::placeholders::_2),

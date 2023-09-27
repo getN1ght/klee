@@ -15,22 +15,22 @@
 using namespace klee;
 
 SolverBuilder::SolverBuilder(const std::vector<ref<SolverTheory>> &theories) {
-  if (theories.empty()) {
-    klee_error("no theories specified for the builder");
-  }
+  // if (theories.empty()) {
+  //   klee_error("no theories specified for the builder");
+  // }
 
-  for (size_t pos = 0; pos < theories.size(); ++pos) {
-    if (!orderOfTheories.put(pos, theories.at(pos))) {
-      klee_error("same theory appeared twice in theories sequence : %s",
-                 theories.at(pos)->toString().c_str());
-    }
-  }
+  // for (size_t pos = 0; pos < theories.size(); ++pos) {
+  //   if (!orderOfTheories.put(pos, theories.at(pos))) {
+  //     klee_error("same theory appeared twice in theories sequence : %s",
+  //                theories.at(pos)->toString().c_str());
+  //   }
+  // }
 }
 
-void SolverBuilder::onNotify(
-    const std::pair<ref<Expr>, ref<TheoryHandle>> &completed) {
-  cache[completed.first] = completed.second;
-}
+// void SolverBuilder::onNotify(
+//     const std::pair<ref<Expr>, ref<TheoryHandle>> &completed) {
+//   cache[completed.first] = completed.second;
+// }
 
 ref<TheoryHandle>
 SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
@@ -78,46 +78,9 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   return theory->translate(expr, kidsHandles);
 }
 
-/*
- * Translates KLEE's inner representation of expression
- * to the expression for the solver, specified in solverAdapter.
- */
+
 ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
-  if (cache.count(expr)) {
-    return cache.at(expr);
-  }
-
-  for (const auto &it : orderOfTheories) {
-    ref<TheoryHandle> exprHandle = buildWithTheory(it.second, expr);
-
-    /*
-     * If handle is broken, then expression can not be built
-     * in that theory. Try another one.
-     */
-    if (isa<BrokenTheoryHandle>(exprHandle)) {
-      continue;
-    }
-
-    /*
-     * If handle is incomplete, then we should subscribe
-     * on it in order to cache it as soon as we will be able to construct it.
-     */
-    if (ref<IncompleteResponse> incompleteExprHandle =
-            dyn_cast<IncompleteResponse>(exprHandle)) {
-      incompleteExprHandle->listen(this);
-    }
-
-    cache.emplace(expr, exprHandle);
-    return exprHandle;
-  }
-
-  /*
-   * All theories can not be use to translate current expression
-   * in solver's expression. Memoize that we can not build it
-   * and return broken handle.
-   */
-  cache.emplace(expr, new BrokenTheoryHandle(expr));
-  return cache.at(expr);
+  
 }
 
 /*

@@ -55,10 +55,8 @@ public:
   }
 };
 
-template <typename T>
-class IncompleteResponse
-    : public TheoryHandle<T>,
-      public Listenable<std::pair<ref<Expr>, ref<TheoryHandle<T>>>> {
+template <typename T> class IncompleteResponse : public TheoryHandle<T> {
+  // public Listenable<std::pair<ref<Expr>, ref<TheoryHandle<T>>>> {
 public:
   typedef ExprHashMap<ref<TheoryHandle>> TheoryHandleProvider;
   typedef std::function<ref<SolverHandle>(const TheoryHandleProvider &)>
@@ -85,13 +83,12 @@ public:
  * Reports that the parent theory can not construct
  * handle for a given expression.
  */
-template <typename T> class BrokenTheoryHandle : public TheoryHandle<T> {
+class BrokenTheoryHandle : public TheoryHandle<void> {
 public:
   BrokenTheoryHandle(const ref<Expr> &source) : TheoryHandle(BROKEN, source) {}
 
   template <typename U> static bool classof(const TheoryHandle<U> *tr) {
-    return std::is_same_v<T, U> &&
-           tr->getKind() == TheoryHandle<T>::Kind::BROKEN;
+    return tr->getKind() == TheoryHandle<T>::Kind::BROKEN;
   }
 };
 } // namespace klee

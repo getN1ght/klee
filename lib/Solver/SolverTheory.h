@@ -121,7 +121,7 @@ public:
         return functor(unwrap(args)...);
       } else {
         /* FIXME: Report an error in given expression */
-        return new BrokenTheoryHandle<RT>(nullptr);
+        return new BrokenTheoryHandle(nullptr);
       }
 
     };

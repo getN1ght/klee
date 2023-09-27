@@ -15,40 +15,49 @@
 // #include "LIA.h"
 #include "Propositional.h"
 
-namespace klee {  
+namespace klee {
 class SolverBuilderFactory {
 private:
-  ref<SolverAdapter> solverAdapter;
-  std::vector<ref<SolverTheory>> orderOfTheories;
+  template <typename... Theory> struct RawSolverBuilder {
+    const ref<SolverAdapter> solverAdapter;
 
-  SolverBuilderFactory(const ref<SolverAdapter> &solverAdapter)
-      : solverAdapter(solverAdapter) {}
+    constexpr RawSolverBuilder(const ref<SolverAdapter> &solverAdapter)
+        : solverAdapter(solverAdapter) {}
+
+    RawSolverBuilder(const RawSolverBuilder &) = delete;
+    RawSolverBuilder &operator=(const RawSolverBuilder &) = delete;
+
+    template <typename... ATheory>
+    constexpr RawSolverBuilder(RawSolverBuilder<ATheory...> &&another)
+        : solverAdapter(another.solverAdapter) {}
+
+    /*
+     * Queries a theory into the theories sequence.
+     * During builder construction these theories will be applied
+     * in order of calls to this method.
+     */
+    template <typename ST>
+    constexpr RawSolverBuilder<Theory..., SolverTheory<ST>> thenApply() noexcept {
+      static_assert(std::is_base_of_v<SolverTheory, ST>,
+                    "Solver theory required to instantiate a factory");
+      return RawSolverBuilder<Theory..., SolverTheory<ST>>(std::move(*this));
+    }
+
+    constexpr SolverBuilder<Theory...> build() const {
+      return SolverBuilder<Theory...>();
+    }
+  };
 
 public:
   /*
    * Constructs the factory for specified solver.
    * Takes class of adapter.
    */
-  template<typename ST>
-  static SolverBuilderFactory forSolver() {
-    static_assert(std::is_base_of_v<SolverAdapter, ST>,
+  template <typename SA> constexpr static RawSolverBuilder<> forSolver() {
+    static_assert(std::is_base_of_v<SolverAdapter, SA>,
                   "Solver adapter required to instantiate a factory");
-    return SolverBuilderFactory(ref<SolverAdapter>(new ST()));
+    return RawSolverBuilder<>(new SA());
   }
-
-  /*
-   * Queries a theory into the theories sequence.
-   * During builder construction these theories will be applied
-   * in order of calls to this method.
-   */
-  template <typename ST> constexpr SolverBuilderFactory thenApply() noexcept {
-    static_assert(std::is_base_of_v<SolverTheory, ST>,
-                  "Solver theory required to instantiate a factory");
-    orderOfTheories.push_back(new ST(solverAdapter));
-    return *this;
-  }
-
-  SolverBuilder build() const { return SolverBuilder(orderOfTheories); }
 };
 
 } // namespace klee
