@@ -1,8 +1,10 @@
 # Build scripts for Bitwuzla
 # Variables that any artifact of this package might depend on
 setup_build_variables_bitwuzla() {
-  BITWUZLA_BUILD_PATH="${BASE}/bitwuzla-${BITWUZLA_VERSION}-build"
-  BITWUZLA_INSTALL_PATH="${BASE}/bitwuzla-${BITWUZLA_VERSION}-install"
+  BITWUZLA_SUFFIX="${SANITIZER_SUFFIX}"
+
+  BITWUZLA_BUILD_PATH="${BASE}/bitwuzla-${BITWUZLA_VERSION}-build${BITWUZLA_SUFFIX}"
+  BITWUZLA_INSTALL_PATH="${BASE}/bitwuzla-${BITWUZLA_VERSION}-install${BITWUZLA_SUFFIX}"
   bitwuzla_url="https://github.com/bitwuzla/bitwuzla.git"
 
   return 0
@@ -16,7 +18,24 @@ download_bitwuzla() {
 
 build_bitwuzla() {
   pushd "${BASE}/bitwuzla-${BITWUZLA_VERSION}"
-  ./configure.py --build-dir "${BITWUZLA_BUILD_PATH}" --prefix "${BITWUZLA_INSTALL_PATH}" --no-assertions --static --no-unit-testing release
+  local CFLAGS=""
+  local CXXFLAGS=""
+  local LDFLAGS=""
+  local CC=""
+  local CXX=""
+
+  args=(--build-dir "${BITWUZLA_BUILD_PATH}" --prefix "${BITWUZLA_INSTALL_PATH}" --no-assertions --static --no-unit-testing release)
+
+  if [[ -n "${SANITIZER_SUFFIX:-}" ]]; then
+    if [[ "${SANITIZER_BUILD:-}" == "address" ]]; then
+      args+=("--asan")
+    fi
+    if [[ "${SANITIZER_BUILD:-}" == "undefined" ]]; then
+      args+=("--ubsan")
+    fi
+  fi
+
+  ./configure.py "${args[@]}"
   popd
   cd "${BITWUZLA_BUILD_PATH}" || return 1
   yes n | ninja install

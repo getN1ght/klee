@@ -4,7 +4,7 @@ required_variables_bitwuzla=(
   "BITWUZLA_COMMIT"
 )
 
-artifact_dependency_bitwuzla=("")
+artifact_dependency_bitwuzla=("sanitizer")
 
 install_build_dependencies_bitwuzla() {
   return 0
