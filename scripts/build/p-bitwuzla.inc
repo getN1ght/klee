@@ -24,7 +24,7 @@ build_bitwuzla() {
   local CC=""
   local CXX=""
 
-  args=(--build-dir "${BITWUZLA_BUILD_PATH}" --prefix "${BITWUZLA_INSTALL_PATH}" --no-assertions --static --no-unit-testing release)
+  args=(--build-dir "${BITWUZLA_BUILD_PATH}" --prefix "${BITWUZLA_INSTALL_PATH}" --static --no-unit-testing)
 
   if [[ -n "${SANITIZER_SUFFIX:-}" ]]; then
     if [[ "${SANITIZER_BUILD:-}" == "address" ]]; then
@@ -33,6 +33,9 @@ build_bitwuzla() {
     if [[ "${SANITIZER_BUILD:-}" == "undefined" ]]; then
       args+=("--ubsan")
     fi
+    args+=("--assertions" "debug")
+  else
+    args+=("--no-assertions" "release")
   fi
 
   ./configure.py "${args[@]}"
