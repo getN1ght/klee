@@ -271,10 +271,18 @@ function(add_klee_unit_test target_name)
   )
 endfunction()
 
+function(add_resources_dir resources_dir)
+  set(cur_path ${CMAKE_CURRENT_SOURCE_DIR})
+  cmake_path(GET cur_path FILENAME parent_dir)
+  file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/${recources_dir} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+endfunction()
+
+
 # Unit Tests
 add_subdirectory(Assignment)
 add_subdirectory(Expr)
 add_subdirectory(Ref)
+add_subdirectory(Parsing)
 add_subdirectory(Solver)
 add_subdirectory(Searcher)
 add_subdirectory(TreeStream)

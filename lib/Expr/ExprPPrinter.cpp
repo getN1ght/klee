@@ -396,8 +396,8 @@ public:
         break;
       }
       case KValue::Kind::GLOBAL_VARIABLE: {
-        PC.getStream() << "[" << cast<KGlobalVariable>(s->allocSite)->getName()
-                       << "]";
+        PC.getStream() << "Global ["
+                       << cast<KGlobalVariable>(s->allocSite)->getName() << "]";
         break;
       }
       default: {
