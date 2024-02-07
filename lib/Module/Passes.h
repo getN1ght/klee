@@ -220,6 +220,23 @@ public:
   ReturnSplitter() : llvm::FunctionPass(ID) {}
   bool runOnFunction(llvm::Function &F) override;
 };
+
+/// @brief
+/// FIXME: finish docs.
+class ReturnLocationFinderPass : public llvm::FunctionPass {
+public:
+  static char ID;
+  ReturnLocationFinderPass() : llvm::FunctionPass(ID) {}
+  bool runOnFunction(llvm::Function &) override;
+};
+
+class LocalVarDeclarationFinderPass : public llvm::FunctionPass {
+public:
+  static char ID;
+  LocalVarDeclarationFinderPass() : llvm::FunctionPass(ID) {}
+  bool runOnFunction(llvm::Function &) override;
+};
+
 } // namespace klee
 
 #endif /* KLEE_PASSES_H */

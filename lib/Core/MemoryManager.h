@@ -27,6 +27,8 @@ class Value;
 namespace klee {
 class MemoryObject;
 class ArrayCache;
+class AddressManager;
+class CodeLocation;
 
 typedef uint64_t IDType;
 
@@ -51,13 +53,13 @@ public:
    * memory.
    */
   MemoryObject *allocate(ref<Expr> size, bool isLocal, bool isGlobal,
-                         bool isLazyInitialiazed, const llvm::Value *allocSite,
+                         bool isLazyInitialiazed, ref<CodeLocation> allocSite,
                          size_t alignment, KType *type,
                          ref<Expr> addressExpr = ref<Expr>(),
                          unsigned timestamp = 0,
                          const Array *content = nullptr);
   MemoryObject *allocateFixed(uint64_t address, uint64_t size,
-                              const llvm::Value *allocSite, KType *type);
+                              ref<CodeLocation> allocSite, KType *type);
   void deallocate(const MemoryObject *mo);
   void markFreed(MemoryObject *mo);
   ArrayCache *getArrayCache() const { return arrayCache; }

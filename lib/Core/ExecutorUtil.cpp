@@ -374,6 +374,12 @@ ref<Expr> Executor::evalConstantExpr(const llvm::ConstantExpr *ce,
         Context::get().getPointerWidth() == 32) {
       result = cast<klee::ConstantExpr>(FPToX87FP80Ext(result));
     }
+
+    // if (constantGepExprBases.count(result)) {
+    //   constantGepExprBases[result] = {constantGepExprBases[result].first,
+    //                                   ce->getType()};
+    // }
+
     return result;
   }
 
@@ -416,6 +422,14 @@ ref<Expr> Executor::evalConstantExpr(const llvm::ConstantExpr *ce,
                                         kmodule->targetData->getTypeAllocSize(
                                             ii.getIndexedType())))));
     }
+
+    // if (constantGepExprBases.count(op1)) {
+    //   constantGepExprBases[base] = constantGepExprBases[op1];
+    // } else {
+    constantGepExprBases[base] = {
+        op1, llvm::cast<GEPOperator>(ce)->getSourceElementType()};
+    // }
+
     return base;
   }
 

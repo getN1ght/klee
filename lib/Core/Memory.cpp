@@ -14,6 +14,7 @@
 #include "klee/Core/Context.h"
 
 #include "klee/ADT/BitArray.h"
+#include "klee/Core/CodeLocation.h"
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"
@@ -49,28 +50,31 @@ MemoryObject::~MemoryObject() {
     parent->markFreed(this);
 }
 
-void MemoryObject::getAllocInfo(std::string &result) const {
+std::string MemoryObject::getAllocInfo() const {
+  std::string result;
   llvm::raw_string_ostream info(result);
 
   info << "MO" << id << "[";
   sizeExpr->print(info);
   info << "]";
 
-  if (allocSite) {
+  if (allocSite && allocSite->source) {
+    const llvm::Value *allocSiteSource = allocSite->source->unwrap();
     info << " allocated at ";
-    if (const Instruction *i = dyn_cast<Instruction>(allocSite)) {
+    if (const Instruction *i = dyn_cast<Instruction>(allocSiteSource)) {
       info << i->getParent()->getParent()->getName() << "():";
       info << *i;
-    } else if (const GlobalValue *gv = dyn_cast<GlobalValue>(allocSite)) {
+    } else if (const GlobalValue *gv = dyn_cast<GlobalValue>(allocSiteSource)) {
       info << "global:" << gv->getName();
     } else {
-      info << "value:" << *allocSite;
+      info << "value:" << *allocSiteSource;
     }
   } else {
     info << " (no allocation info)";
   }
 
   info.flush();
+  return result;
 }
 
 /***/
@@ -184,8 +188,7 @@ ref<Expr> ObjectState::read8(ref<Expr> offset) const {
             dyn_cast<ConstantExpr>(object->getSizeExpr())) {
       auto moSize = sizeExpr->getZExtValue();
       if (object && moSize > 4096) {
-        std::string allocInfo;
-        object->getAllocInfo(allocInfo);
+        std::string allocInfo = object->getAllocInfo();
         klee_warning_once(nullptr,
                           "Symbolic memory access will send the following "
                           "array of %lu bytes to "
@@ -229,8 +232,7 @@ void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
           dyn_cast<ConstantExpr>(object->getSizeExpr())) {
     auto moSize = sizeExpr->getZExtValue();
     if (object && moSize > 4096) {
-      std::string allocInfo;
-      object->getAllocInfo(allocInfo);
+      std::string allocInfo = object->getAllocInfo();
       klee_warning_once(nullptr,
                         "Symbolic memory access will send the following array "
                         "of %lu bytes to "

@@ -91,6 +91,11 @@ cl::opt<bool>
               cl::desc("Do not generate any test files (default=false)"),
               cl::cat(TestCaseCat));
 
+cl::opt<bool> WriteSARIFs(
+    "write-sarifs", cl::init(false),
+    cl::desc("Write .sarif files for each erroneous test case (default=false)"),
+    cl::cat(TestCaseCat));
+
 cl::opt<bool> WriteKTests(
     "write-ktests", cl::init(true),
     cl::desc("Write .ktest files for each test case (default=true)"),
@@ -429,6 +434,8 @@ public:
   void setOutputDirectory(const std::string &directory);
 
   SmallString<128> getOutputDirectory() const;
+
+  ToolJson info() const override;
 };
 
 KleeHandler::KleeHandler(int argc, char **argv)
@@ -570,6 +577,30 @@ std::string KleeHandler::getTestFilename(const std::string &suffix, unsigned id,
 
 SmallString<128> KleeHandler::getOutputDirectory() const {
   return m_outputDirectory;
+}
+
+static std::vector<RuleJson> rules() {
+  std::vector<RuleJson> ret;
+  // Push back rules
+#undef TTYPE
+#undef TTMARK
+#define TTYPE(N, I, S)                                                         \
+  if ((I) > (unsigned int)StateTerminationType::SOLVERERR &&                   \
+      (I) < (unsigned int)StateTerminationType::PROGERR) {                     \
+    ret.push_back(RuleJson{#N, {"Program error"}, {}, {}});                    \
+  }
+#define TTMARK(N, I)
+
+  TERMINATION_TYPES;
+  return ret;
+};
+
+ToolJson KleeHandler::info() const {
+  DriverJson driver{"KLEEF", "https://toolchain-labs.com/projects/kleef.html",
+                    rules()};
+  ToolJson tool = {std::move(driver)};
+
+  return tool;
 }
 
 std::unique_ptr<llvm::raw_fd_ostream>
@@ -724,6 +755,17 @@ void KleeHandler::processTestCase(const ExecutionState &state,
           *f << entry.first << ':' << line << '\n';
         }
       }
+    }
+  }
+
+  if (isError && WriteSARIFs) {
+    auto f = openTestFile("sarif", id);
+
+    // Rewrite .sarif each time it is updated to
+    // receive results as they appear.
+    if (f) {
+      m_interpreter->addSARIFReport(state);
+      *f << json(m_interpreter->getSARIFReport()).dump(2);
     }
   }
 
@@ -1892,7 +1934,7 @@ int main(int argc, char **argv, char **envp) {
       for (const auto &instr : llvm::instructions(Func)) {
         auto locationInfo = getLocationInfo(&instr);
         origInstructions[locationInfo.file][locationInfo.line]
-                        [locationInfo.column]
+                        [locationInfo.column.value_or(0)]
                             .insert(instr.getOpcode());
       }
     }
@@ -2057,6 +2099,7 @@ int main(int argc, char **argv, char **envp) {
                    errorMsg.c_str());
     }
 
+    mainModuleFunctions.insert("__klee_posix_wrapped_main");
     preparePOSIX(loadedUserModules);
   }
 

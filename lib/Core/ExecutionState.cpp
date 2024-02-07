@@ -11,6 +11,7 @@
 
 #include "Memory.h"
 
+#include "klee/Core/CodeEvent.h"
 #include "klee/Expr/ArrayExprVisitor.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Module/Cell.h"
@@ -161,10 +162,10 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       stack(state.stack), stackBalance(state.stackBalance),
       incomingBBIndex(state.incomingBBIndex), depth(state.depth),
       level(state.level), addressSpace(state.addressSpace),
-      constraints(state.constraints), targetForest(state.targetForest),
-      pathOS(state.pathOS), symPathOS(state.symPathOS),
-      coveredLines(state.coveredLines), symbolics(state.symbolics),
-      resolvedPointers(state.resolvedPointers),
+      constraints(state.constraints), eventsRecorder(state.eventsRecorder),
+      targetForest(state.targetForest), pathOS(state.pathOS),
+      symPathOS(state.symPathOS), coveredLines(state.coveredLines),
+      symbolics(state.symbolics), resolvedPointers(state.resolvedPointers),
       cexPreferences(state.cexPreferences), arrayNames(state.arrayNames),
       steppedInstructions(state.steppedInstructions),
       steppedMemoryInstructions(state.steppedMemoryInstructions),

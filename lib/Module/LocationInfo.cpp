@@ -23,6 +23,9 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Support/FormattedStream.h"
 DISABLE_WARNING_POP
 
+#include <cstdint>
+#include <optional>
+
 namespace klee {
 
 LocationInfo getLocationInfo(const llvm::Function *func) {
@@ -30,10 +33,10 @@ LocationInfo getLocationInfo(const llvm::Function *func) {
 
   if (dsub != nullptr) {
     auto path = dsub->getFilename();
-    return {path.str(), dsub->getLine(), 0}; // TODO why not use column here?
+    return {path.str(), dsub->getLine(), {}};
   }
 
-  return {"", 0, 0};
+  return {"", 0, {}};
 }
 
 LocationInfo getLocationInfo(const llvm::Instruction *inst) {
@@ -55,7 +58,7 @@ LocationInfo getLocationInfo(const llvm::Instruction *inst) {
         column = LexicalBlock->getColumn();
       }
     }
-    return {full_path.str(), line, column};
+    return {full_path.str(), line, {column}};
   }
 
   return getLocationInfo(inst->getParent()->getParent());
@@ -72,15 +75,15 @@ LocationInfo getLocationInfo(const llvm::GlobalVariable *globalVar) {
     // Return location from any debug info for global variable.
     if (const llvm::DIGlobalVariable *debugInfoGlobalVar =
             debugInfoEntry->getVariable()) {
-      // Assume that global variable declared at line 0.
       return {debugInfoGlobalVar->getFilename().str(),
-              debugInfoGlobalVar->getLine(), 0};
+              debugInfoGlobalVar->getLine(),
+              {}};
     }
   }
 
   // Fallback to empty location if there is no appropriate debug
   // info.
-  return {"", 0, 0};
+  return {"", 0, {}};
 }
 
 } // namespace klee

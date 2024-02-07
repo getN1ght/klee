@@ -72,7 +72,9 @@ namespace klee {
 class Array;
 struct Cell;
 class CodeGraphInfo;
+struct CodeLocation;
 class DistanceCalculator;
+struct ErrorEvent;
 class ExecutionState;
 class ExternalDispatcher;
 class Expr;
@@ -159,6 +161,8 @@ private:
   std::unique_ptr<DistanceCalculator> distanceCalculator;
   std::unique_ptr<TargetCalculator> targetCalculator;
   std::unique_ptr<TargetManager> targetManager;
+
+  ExprHashMap<std::pair<ref<Expr>, llvm::Type *>> constantGepExprBases;
 
   /// Used to track states that have been added during the current
   /// instructions step.
@@ -258,6 +262,7 @@ private:
   bool hasStateWhichCanReachSomeTarget = false;
 
   FunctionsByModule functionsByModule;
+  SarifReportJson sarifReport;
 
   /// Return the typeid corresponding to a certain `type_info`
   ref<ConstantExpr> getEhTypeidFor(ref<Expr> type_info);
@@ -330,7 +335,7 @@ private:
                     SolverQueryMetaData &metaData);
 
   MemoryObject *allocate(ExecutionState &state, ref<Expr> size, bool isLocal,
-                         bool isGlobal, const llvm::Value *allocSite,
+                         bool isGlobal, ref<CodeLocation> allocSite,
                          size_t allocationAlignment, KType *type,
                          ref<Expr> lazyInitializationSource = ref<Expr>(),
                          unsigned timestamp = 0, bool isSymbolic = false);
@@ -546,6 +551,10 @@ private:
   void bindArgument(KFunction *kf, unsigned index, ExecutionState &state,
                     ref<Expr> value);
 
+  // Returns location of ExecutionState::prevPC in given
+  // source code (i.e. main module).
+  ref<CodeLocation> locationOf(const ExecutionState &) const;
+
   /// Evaluates an LLVM constant expression.  The optional argument ki
   /// is the instruction where this constant was encountered, or NULL
   /// if not applicable/unavailable.
@@ -592,7 +601,7 @@ private:
   // Determines the \param lastInstruction of the \param state which is not KLEE
   // internal and returns its KInstruction
   const KInstruction *
-  getLastNonKleeInternalInstruction(const ExecutionState &state);
+  getLastNonKleeInternalInstruction(const ExecutionState &state) const;
 
   /// Remove state from queue and delete state
   void terminateState(ExecutionState &state,
@@ -636,8 +645,7 @@ private:
   /// Call error handler and terminate state in case of program errors
   /// (e.g. free()ing globals, out-of-bound accesses)
   void terminateStateOnProgramError(ExecutionState &state,
-                                    const llvm::Twine &message,
-                                    StateTerminationType reason,
+                                    const ref<ErrorEvent> &reason,
                                     const llvm::Twine &longMessage = "",
                                     const char *suffix = nullptr);
 
@@ -814,6 +822,10 @@ public:
   void
   getConstraintLog(const ExecutionState &state, std::string &res,
                    Interpreter::LogType logFormat = Interpreter::STP) override;
+
+  void addSARIFReport(const ExecutionState &state) override;
+
+  SarifReportJson getSARIFReport() const override;
 
   void setInitializationGraph(const ExecutionState &state,
                               const std::vector<klee::Symbolic> &symbolics,
