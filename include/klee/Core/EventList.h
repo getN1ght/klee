@@ -7,7 +7,7 @@ namespace klee {
 
 template <typename T> class ref;
 template <typename T> class ImmutableList;
-class CodeFlowJson;
+struct CodeFlowJson;
 class CodeEvent;
 
 /// @brief Class capable of storing code events

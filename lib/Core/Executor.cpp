@@ -83,6 +83,7 @@
 #include "klee/Support/CompilerWarning.h"
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Attributes.h"
@@ -4357,7 +4358,7 @@ void Executor::bindInstructionConstants(KInstruction *KI) {
   }
 }
 
-void Executor::bindModuleConstants(const llvm::APFloat::roundingMode &rm) {
+void Executor::bindModuleConstants(llvm::APFloat::roundingMode rm) {
   for (auto &kfp : kmodule->functions) {
     KFunction *kf = kfp.get();
     for (unsigned i = 0; i < kf->numInstructions; ++i)
@@ -6858,20 +6859,24 @@ void Executor::executeMemoryOperation(
 
     /* If base may point to some object then we may provide additional
     information about object allocations site.*/
-    if (ref<ConstantExpr> cUniqueBase = dyn_cast<ConstantExpr>(base)) {
-      // Obtain memory object
-      ObjectPair baseObjectPair;
-      if (unbound->addressSpace.resolveOne(cUniqueBase, baseTargetType,
-                                           baseObjectPair)) {
-        // Termiante with source event
-        terminateStateOnProgramError(
-            *unbound,
-            new ErrorEvent(new AllocEvent(baseObjectPair.first->allocSite),
-                           locationOf(*unbound), StateTerminationType::Ptr,
-                           "memory error: out of bound pointer"),
-            getAddressInfo(*unbound, address));
-        return;
-      }
+    bool uniqueBaseResolved = false;
+    ObjectPair baseObjectPair;
+
+    if (!unbound->addressSpace.resolveOneIfUnique(
+            *unbound, solver.get(), base, baseTargetType, baseObjectPair,
+            uniqueBaseResolved)) {
+      terminateStateOnSolverError(*unbound, "Query timed out (resolve)");
+    }
+
+    if (uniqueBaseResolved) {
+      // Termiante with source event
+      terminateStateOnProgramError(
+          *unbound,
+          new ErrorEvent(new AllocEvent(baseObjectPair.first->allocSite),
+                         locationOf(*unbound), StateTerminationType::Ptr,
+                         "memory error: out of bound pointer"),
+          getAddressInfo(*unbound, address));
+      return;
     }
 
     terminateStateOnProgramError(

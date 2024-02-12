@@ -36,6 +36,7 @@
 #include "klee/Support/CompilerWarning.h"
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Intrinsics.h"
@@ -79,7 +80,7 @@ class ExecutionState;
 class ExternalDispatcher;
 class Expr;
 template <class T> class ExprHashMap;
-class KCallable;
+struct KCallable;
 struct KFunction;
 struct KInstruction;
 class KInstIterator;
@@ -673,7 +674,7 @@ private:
   void reportProgressTowardsTargets() const;
 
   /// bindModuleConstants - Initialize the module constant table.
-  void bindModuleConstants(const llvm::APFloat::roundingMode &rm);
+  void bindModuleConstants(llvm::APFloat::roundingMode rm);
 
   uint64_t updateNameVersion(ExecutionState &state, const std::string &name);
 

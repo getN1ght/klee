@@ -28,7 +28,7 @@ namespace klee {
 class MemoryObject;
 class ArrayCache;
 class AddressManager;
-class CodeLocation;
+struct CodeLocation;
 
 typedef uint64_t IDType;
 
