@@ -3478,7 +3478,17 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> address = AddExpr::create(base, offset);
 
     if (state.isGEPExpr(base)) {
-      state.gepExprBases[address] = state.gepExprBases[base];
+      if (ref<ConstantExpr> baseConstant = llvm::dyn_cast<ConstantExpr>(base)) {
+        ObjectPair baseResolution;
+        if (!state.addressSpace.resolveOne(baseConstant,
+                                           typeSystemManager->getWrappedType(
+                                               state.gepExprBases[base].second),
+                                           baseResolution)) {
+          state.gepExprBases[address] = state.gepExprBases[base];
+        }
+      } else {
+        state.gepExprBases[address] = state.gepExprBases[base];
+      }
     } else {
       state.gepExprBases[address] = {base, gepInst->getSourceElementType()};
     }
@@ -4996,16 +5006,6 @@ std::string Executor::getAddressInfo(ExecutionState &state, ref<Expr> address,
     }
   }
 
-  info << "================================================================\n";
-  for (auto &it : state.addressSpace.objects) {
-    info << it.first->getBaseExpr() << "\n";
-  }
-  info << "================================================================\n";
-  for (auto &it : state.gepExprBases) {
-    info << "ADDRESS: " << *it.first << " <- BASE: " << *it.second.first
-         << " | TYPE " << *it.second.second << "\n";
-  }
-
   info.flush();
   return Str;
 }
@@ -5239,6 +5239,12 @@ void Executor::terminateStateOnError(ExecutionState &state,
     std::string info_str = info.str();
     if (!info_str.empty())
       msg << "Info: \n" << info_str;
+
+    msg << "\nMemory:\n";
+    for (auto obj : state.addressSpace.objects) {
+      msg << "\tAddress: " << *obj.first->getBaseExpr()
+          << "; Size: " << *obj.first->getSizeExpr() << ";\n";
+    }
 
     state.clearCoveredNewError();
 
@@ -5961,8 +5967,14 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
 
   /* Constant solution exists. Just return it. */
   if (arrayConstantSize && lazyInitializationSource.isNull()) {
-    return memory->allocate(arrayConstantSize, isLocal, isGlobal, false,
-                            allocSite, allocationAlignment, type);
+    MemoryObject *mo =
+        memory->allocate(arrayConstantSize, isLocal, isGlobal, false, allocSite,
+                         allocationAlignment, type);
+    if (mo && state.isGEPExpr(mo->getBaseExpr())) {
+      state.gepExprBases.erase(mo->getBaseExpr());
+    }
+
+    return mo;
   }
 
   Expr::Width pointerWidthInBits = Context::get().getPointerWidth();
