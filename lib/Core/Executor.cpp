@@ -3478,12 +3478,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> address = AddExpr::create(base, offset);
 
     if (state.isGEPExpr(base)) {
-      if (ref<ConstantExpr> baseConstant = llvm::dyn_cast<ConstantExpr>(base)) {
-        ObjectPair baseResolution;
-        if (!state.addressSpace.resolveOne(baseConstant,
+      if (ref<ConstantExpr> addressConstant =
+              llvm::dyn_cast<ConstantExpr>(address)) {
+        ObjectPair addressConstantResolution;
+        if (!state.addressSpace.resolveOne(addressConstant,
                                            typeSystemManager->getWrappedType(
                                                state.gepExprBases[base].second),
-                                           baseResolution)) {
+                                           addressConstantResolution)) {
           state.gepExprBases[address] = state.gepExprBases[base];
         }
       } else {
