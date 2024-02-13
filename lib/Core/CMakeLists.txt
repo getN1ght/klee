@@ -14,7 +14,7 @@ add_library(kleeCore
   CoreStats.cpp
   CXXTypeSystem/CXXTypeManager.cpp
   DistanceCalculator.cpp
-  EventList.cpp
+  EventRecorder.cpp
   ExecutionState.cpp
   Executor.cpp
   ExecutorUtil.cpp

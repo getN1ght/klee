@@ -8,8 +8,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Module/LocationInfo.h"
-#include "klee/Support/CompilerWarning.h"
+#include "klee/Module/SarifReport.h"
 
+#include "klee/Support/CompilerWarning.h"
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/SmallVector.h"
@@ -27,6 +28,28 @@ DISABLE_WARNING_POP
 #include <optional>
 
 namespace klee {
+
+PhysicalLocationJson LocationInfo::serialize() const {
+  // clang-format off
+  return PhysicalLocationJson{
+    {
+      ArtifactLocationJson {
+        {file}
+      }
+    },
+    {
+      RegionJson {
+        {line}, 
+        std::nullopt, 
+        column, 
+        std::nullopt
+      }
+    }
+  };
+  // clang-format on
+}
+
+////////////////////////////////////////////////////////////////
 
 LocationInfo getLocationInfo(const llvm::Function *func) {
   const auto dsub = func->getSubprogram();

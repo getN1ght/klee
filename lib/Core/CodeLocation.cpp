@@ -1,30 +1,41 @@
 #include "CodeLocation.h"
 
+#include "klee/ADT/Ref.h"
 #include "klee/Module/LocationInfo.h"
 #include "klee/Module/SarifReport.h"
 
+#include <cinttypes>
 #include <optional>
+#include <string>
 #include <utility>
 
 using namespace klee;
 
-/// @brief Converts location info to SARIFs representation
-/// of location.
-/// @param location location info in source code.
-/// @return SARIFs representation of location.
-static PhysicalLocationJson from(const LocationInfo &location) {
-  // Clang-format does not keep pretty format for JSON.
-  // For better readability split creating of JSON in local variables.
-
-  ArtifactLocationJson artifactLocationJson{{location.file}};
-  RegionJson regionJson{
-      {location.line}, std::nullopt, location.column, std::nullopt};
-  PhysicalLocationJson physicalLocationJson{{std::move(artifactLocationJson)},
-                                            {std::move(regionJson)}};
-
-  return physicalLocationJson;
+CodeLocation::CodeLocation(const Path::PathIndex &pathIndex,
+                           const KValue *source,
+                           const std::string &sourceFilename,
+                           uint64_t sourceCodeLine,
+                           std::optional<uint64_t> sourceCodeColumn)
+    : pathIndex(pathIndex), source(source),
+      location(LocationInfo{sourceFilename, sourceCodeLine, sourceCodeColumn}) {
 }
 
-////////////////////////////////////////////////////////////////
+ref<CodeLocation>
+CodeLocation::create(const Path::PathIndex &pathIndex, const KValue *source,
+                     const std::string &sourceFilename, uint64_t sourceCodeLine,
+                     std::optional<uint64_t> sourceCodeColumn = std::nullopt) {
+  return new CodeLocation(pathIndex, source, sourceFilename, sourceCodeLine,
+                          sourceCodeColumn);
+}
 
-PhysicalLocationJson CodeLocation::serialize() const { return from(location); }
+ref<CodeLocation>
+CodeLocation::create(const KValue *source, const std::string &sourceFilename,
+                     uint64_t sourceCodeLine,
+                     std::optional<uint64_t> sourceCodeColumn = std::nullopt) {
+  return new CodeLocation(Path::PathIndex{0, 0}, source, sourceFilename,
+                          sourceCodeLine, sourceCodeColumn);
+}
+
+PhysicalLocationJson CodeLocation::serialize() const {
+  return location.serialize();
+}

@@ -29,13 +29,11 @@ public:
       : kind(kind), location(location) {}
 
   /// @brief Additional info to current event.
-  /// @returns string describing event.
+  /// @return String describing event.
   virtual std::string description() const = 0;
 
-  // FIXME: compelte the docs.
-  /// @brief
-  /// @param event
-  /// @return
+  /// @brief Serialize event to the JSON format.
+  /// @return JSON object describing event.
   LocationJson serialize() const {
     LocationJson result;
 
@@ -45,6 +43,8 @@ public:
     return result;
   }
 
+  /// @brief Kind of event used for LLVM RTTI.
+  /// @return Kind of event.
   EventKind getKind() const { return kind; }
 
   virtual ~CodeEvent() = default;

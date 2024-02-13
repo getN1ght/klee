@@ -23,6 +23,10 @@ class Module;
 } // namespace llvm
 
 namespace klee {
+struct PhysicalLocationJson;
+}
+
+namespace klee {
 
 /// @brief Immutable struct representing location in source code.
 struct LocationInfo {
@@ -34,6 +38,12 @@ struct LocationInfo {
 
   /// @brief Column number in source file.
   const std::optional<uint64_t> column;
+
+  /// @brief Converts location info to SARIFs representation
+  /// of location.
+  /// @param location location info in source code.
+  /// @return SARIFs representation of location.
+  PhysicalLocationJson serialize() const;
 };
 
 LocationInfo getLocationInfo(const llvm::Function *func);

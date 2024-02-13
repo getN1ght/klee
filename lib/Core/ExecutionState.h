@@ -35,7 +35,7 @@
 #include "klee/Utilities/Math.h"
 
 #include "CodeLocation.h"
-#include "EventList.h"
+#include "EventRecorder.h"
 
 #include "klee/Support/CompilerWarning.h"
 DISABLE_WARNING_PUSH
