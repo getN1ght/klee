@@ -25,7 +25,7 @@ public:
   ~EventRecorder() = default;
 
   /// @brief Remembers event.
-  /// @param event event to record.
+  /// @param event Event to record.
   void record(const ref<CodeEvent> &event);
 
   /// @brief Appends all events from the given `EventRecorder`

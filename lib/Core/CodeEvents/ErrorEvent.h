@@ -11,9 +11,15 @@ namespace klee {
 
 struct ErrorEvent : public CodeEvent {
 public:
+  /// @brief ID for this error.
   const StateTerminationType ruleID;
+
+  /// @brief Message describing this error.
   const std::string message;
 
+  /// @brief Event associated with this error
+  /// which may be treated as a "source" of error
+  /// (e.g. memory allocation for Out-Of-Bounds error).
   const std::optional<ref<CodeEvent>> source;
 
   ErrorEvent(const ref<CodeEvent> &source, const ref<CodeLocation> &sink,
@@ -35,4 +41,4 @@ public:
 
 } // namespace klee
 
-#endif
+#endif // KLEE_ERROR_EVENT_H

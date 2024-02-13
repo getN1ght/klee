@@ -52,4 +52,4 @@ public:
 
 } // namespace klee
 
-#endif
+#endif // KLEE_CODE_EVENT_H

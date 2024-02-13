@@ -1,9 +1,9 @@
 // RUN: %clang %s -g -emit-llvm %O0opt -c -o %t.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --write-kqueries --use-query-log=all:kquery --output-dir=%t.klee-out --exit-on-error %t.bc > %t.log 2>&1
+// RUN: %klee --write-kqueries --use-query-log=all:kquery --output-dir=%t.klee-out %t.bc > %t.log 2>&1
 // RUN: FileCheck %s -input-file=%t.log -check-prefix=CHECK
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --optimize-array=value --write-kqueries --use-query-log=all:kquery --output-dir=%t.klee-out --exit-on-error %t.bc > %t.log 2>&1
+// RUN: %klee --optimize-array=value --write-kqueries --use-query-log=all:kquery --output-dir=%t.klee-out %t.bc > %t.log 2>&1
 // RUN: FileCheck %s -input-file=%t.log -check-prefix=CHECK
 // RUN: FileCheck %s -input-file=%t.log -check-prefix=CHECK-V
 

@@ -40,4 +40,4 @@ struct AllocEvent : public CodeEvent {
 
 } // namespace klee
 
-#endif
+#endif // KLEE_ALLOC_EVENT_H

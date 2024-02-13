@@ -10,6 +10,8 @@ namespace klee {
 
 class BrEvent : public CodeEvent {
 private:
+  /// @brief Described chosen branch event: `true` if
+  /// `then`-branch was chosen and `false` otherwise.
   bool chosenBranch = true;
 
 public:
@@ -40,4 +42,4 @@ public:
 
 } // namespace klee
 
-#endif
+#endif // KLEE_BR_EVENT_H

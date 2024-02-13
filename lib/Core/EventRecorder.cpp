@@ -7,6 +7,7 @@
 #include "klee/Module/SarifReport.h"
 
 #include <cassert>
+#include <optional>
 #include <utility>
 
 using namespace klee;
@@ -59,12 +60,12 @@ EventRecorder EventRecorder::inRange(const Path::PathIndex &begin,
     return result;
   }
 
-  // TODO: not effective.
-  /// FIXME:
   for (const auto &event : events) {
     const Path::PathIndex &eventPathIndex = event->location->pathIndex;
-    if (!Path::PathIndexCompare{}(eventPathIndex, begin) &&
-        !Path::PathIndexCompare{}(end, eventPathIndex)) {
+    if (!Path::PathIndexCompare{}(eventPathIndex, begin)) {
+      if (Path::PathIndexCompare{}(end, eventPathIndex)) {
+        break;
+      }
       result.record(event);
     }
   }

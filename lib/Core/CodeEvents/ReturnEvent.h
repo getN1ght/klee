@@ -11,6 +11,7 @@ namespace klee {
 
 class ReturnEvent : public CodeEvent {
 private:
+  /// @brief Function to which control flow returns.
   const KFunction *const caller;
 
 public:
@@ -30,4 +31,4 @@ public:
 
 } // namespace klee
 
-#endif
+#endif // KLEE_RETURN_EVENT_H
