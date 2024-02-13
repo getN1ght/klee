@@ -6559,16 +6559,6 @@ void Executor::executeMemoryOperation(
     }
 
     ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
-    ref<Expr> baseInBounds = Expr::createTrue();
-
-    if (base != address || size != bytes) {
-      baseInBounds =
-          AndExpr::create(baseInBounds, mo->getBoundsCheckPointer(base, size));
-      baseInBounds = AndExpr::create(
-          baseInBounds, Expr::createIsZero(mo->getOffsetExpr(base)));
-    }
-
-    inBounds = AndExpr::create(inBounds, baseInBounds);
 
     inBounds = optimizer.optimizeExpr(inBounds, true);
     inBounds = Simplificator::simplifyExpr(state->constraints.cs(), inBounds)
