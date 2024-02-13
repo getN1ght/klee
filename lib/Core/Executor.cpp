@@ -5982,7 +5982,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   Expr::Width pointerWidthInBits = Context::get().getPointerWidth();
 
   /// Determine source for address array:
-  /// * LI source if allocate occures on lazi initialization
+  /// * LI source if allocate occures on lazy initialization
   /// * Otherwise choose source depending on the allocation site
   ref<SymbolicSource> sourceAddressArray;
   if (!lazyInitializationSource) {

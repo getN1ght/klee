@@ -583,6 +583,11 @@ SmallString<128> KleeHandler::getOutputDirectory() const {
 static std::vector<RuleJson> rules() {
   std::vector<RuleJson> ret;
   // Push back rules
+  // Wtype-limits deprecated as I might be equal to 0.
+  DISABLE_WARNING_PUSH
+  // clang-format off
+  DISABLE_WARNING(-Wtype-limits)
+  // clang-format on
 #undef TTYPE
 #undef TTMARK
 #define TTYPE(N, I, S)                                                         \
@@ -593,6 +598,7 @@ static std::vector<RuleJson> rules() {
 #define TTMARK(N, I)
 
   TERMINATION_TYPES;
+  DISABLE_WARNING_POP
   return ret;
 };
 
@@ -760,7 +766,7 @@ void KleeHandler::processTestCase(const ExecutionState &state,
   }
 
   if (isError && WriteSARIFs) {
-    auto f = openTestFile("sarif", id);
+    auto f = openOutputFile("report.sarif");
 
     // Rewrite .sarif each time it is updated to
     // receive results as they appear.
