@@ -19,7 +19,6 @@
 #include "klee/ADT/PersistentSet.h"
 #include "klee/ADT/PersistentVector.h"
 #include "klee/ADT/TreeStream.h"
-#include "klee/Core/CodeLocation.h"
 #include "klee/Core/TerminationTypes.h"
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
@@ -35,7 +34,8 @@
 #include "klee/System/Time.h"
 #include "klee/Utilities/Math.h"
 
-#include "klee/Core/EventList.h"
+#include "CodeLocation.h"
+#include "EventList.h"
 
 #include "klee/Support/CompilerWarning.h"
 DISABLE_WARNING_PUSH

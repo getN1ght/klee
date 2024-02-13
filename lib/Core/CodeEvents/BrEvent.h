@@ -1,8 +1,8 @@
 #ifndef KLEE_BR_EVENT_H
 #define KLEE_BR_EVENT_H
 
+#include "../CodeEvent.h"
 #include "klee/ADT/Ref.h"
-#include "klee/Core/CodeEvent.h"
 
 #include <string>
 

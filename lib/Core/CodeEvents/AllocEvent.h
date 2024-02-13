@@ -1,11 +1,10 @@
 #ifndef KLEE_ALLOC_EVENT_H
 #define KLEE_ALLOC_EVENT_H
 
-#include "klee/Core/CodeEvent.h"
+#include "../CodeEvent.h"
 #include "klee/Module/KValue.h"
 
 #include "klee/Support/CompilerWarning.h"
-
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/IR/Instruction.h"

@@ -11,7 +11,7 @@
 
 #include "Memory.h"
 
-#include "klee/Core/CodeEvent.h"
+#include "CodeEvent.h"
 #include "klee/Expr/ArrayExprVisitor.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Module/Cell.h"

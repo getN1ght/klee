@@ -1,7 +1,7 @@
 #ifndef KLEE_ERROR_EVENT_H
 #define KLEE_ERROR_EVENT_H
 
-#include "klee/Core/CodeEvent.h"
+#include "../CodeEvent.h"
 #include "klee/Core/TerminationTypes.h"
 
 #include <optional>

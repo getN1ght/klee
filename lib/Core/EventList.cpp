@@ -1,6 +1,5 @@
-#include "klee/Core/EventList.h"
-
-#include "klee/Core/CodeEvent.h"
+#include "EventList.h"
+#include "CodeEvent.h"
 
 #include "klee/ADT/ImmutableList.h"
 #include "klee/ADT/Ref.h"

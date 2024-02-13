@@ -13,8 +13,8 @@
 #include "MemoryManager.h"
 #include "klee/Core/Context.h"
 
+#include "CodeLocation.h"
 #include "klee/ADT/BitArray.h"
-#include "klee/Core/CodeLocation.h"
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"

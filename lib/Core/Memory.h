@@ -10,11 +10,11 @@
 #ifndef KLEE_MEMORY_H
 #define KLEE_MEMORY_H
 
+#include "CodeLocation.h"
 #include "MemoryManager.h"
 #include "TimingSolver.h"
 #include "klee/ADT/Ref.h"
 #include "klee/ADT/SparseStorage.h"
-#include "klee/Core/CodeLocation.h"
 #include "klee/Core/Context.h"
 
 #include "klee/Expr/Assignment.h"

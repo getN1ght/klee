@@ -1,10 +1,10 @@
 #ifndef KLEE_CALL_EVENT_H
 #define KLEE_CALL_EVENT_H
 
-#include "klee/ADT/Ref.h"
-#include "klee/Core/CodeEvent.h"
+#include "../CodeEvent.h"
+#include "../CodeLocation.h"
 
-#include "klee/Core/CodeLocation.h"
+#include "klee/ADT/Ref.h"
 #include "klee/Module/KModule.h"
 
 #include <string>

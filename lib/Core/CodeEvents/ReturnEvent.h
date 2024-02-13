@@ -1,8 +1,8 @@
 #ifndef KLEE_RETURN_EVENT_H
 #define KLEE_RETURN_EVENT_H
 
-#include "klee/Core/CodeEvent.h"
-#include "klee/Core/CodeLocation.h"
+#include "../CodeEvent.h"
+#include "../CodeLocation.h"
 #include "klee/Module/KModule.h"
 
 #include <string>

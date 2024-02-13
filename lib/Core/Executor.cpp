@@ -71,14 +71,14 @@
 #include "klee/System/MemoryUsage.h"
 #include "klee/System/Time.h"
 
-#include "klee/Core/CodeEvent.h"
-#include "klee/Core/CodeEvents/AllocEvent.h"
-#include "klee/Core/CodeEvents/BrEvent.h"
-#include "klee/Core/CodeEvents/CallEvent.h"
-#include "klee/Core/CodeEvents/ErrorEvent.h"
-#include "klee/Core/CodeEvents/ReturnEvent.h"
-#include "klee/Core/CodeLocation.h"
-#include "klee/Core/EventList.h"
+#include "CodeEvent.h"
+#include "CodeEvents/AllocEvent.h"
+#include "CodeEvents/BrEvent.h"
+#include "CodeEvents/CallEvent.h"
+#include "CodeEvents/ErrorEvent.h"
+#include "CodeEvents/ReturnEvent.h"
+#include "CodeLocation.h"
+#include "EventList.h"
 
 #include "klee/Support/CompilerWarning.h"
 DISABLE_WARNING_PUSH

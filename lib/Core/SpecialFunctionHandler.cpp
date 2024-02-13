@@ -18,9 +18,9 @@
 #include "TimingSolver.h"
 #include "TypeManager.h"
 
+#include "CodeEvents/AllocEvent.h"
+#include "CodeEvents/ErrorEvent.h"
 #include "klee/Config/config.h"
-#include "klee/Core/CodeEvents/AllocEvent.h"
-#include "klee/Core/CodeEvents/ErrorEvent.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Solver/SolverCmdLine.h"
