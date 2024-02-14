@@ -263,6 +263,8 @@ private:
   bool hasStateWhichCanReachSomeTarget = false;
 
   FunctionsByModule functionsByModule;
+
+  /// @brief SARIF report for all exploration paths.
   SarifReportJson sarifReport;
 
   /// Return the typeid corresponding to a certain `type_info`

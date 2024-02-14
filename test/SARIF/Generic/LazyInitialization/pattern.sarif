@@ -11,21 +11,33 @@
                     {
                       "location": {
                         "message": {
-                          "text": "Heap memory allocation"
+                          "text": "memory error: null pointer exception"
                         },
                         "physicalLocation": {
                           "artifactLocation": {
-                            "uri": "MEDIUM02.c"
+                            "uri": "LazyInitialization.c"
                           },
                           "region": {
                             "endColumn": null,
                             "endLine": null,
-                            "startColumn": 22,
-                            "startLine": 29
+                            "startColumn": 6,
+                            "startLine": 14
                           }
                         }
                       }
-                    },
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
                     {
                       "location": {
                         "message": {
@@ -33,13 +45,13 @@
                         },
                         "physicalLocation": {
                           "artifactLocation": {
-                            "uri": "MEDIUM02.c"
+                            "uri": "LazyInitialization.c"
                           },
                           "region": {
                             "endColumn": null,
                             "endLine": null,
-                            "startColumn": 3,
-                            "startLine": 25
+                            "startColumn": 10,
+                            "startLine": 15
                           }
                         }
                       }

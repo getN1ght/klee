@@ -2695,8 +2695,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       terminateStateOnExit(state);
     } else {
       if (kmodule->inMainModule(*i)) {
+        KFunction *callerFunction = kcaller->parent->parent;
+
+        if (kmodule->WithPOSIXRuntime() &&
+            callerFunction->getName() == "__klee_posix_wrapped_main") {
+          callerFunction = state.stack.callStack().front().kf;
+        }
+
         state.eventsRecorder.record(
-            new ReturnEvent(locationOf(state), kcaller->parent->parent));
+            new ReturnEvent(locationOf(state), callerFunction));
       }
 
       state.popFrame();
@@ -6867,14 +6874,16 @@ void Executor::executeMemoryOperation(
     }
 
     if (uniqueBaseResolved) {
-      // Termiante with source event
-      terminateStateOnProgramError(
-          *unbound,
-          new ErrorEvent(new AllocEvent(baseObjectPair.first->allocSite),
-                         locationOf(*unbound), StateTerminationType::Ptr,
-                         "memory error: out of bound pointer"),
-          getAddressInfo(*unbound, address));
-      return;
+      if (!baseObjectPair.first->isLazyInitialized) {
+        // Termiante with source event
+        terminateStateOnProgramError(
+            *unbound,
+            new ErrorEvent(new AllocEvent(baseObjectPair.first->allocSite),
+                           locationOf(*unbound), StateTerminationType::Ptr,
+                           "memory error: out of bound pointer"),
+            getAddressInfo(*unbound, address));
+        return;
+      }
     }
 
     terminateStateOnProgramError(
