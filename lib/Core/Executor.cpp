@@ -1025,6 +1025,14 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
     const KGlobalVariable *kv = kmodule->globalMap.at(&v).get();
     ref<CodeLocation> vCodeLocation = CodeLocation::create(
         kv, kv->getSourceFilepath(), kv->getLine(), std::nullopt);
+
+    if (!isa<ConstantExpr>(size)) {
+      addConstraint(
+          state, UleExpr::create(
+                     ZExtExpr::create(size, Context::get().getPointerWidth()),
+                     Expr::createPointer(MaxSymbolicAllocationSize)));
+    }
+
     MemoryObject *mo = allocate(state, size, /*isLocal=*/false,
                                 /*isGlobal=*/true, /*allocSite=*/vCodeLocation,
                                 /*alignment=*/globalObjectAlignment,
