@@ -5282,11 +5282,10 @@ void Executor::terminateStateOnProgramError(ExecutionState &state,
 
   if (reason->source.has_value()) {
     const ref<CodeEvent> &sourceEvent = reason->source.value();
-
-    if (!state.eventsRecorder.empty() && sourceEvent->location) {
+    if (sourceEvent->location) {
       EventRecorder traceRecorder;
-      traceRecorder.record(sourceEvent);
 
+      traceRecorder.record(sourceEvent);
       traceRecorder.append(
           state.eventsRecorder.tail(sourceEvent->location->pathIndex));
 
@@ -6856,6 +6855,7 @@ void Executor::executeMemoryOperation(
             *unbound, solver.get(), base, baseTargetType, baseObjectPair,
             uniqueBaseResolved)) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve)");
+      return;
     }
 
     if (uniqueBaseResolved) {

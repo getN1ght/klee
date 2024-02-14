@@ -104,6 +104,11 @@ LocationInfo getLocationInfo(const llvm::GlobalVariable *globalVar) {
     }
   }
 
+  // For `extern` variables return `external` file.
+  if (globalVar->hasExternalLinkage()) {
+    return {"external", 0, {}};
+  }
+
   // Fallback to empty location if there is no appropriate debug
   // info.
   return {"", 0, {}};

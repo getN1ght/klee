@@ -78,6 +78,8 @@ bool EventRecorder::empty() const { return events.empty(); }
 ref<CodeEvent> EventRecorder::last() const { return events.back(); }
 
 EventRecorder EventRecorder::tail(const Path::PathIndex &begin) const {
-  assert(!events.empty());
+  if (events.empty()) {
+    return EventRecorder();
+  }
   return inRange(begin, events.back()->location->pathIndex);
 }

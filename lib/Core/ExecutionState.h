@@ -334,7 +334,8 @@ public:
   /// @brief Constraints collected so far
   PathConstraints constraints;
 
-  // TODO: union into history object
+  /// @brief Storage for the source code events (e.g. changing control flow or
+  /// errors)
   EventRecorder eventsRecorder;
 
   /// @brief Key points which should be visited through execution
