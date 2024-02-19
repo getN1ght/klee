@@ -40,6 +40,7 @@
 #include "klee/Config/config.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Core/MockBuilder.h"
+#include "klee/Core/TerminationTypes.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/ArrayExprVisitor.h"
 #include "klee/Expr/Assignment.h"
@@ -2724,6 +2725,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       if (bi->getMetadata("md.ret")) {
         state.stack.forceReturnLocation(locationOf(state));
       }
+      state.lastBrConfidently = true;
 
       transferToBasicBlock(bi->getSuccessor(0), bi->getParent(), state);
     } else {
@@ -2743,6 +2745,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         maxNewStateStackSize =
             std::max(maxNewStateStackSize,
                      branches.first->stack.stackRegisterSize() * 8);
+        branches.first->lastBrConfidently = false;
+        branches.second->lastBrConfidently = false;
+      } else {
+        (branches.first ? branches.first : branches.second)->lastBrConfidently =
+            true;
       }
 
       // NOTE: There is a hidden dependency here, markBranchVisited
@@ -4014,9 +4021,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (iIdx >= vt->getNumElements()) {
       // Out of bounds write
       terminateStateOnProgramError(
-          state, new ErrorEvent(locationOf(state),
-                                StateTerminationType::BadVectorAccess,
-                                "Out of bounds write when inserting element"));
+          state,
+          new ErrorEvent(locationOf(state),
+                         StateTerminationType::BadVectorAccess,
+                         "Out of bounds write when inserting element"),
+          StateTerminationConfidenceCategory::CONFIDENT);
       return;
     }
 
@@ -4057,9 +4066,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (iIdx >= vt->getNumElements()) {
       // Out of bounds read
       terminateStateOnProgramError(
-          state, new ErrorEvent(locationOf(state),
-                                StateTerminationType::BadVectorAccess,
-                                "Out of bounds read when extracting element"));
+          state,
+          new ErrorEvent(locationOf(state),
+                         StateTerminationType::BadVectorAccess,
+                         "Out of bounds read when extracting element"),
+          StateTerminationConfidenceCategory::CONFIDENT);
       return;
     }
 
@@ -4963,28 +4974,41 @@ void Executor::terminateStateOnTargetError(ExecutionState &state,
     terminationType = StateTerminationType::User;
   }
   terminateStateOnProgramError(
-      state, new ErrorEvent(locationOf(state), terminationType, messaget));
+      state, new ErrorEvent(locationOf(state), terminationType, messaget),
+      StateTerminationConfidenceCategory::CONFIDENT);
 }
 
-void Executor::terminateStateOnError(ExecutionState &state,
-                                     const llvm::Twine &messaget,
-                                     StateTerminationType terminationType,
-                                     const llvm::Twine &info,
-                                     const char *suffix) {
+void Executor::terminateStateOnError(
+    ExecutionState &state, const llvm::Twine &messaget,
+    StateTerminationType terminationType,
+    StateTerminationConfidenceCategory confidence, const llvm::Twine &info,
+    const char *suffix) {
   std::string message = messaget.str();
-  static std::set<std::pair<Instruction *, std::string>> emittedErrors;
+  static std::set<
+      std::pair<Instruction *,
+                std::pair<StateTerminationConfidenceCategory, std::string>>>
+      emittedErrors;
   const KInstruction *ki = getLastNonKleeInternalInstruction(state);
   Instruction *lastInst = ki->inst();
 
-  if ((EmitAllErrors ||
-       emittedErrors.insert(std::make_pair(lastInst, message)).second) &&
+  if ((EmitAllErrors || emittedErrors
+                            .insert(std::make_pair(
+                                lastInst, std::make_pair(confidence, message)))
+                            .second) &&
       shouldWriteTest(state, true)) {
     std::string filepath = ki->getSourceFilepath();
+
+    std::string prefix =
+        (confidence == StateTerminationConfidenceCategory::CONFIDENT
+             ? "ERROR"
+             : "POSSIBLE ERROR");
+
     if (!filepath.empty()) {
-      klee_message("ERROR: %s:%zu: %s", filepath.c_str(), ki->getLine(),
-                   message.c_str());
+      klee_message((prefix + ": %s:%zu: %s").c_str(), filepath.c_str(),
+                   ki->getLine(), message.c_str());
     } else {
-      klee_message("ERROR: (location information missing) %s", message.c_str());
+      klee_message((prefix + ": (location information missing) %s").c_str(),
+                   message.c_str());
     }
     if (!EmitAllErrors)
       klee_message("NOTE: now ignoring this error at this location");
@@ -5030,13 +5054,14 @@ void Executor::terminateStateOnExecError(ExecutionState &state,
   assert(reason > StateTerminationType::USERERR &&
          reason <= StateTerminationType::EXECERR);
   ++stats::terminationExecutionError;
-  terminateStateOnError(state, message, reason, "");
+  terminateStateOnError(state, message, reason,
+                        StateTerminationConfidenceCategory::CONFIDENT, "");
 }
 
-void Executor::terminateStateOnProgramError(ExecutionState &state,
-                                            const ref<ErrorEvent> &reason,
-                                            const llvm::Twine &info,
-                                            const char *suffix) {
+void Executor::terminateStateOnProgramError(
+    ExecutionState &state, const ref<ErrorEvent> &reason,
+    StateTerminationConfidenceCategory confidence, const llvm::Twine &info,
+    const char *suffix) {
   assert(reason->ruleID > StateTerminationType::SOLVERERR &&
          reason->ruleID <= StateTerminationType::PROGERR);
   ++stats::terminationProgramError;
@@ -5055,19 +5080,22 @@ void Executor::terminateStateOnProgramError(ExecutionState &state,
   }
   state.eventsRecorder.record(reason);
 
-  terminateStateOnError(state, reason->message, reason->ruleID, info, suffix);
+  terminateStateOnError(state, reason->message, reason->ruleID, confidence,
+                        info, suffix);
 }
 
 void Executor::terminateStateOnSolverError(ExecutionState &state,
                                            const llvm::Twine &message) {
   ++stats::terminationSolverError;
-  terminateStateOnError(state, message, StateTerminationType::Solver, "");
+  terminateStateOnError(state, message, StateTerminationType::Solver,
+                        StateTerminationConfidenceCategory::CONFIDENT, "");
 }
 
 void Executor::terminateStateOnUserError(ExecutionState &state,
                                          const llvm::Twine &message) {
   ++stats::terminationUserError;
-  terminateStateOnError(state, message, StateTerminationType::User, "");
+  terminateStateOnError(state, message, StateTerminationType::User,
+                        StateTerminationConfidenceCategory::CONFIDENT, "");
 }
 
 // XXX shoot me
@@ -5416,13 +5444,20 @@ void Executor::executeFree(ExecutionState &state, ref<Expr> address,
             new ErrorEvent(new AllocEvent(mo->allocSite),
                            locationOf(*it->second), StateTerminationType::Free,
                            "free of alloca"),
+            rl.size() != 1 ? StateTerminationConfidenceCategory::PROBABLY
+                           : StateTerminationConfidenceCategory::CONFIDENT,
             getAddressInfo(*it->second, address));
       } else if (mo->isGlobal) {
+        if (rl.size() != 1) {
+          klee_warning("Following error if likely false positive");
+        }
         terminateStateOnProgramError(
             *it->second,
             new ErrorEvent(new AllocEvent(mo->allocSite),
                            locationOf(*it->second), StateTerminationType::Free,
                            "free of global"),
+            rl.size() != 1 ? StateTerminationConfidenceCategory::PROBABLY
+                           : StateTerminationConfidenceCategory::CONFIDENT,
             getAddressInfo(*it->second, address));
       } else {
         it->second->removePointerResolutions(mo);
@@ -5518,6 +5553,8 @@ bool Executor::resolveExact(ExecutionState &estate, ref<Expr> address,
           *unbound,
           new ErrorEvent(locationOf(*unbound), StateTerminationType::Ptr,
                          "memory error: invalid pointer: " + name),
+          !results.empty() ? StateTerminationConfidenceCategory::PROBABLY
+                           : StateTerminationConfidenceCategory::CONFIDENT,
           getAddressInfo(*unbound, address));
     }
   }
@@ -5607,7 +5644,7 @@ void Executor::concretizeSize(ExecutionState &state, ref<Expr> size,
             new ErrorEvent(locationOf(*hugeSize.second),
                            StateTerminationType::Model,
                            "concretized symbolic size"),
-            info.str());
+            StateTerminationConfidenceCategory::CONFIDENT, info.str());
       }
     }
   }
@@ -6309,7 +6346,8 @@ void Executor::executeMemoryOperation(
               *state,
               new ErrorEvent(new AllocEvent(mo->allocSite), locationOf(*state),
                              StateTerminationType::ReadOnly,
-                             "memory error: object read only"));
+                             "memory error: object read only"),
+              StateTerminationConfidenceCategory::CONFIDENT);
         } else {
           wos->write(mo->getOffsetExpr(address), value);
         }
@@ -6371,6 +6409,10 @@ void Executor::executeMemoryOperation(
     return;
   }
 
+  bool mayBeFalsePositive =
+      resolvedMemoryObjects.size() > 1 ||
+      (resolvedMemoryObjects.size() == 1 && mayBeOutOfBound);
+
   ExecutionState *unbound = nullptr;
   if (MergedPointerDereference) {
     ref<Expr> guard;
@@ -6428,7 +6470,10 @@ void Executor::executeMemoryOperation(
                 new ErrorEvent(new AllocEvent(mo->allocSite),
                                locationOf(*branches.first),
                                StateTerminationType::ReadOnly,
-                               "memory error: object read only"));
+                               "memory error: object read only"),
+                mayBeFalsePositive
+                    ? StateTerminationConfidenceCategory::PROBABLY
+                    : StateTerminationConfidenceCategory::CONFIDENT);
             state = branches.second;
           } else {
             ref<Expr> result = SelectExpr::create(
@@ -6500,7 +6545,10 @@ void Executor::executeMemoryOperation(
               *bound,
               new ErrorEvent(new AllocEvent(mo->allocSite), locationOf(*bound),
                              StateTerminationType::ReadOnly,
-                             "memory error: object read only"));
+                             "memory error: object read only"),
+              mayBeFalsePositive
+                  ? StateTerminationConfidenceCategory::PROBABLY
+                  : StateTerminationConfidenceCategory::CONFIDENT);
         } else {
           wos->write(mo->getOffsetExpr(address), value);
         }
@@ -6552,6 +6600,8 @@ void Executor::executeMemoryOperation(
             new ErrorEvent(new AllocEvent(baseObjectPair.first->allocSite),
                            locationOf(*unbound), StateTerminationType::Ptr,
                            "memory error: out of bound pointer"),
+            mayBeFalsePositive ? StateTerminationConfidenceCategory::PROBABLY
+                               : StateTerminationConfidenceCategory::CONFIDENT,
             getAddressInfo(*unbound, address));
         return;
       }
@@ -6561,6 +6611,8 @@ void Executor::executeMemoryOperation(
         *unbound,
         new ErrorEvent(locationOf(*unbound), StateTerminationType::Ptr,
                        "memory error: out of bound pointer"),
+        mayBeFalsePositive ? StateTerminationConfidenceCategory::PROBABLY
+                           : StateTerminationConfidenceCategory::CONFIDENT,
         getAddressInfo(*unbound, address));
   }
 }
