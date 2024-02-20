@@ -413,6 +413,9 @@ private:
                     const std::vector<Assignment> &resolveConcretizations,
                     std::vector<ref<Expr>> &results);
 
+  ExecutionState *handleNullPointerException(ExecutionState &state,
+                                             ref<Expr> base);
+
   // do address resolution / object binding / out of bounds checking
   // and perform the operation
   void executeMemoryOperation(ExecutionState &state, bool isWrite,
