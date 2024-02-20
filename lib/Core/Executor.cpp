@@ -62,6 +62,7 @@
 #include "klee/Solver/Common.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverCmdLine.h"
+#include "klee/Solver/SolverUtil.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
 #include "klee/Support/Casting.h"
 #include "klee/Support/ErrorHandling.h"
@@ -5398,6 +5399,7 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
             makeMockValue(state, "symCheckOutOfMemory", Expr::Bool);
         address = SelectExpr::create(symCheckOutOfMemoryExpr,
                                      Expr::createPointer(0), address);
+        state.outOfMemoryMarkers.push_back(symCheckOutOfMemoryExpr);
       }
 
       // state.addPointerResolution(address, mo);
@@ -6267,12 +6269,91 @@ void Executor::executeMemoryOperation(
   StatePair branches =
       forkInternal(estate, Expr::createIsZero(base), BranchType::MemOp);
   ExecutionState *bound = branches.first;
+
   if (bound) {
-    auto error = isReadFromSymbolicArray(uniqueBase)
-                     ? ReachWithError::MayBeNullPointerException
-                     : ReachWithError::MustBeNullPointerException;
-    terminateStateOnTargetError(*bound, error);
+    // If there are no markers on `malloc` returning nullptr,
+    // then `confidence` depends on presence of `unbound` state.
+    if (!bound->outOfMemoryMarkers.empty()) {
+      // bound constraints already contain `Expr::createIsZero()`
+      std::vector<const Array *> markersArrays;
+      markersArrays.reserve(bound->outOfMemoryMarkers.size());
+      findSymbolicObjects(bound->outOfMemoryMarkers.begin(),
+                          bound->outOfMemoryMarkers.end(), markersArrays);
+
+      // Do some iterations (2-3) to figure out if error is confident.
+      ref<Expr> allExcludedVectorsOfMarkers = Expr::createTrue();
+
+      bool convinced = false;
+      for (int tpCheckIteration = 0; tpCheckIteration < 2; ++tpCheckIteration) {
+        ref<SolverResponse> isConfidentResponse;
+        if (!solver->getResponse(bound->constraints.cs(),
+                                 allExcludedVectorsOfMarkers,
+                                 isConfidentResponse, bound->queryMetaData)) {
+          terminateStateOnSolverError(*bound, "Query timeout");
+        }
+
+        if (isa<ValidResponse>(isConfidentResponse)) {
+          reportStateOnTargetError(*bound,
+                                   ReachWithError::MustBeNullPointerException);
+
+          terminateStateOnProgramError(
+              *bound,
+              new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
+                             "memory error: null pointer exception"),
+              StateTerminationConfidenceCategory::CONFIDENT);
+          convinced = true;
+          break;
+        }
+
+        // Receive current values of markers
+        std::vector<SparseStorage<unsigned char>> boundSetSolution;
+        isConfidentResponse->tryGetInitialValuesFor(markersArrays,
+                                                    boundSetSolution);
+        Assignment nonConfidentResponseAssignment(markersArrays,
+                                                  boundSetSolution);
+
+        // Exclude this combinations of markers
+
+        ref<Expr> conjExcludedVectorOfMarkers = Expr::createTrue();
+        for (ref<Expr> marker : bound->outOfMemoryMarkers) {
+          conjExcludedVectorOfMarkers = AndExpr::create(
+              conjExcludedVectorOfMarkers,
+              EqExpr::create(marker,
+                             nonConfidentResponseAssignment.evaluate(marker)));
+        }
+
+        allExcludedVectorsOfMarkers =
+            OrExpr::create(allExcludedVectorsOfMarkers,
+                           NotExpr::create(conjExcludedVectorOfMarkers));
+      }
+
+      if (!convinced) {
+        reportStateOnTargetError(*bound,
+                                 ReachWithError::MayBeNullPointerException);
+
+        terminateStateOnProgramError(
+            *bound,
+            new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
+                           "memory error: null pointer exception"),
+            StateTerminationConfidenceCategory::PROBABLY);
+      }
+
+    } else {
+      auto error = branches.second != nullptr
+                       ? ReachWithError::MayBeNullPointerException
+                       : ReachWithError::MustBeNullPointerException;
+      reportStateOnTargetError(*bound, error);
+
+      terminateStateOnProgramError(
+          *bound,
+          new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
+                         "memory error: null pointer exception"),
+          branches.second != nullptr
+              ? StateTerminationConfidenceCategory::PROBABLY
+              : StateTerminationConfidenceCategory::CONFIDENT);
+    }
   }
+
   if (!branches.second)
     return;
   ExecutionState *state = branches.second;

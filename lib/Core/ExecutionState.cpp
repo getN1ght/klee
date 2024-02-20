@@ -160,7 +160,9 @@ ExecutionState::~ExecutionState() {
 ExecutionState::ExecutionState(const ExecutionState &state)
     : initPC(state.initPC), pc(state.pc), prevPC(state.prevPC),
       stack(state.stack), stackBalance(state.stackBalance),
-      incomingBBIndex(state.incomingBBIndex), depth(state.depth),
+      incomingBBIndex(state.incomingBBIndex),
+      lastBrConfidently(state.lastBrConfidently),
+      outOfMemoryMarkers(state.outOfMemoryMarkers), depth(state.depth),
       level(state.level), addressSpace(state.addressSpace),
       constraints(state.constraints), eventsRecorder(state.eventsRecorder),
       targetForest(state.targetForest), pathOS(state.pathOS),

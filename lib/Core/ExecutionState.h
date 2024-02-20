@@ -320,6 +320,9 @@ public:
   /// @brief: TODO:
   bool lastBrConfidently = true;
 
+  /// @brief: TODO:
+  ImmutableList<ref<Expr>> outOfMemoryMarkers;
+
   /// @brief Exploration depth, i.e., number of times KLEE branched for this
   /// state
   std::uint32_t depth = 0;
