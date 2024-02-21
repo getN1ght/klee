@@ -31,8 +31,8 @@
 #include "klee/klee.h"
 
 #include "klee/Support/CompilerWarning.h"
-#include <llvm-14/llvm/IR/BasicBlock.h>
-#include <llvm-14/llvm/IR/CFG.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/CFG.h>
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APFloat.h"
@@ -348,8 +348,8 @@ void SpecialFunctionHandler::handleAbort(ExecutionState &state,
   executor.terminateStateOnProgramError(
       state,
       new ErrorEvent(executor.locationOf(state), StateTerminationType::Abort,
-                     "abort failure"),
-      StateTerminationConfidenceCategory::CONFIDENT);
+                     StateTerminationConfidenceCategory::CONFIDENT,
+                     "abort failure"));
 }
 
 void SpecialFunctionHandler::handleExit(ExecutionState &state,
@@ -378,11 +378,11 @@ void SpecialFunctionHandler::handleAssert(ExecutionState &state,
   executor.terminateStateOnProgramError(
       state,
       new ErrorEvent(executor.locationOf(state), StateTerminationType::Assert,
+                     isAssertFailsConfidently(state)
+                         ? StateTerminationConfidenceCategory::CONFIDENT
+                         : StateTerminationConfidenceCategory::PROBABLY,
                      "ASSERTION FAIL: " +
-                         readStringAtAddress(state, arguments[0])),
-      isAssertFailsConfidently(state)
-          ? StateTerminationConfidenceCategory::CONFIDENT
-          : StateTerminationConfidenceCategory::PROBABLY);
+                         readStringAtAddress(state, arguments[0])));
 }
 
 void SpecialFunctionHandler::handleAssertFail(
@@ -393,11 +393,11 @@ void SpecialFunctionHandler::handleAssertFail(
   executor.terminateStateOnProgramError(
       state,
       new ErrorEvent(executor.locationOf(state), StateTerminationType::Assert,
+                     isAssertFailsConfidently(state)
+                         ? StateTerminationConfidenceCategory::CONFIDENT
+                         : StateTerminationConfidenceCategory::PROBABLY,
                      "ASSERTION FAIL: " +
-                         readStringAtAddress(state, arguments[0])),
-      isAssertFailsConfidently(state)
-          ? StateTerminationConfidenceCategory::CONFIDENT
-          : StateTerminationConfidenceCategory::PROBABLY);
+                         readStringAtAddress(state, arguments[0])));
 }
 
 void SpecialFunctionHandler::handleReportError(
@@ -411,9 +411,9 @@ void SpecialFunctionHandler::handleReportError(
       state,
       new ErrorEvent(executor.locationOf(state),
                      StateTerminationType::ReportError,
+                     StateTerminationConfidenceCategory::CONFIDENT,
                      readStringAtAddress(state, arguments[2])),
-      StateTerminationConfidenceCategory::CONFIDENT, "",
-      readStringAtAddress(state, arguments[3]).c_str());
+      "", readStringAtAddress(state, arguments[3]).c_str());
 }
 
 void SpecialFunctionHandler::handleNew(ExecutionState &state,
@@ -856,8 +856,8 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(
       executor.terminateStateOnProgramError(
           state,
           new ErrorEvent(executor.locationOf(state), StateTerminationType::Ptr,
+                         StateTerminationConfidenceCategory::CONFIDENT,
                          "check_memory_access: memory error"),
-          StateTerminationConfidenceCategory::CONFIDENT,
           executor.getAddressInfo(state, address));
     } else {
       const MemoryObject *mo = state.addressSpace.findObject(idObject).first;
@@ -866,10 +866,11 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(
       if (!chk->isTrue()) {
         executor.terminateStateOnProgramError(
             state,
-            new ErrorEvent(
-                new AllocEvent(mo->allocSite), executor.locationOf(state),
-                StateTerminationType::Ptr, "check_memory_access: memory error"),
-            StateTerminationConfidenceCategory::CONFIDENT,
+            new ErrorEvent(new AllocEvent(mo->allocSite),
+                           executor.locationOf(state),
+                           StateTerminationType::Ptr,
+                           StateTerminationConfidenceCategory::CONFIDENT,
+                           "check_memory_access: memory error"),
             executor.getAddressInfo(state, address));
       }
     }

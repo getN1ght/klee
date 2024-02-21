@@ -162,7 +162,7 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       stack(state.stack), stackBalance(state.stackBalance),
       incomingBBIndex(state.incomingBBIndex),
       lastBrConfidently(state.lastBrConfidently),
-      outOfMemoryMarkers(state.outOfMemoryMarkers), depth(state.depth),
+      nullPointerMarkers(state.nullPointerMarkers), depth(state.depth),
       level(state.level), addressSpace(state.addressSpace),
       constraints(state.constraints), eventsRecorder(state.eventsRecorder),
       targetForest(state.targetForest), pathOS(state.pathOS),

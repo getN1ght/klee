@@ -633,10 +633,10 @@ private:
 
   /// Call error handler and terminate state in case of program errors
   /// (e.g. free()ing globals, out-of-bound accesses)
-  void terminateStateOnProgramError(
-      ExecutionState &state, const ref<ErrorEvent> &reason,
-      StateTerminationConfidenceCategory confidence,
-      const llvm::Twine &longMessage = "", const char *suffix = nullptr);
+  void terminateStateOnProgramError(ExecutionState &state,
+                                    const ref<ErrorEvent> &reason,
+                                    const llvm::Twine &longMessage = "",
+                                    const char *suffix = nullptr);
 
   void terminateStateOnTerminator(ExecutionState &state);
 

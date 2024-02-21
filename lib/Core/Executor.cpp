@@ -2749,8 +2749,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         branches.first->lastBrConfidently = false;
         branches.second->lastBrConfidently = false;
       } else {
-        (branches.first ? branches.first : branches.second)->lastBrConfidently =
-            true;
+        if (branches.first) {
+          branches.first->lastBrConfidently = true;
+        }
+        if (branches.second) {
+          branches.second->lastBrConfidently = true;
+        }
       }
 
       // NOTE: There is a hidden dependency here, markBranchVisited
@@ -4022,11 +4026,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (iIdx >= vt->getNumElements()) {
       // Out of bounds write
       terminateStateOnProgramError(
-          state,
-          new ErrorEvent(locationOf(state),
-                         StateTerminationType::BadVectorAccess,
-                         "Out of bounds write when inserting element"),
-          StateTerminationConfidenceCategory::CONFIDENT);
+          state, new ErrorEvent(locationOf(state),
+                                StateTerminationType::BadVectorAccess,
+                                StateTerminationConfidenceCategory::CONFIDENT,
+                                "Out of bounds write when inserting element"));
       return;
     }
 
@@ -4067,11 +4070,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (iIdx >= vt->getNumElements()) {
       // Out of bounds read
       terminateStateOnProgramError(
-          state,
-          new ErrorEvent(locationOf(state),
-                         StateTerminationType::BadVectorAccess,
-                         "Out of bounds read when extracting element"),
-          StateTerminationConfidenceCategory::CONFIDENT);
+          state, new ErrorEvent(locationOf(state),
+                                StateTerminationType::BadVectorAccess,
+                                StateTerminationConfidenceCategory::CONFIDENT,
+                                "Out of bounds read when extracting element"));
       return;
     }
 
@@ -4975,8 +4977,9 @@ void Executor::terminateStateOnTargetError(ExecutionState &state,
     terminationType = StateTerminationType::User;
   }
   terminateStateOnProgramError(
-      state, new ErrorEvent(locationOf(state), terminationType, messaget),
-      StateTerminationConfidenceCategory::CONFIDENT);
+      state,
+      new ErrorEvent(locationOf(state), terminationType,
+                     StateTerminationConfidenceCategory::CONFIDENT, messaget));
 }
 
 void Executor::terminateStateOnError(
@@ -5059,10 +5062,10 @@ void Executor::terminateStateOnExecError(ExecutionState &state,
                         StateTerminationConfidenceCategory::CONFIDENT, "");
 }
 
-void Executor::terminateStateOnProgramError(
-    ExecutionState &state, const ref<ErrorEvent> &reason,
-    StateTerminationConfidenceCategory confidence, const llvm::Twine &info,
-    const char *suffix) {
+void Executor::terminateStateOnProgramError(ExecutionState &state,
+                                            const ref<ErrorEvent> &reason,
+                                            const llvm::Twine &info,
+                                            const char *suffix) {
   assert(reason->ruleID > StateTerminationType::SOLVERERR &&
          reason->ruleID <= StateTerminationType::PROGERR);
   ++stats::terminationProgramError;
@@ -5081,8 +5084,8 @@ void Executor::terminateStateOnProgramError(
   }
   state.eventsRecorder.record(reason);
 
-  terminateStateOnError(state, reason->message, reason->ruleID, confidence,
-                        info, suffix);
+  terminateStateOnError(state, reason->message, reason->ruleID,
+                        reason->confidence, info, suffix);
 }
 
 void Executor::terminateStateOnSolverError(ExecutionState &state,
@@ -5274,6 +5277,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
         e->getWidth() == Context::get().getPointerWidth()) {
       ref<Expr> symExternCallsCanReturnNullExpr =
           makeMockValue(state, "symExternCallsCanReturnNull", Expr::Bool);
+      state.nullPointerMarkers.push_back(symExternCallsCanReturnNullExpr);
       e = SelectExpr::create(
           symExternCallsCanReturnNullExpr,
           ConstantExpr::alloc(0, Context::get().getPointerWidth()), e);
@@ -5399,7 +5403,7 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
             makeMockValue(state, "symCheckOutOfMemory", Expr::Bool);
         address = SelectExpr::create(symCheckOutOfMemoryExpr,
                                      Expr::createPointer(0), address);
-        state.outOfMemoryMarkers.push_back(symCheckOutOfMemoryExpr);
+        state.nullPointerMarkers.push_back(symCheckOutOfMemoryExpr);
       }
 
       // state.addPointerResolution(address, mo);
@@ -5445,9 +5449,10 @@ void Executor::executeFree(ExecutionState &state, ref<Expr> address,
             *it->second,
             new ErrorEvent(new AllocEvent(mo->allocSite),
                            locationOf(*it->second), StateTerminationType::Free,
+                           rl.size() != 1
+                               ? StateTerminationConfidenceCategory::PROBABLY
+                               : StateTerminationConfidenceCategory::CONFIDENT,
                            "free of alloca"),
-            rl.size() != 1 ? StateTerminationConfidenceCategory::PROBABLY
-                           : StateTerminationConfidenceCategory::CONFIDENT,
             getAddressInfo(*it->second, address));
       } else if (mo->isGlobal) {
         if (rl.size() != 1) {
@@ -5457,9 +5462,10 @@ void Executor::executeFree(ExecutionState &state, ref<Expr> address,
             *it->second,
             new ErrorEvent(new AllocEvent(mo->allocSite),
                            locationOf(*it->second), StateTerminationType::Free,
+                           rl.size() != 1
+                               ? StateTerminationConfidenceCategory::PROBABLY
+                               : StateTerminationConfidenceCategory::CONFIDENT,
                            "free of global"),
-            rl.size() != 1 ? StateTerminationConfidenceCategory::PROBABLY
-                           : StateTerminationConfidenceCategory::CONFIDENT,
             getAddressInfo(*it->second, address));
       } else {
         it->second->removePointerResolutions(mo);
@@ -5482,12 +5488,12 @@ ExecutionState *Executor::handleNullPointerException(ExecutionState &state,
 
   // If there are no markers on `malloc` returning nullptr,
   // then `confidence` depends on presence of `unbound` state.
-  if (!bound->outOfMemoryMarkers.empty()) {
+  if (!bound->nullPointerMarkers.empty()) {
     // bound constraints already contain `Expr::createIsZero()`
     std::vector<const Array *> markersArrays;
-    markersArrays.reserve(bound->outOfMemoryMarkers.size());
-    findSymbolicObjects(bound->outOfMemoryMarkers.begin(),
-                        bound->outOfMemoryMarkers.end(), markersArrays);
+    markersArrays.reserve(bound->nullPointerMarkers.size());
+    findSymbolicObjects(bound->nullPointerMarkers.begin(),
+                        bound->nullPointerMarkers.end(), markersArrays);
 
     // Do some iterations (2-3) to figure out if error is confident.
     ref<Expr> allExcludedVectorsOfMarkers = Expr::createTrue();
@@ -5508,8 +5514,8 @@ ExecutionState *Executor::handleNullPointerException(ExecutionState &state,
         terminateStateOnProgramError(
             *bound,
             new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
-                           "memory error: null pointer exception"),
-            StateTerminationConfidenceCategory::CONFIDENT);
+                           StateTerminationConfidenceCategory::CONFIDENT,
+                           "memory error: null pointer exception"));
         convinced = true;
         break;
       }
@@ -5524,7 +5530,7 @@ ExecutionState *Executor::handleNullPointerException(ExecutionState &state,
       // Exclude this combinations of markers
 
       ref<Expr> conjExcludedVectorOfMarkers = Expr::createTrue();
-      for (ref<Expr> marker : bound->outOfMemoryMarkers) {
+      for (ref<Expr> marker : bound->nullPointerMarkers) {
         conjExcludedVectorOfMarkers = AndExpr::create(
             conjExcludedVectorOfMarkers,
             EqExpr::create(marker,
@@ -5541,10 +5547,9 @@ ExecutionState *Executor::handleNullPointerException(ExecutionState &state,
                                ReachWithError::MayBeNullPointerException);
 
       terminateStateOnProgramError(
-          *bound,
-          new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
-                         "memory error: null pointer exception"),
-          StateTerminationConfidenceCategory::PROBABLY);
+          *bound, new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
+                                 StateTerminationConfidenceCategory::PROBABLY,
+                                 "memory error: null pointer exception"));
     }
 
   } else {
@@ -5556,10 +5561,10 @@ ExecutionState *Executor::handleNullPointerException(ExecutionState &state,
     terminateStateOnProgramError(
         *bound,
         new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
-                       "memory error: null pointer exception"),
-        branches.second != nullptr
-            ? StateTerminationConfidenceCategory::PROBABLY
-            : StateTerminationConfidenceCategory::CONFIDENT);
+                       branches.second != nullptr
+                           ? StateTerminationConfidenceCategory::PROBABLY
+                           : StateTerminationConfidenceCategory::CONFIDENT,
+                       "memory error: null pointer exception"));
   }
 
   return branches.second;
@@ -5640,9 +5645,10 @@ bool Executor::resolveExact(ExecutionState &estate, ref<Expr> address,
       terminateStateOnProgramError(
           *unbound,
           new ErrorEvent(locationOf(*unbound), StateTerminationType::Ptr,
+                         !results.empty()
+                             ? StateTerminationConfidenceCategory::PROBABLY
+                             : StateTerminationConfidenceCategory::CONFIDENT,
                          "memory error: invalid pointer: " + name),
-          !results.empty() ? StateTerminationConfidenceCategory::PROBABLY
-                           : StateTerminationConfidenceCategory::CONFIDENT,
           getAddressInfo(*unbound, address));
     }
   }
@@ -5731,8 +5737,9 @@ void Executor::concretizeSize(ExecutionState &state, ref<Expr> size,
             *hugeSize.second,
             new ErrorEvent(locationOf(*hugeSize.second),
                            StateTerminationType::Model,
+                           StateTerminationConfidenceCategory::CONFIDENT,
                            "concretized symbolic size"),
-            StateTerminationConfidenceCategory::CONFIDENT, info.str());
+            info.str());
       }
     }
   }
@@ -6425,8 +6432,8 @@ void Executor::executeMemoryOperation(
               *state,
               new ErrorEvent(new AllocEvent(mo->allocSite), locationOf(*state),
                              StateTerminationType::ReadOnly,
-                             "memory error: object read only"),
-              StateTerminationConfidenceCategory::CONFIDENT);
+                             StateTerminationConfidenceCategory::CONFIDENT,
+                             "memory error: object read only"));
         } else {
           wos->write(mo->getOffsetExpr(address), value);
         }
@@ -6546,13 +6553,13 @@ void Executor::executeMemoryOperation(
             assert(branches.first);
             terminateStateOnProgramError(
                 *branches.first,
-                new ErrorEvent(new AllocEvent(mo->allocSite),
-                               locationOf(*branches.first),
-                               StateTerminationType::ReadOnly,
-                               "memory error: object read only"),
-                mayBeFalsePositive
-                    ? StateTerminationConfidenceCategory::PROBABLY
-                    : StateTerminationConfidenceCategory::CONFIDENT);
+                new ErrorEvent(
+                    new AllocEvent(mo->allocSite), locationOf(*branches.first),
+                    StateTerminationType::ReadOnly,
+                    mayBeFalsePositive
+                        ? StateTerminationConfidenceCategory::PROBABLY
+                        : StateTerminationConfidenceCategory::CONFIDENT,
+                    "memory error: object read only"));
             state = branches.second;
           } else {
             ref<Expr> result = SelectExpr::create(
@@ -6621,13 +6628,13 @@ void Executor::executeMemoryOperation(
             ConstantExpr::alloc(size, Context::get().getPointerWidth()), true);
         if (wos->readOnly) {
           terminateStateOnProgramError(
-              *bound,
-              new ErrorEvent(new AllocEvent(mo->allocSite), locationOf(*bound),
-                             StateTerminationType::ReadOnly,
-                             "memory error: object read only"),
-              mayBeFalsePositive
-                  ? StateTerminationConfidenceCategory::PROBABLY
-                  : StateTerminationConfidenceCategory::CONFIDENT);
+              *bound, new ErrorEvent(
+                          new AllocEvent(mo->allocSite), locationOf(*bound),
+                          StateTerminationType::ReadOnly,
+                          mayBeFalsePositive
+                              ? StateTerminationConfidenceCategory::PROBABLY
+                              : StateTerminationConfidenceCategory::CONFIDENT,
+                          "memory error: object read only"));
         } else {
           wos->write(mo->getOffsetExpr(address), value);
         }
@@ -6678,9 +6685,10 @@ void Executor::executeMemoryOperation(
             *unbound,
             new ErrorEvent(new AllocEvent(baseObjectPair.first->allocSite),
                            locationOf(*unbound), StateTerminationType::Ptr,
-                           "memory error: out of bound pointer"),
-            mayBeFalsePositive ? StateTerminationConfidenceCategory::PROBABLY
+                           mayBeFalsePositive
+                               ? StateTerminationConfidenceCategory::PROBABLY
                                : StateTerminationConfidenceCategory::CONFIDENT,
+                           "memory error: out of bound pointer"),
             getAddressInfo(*unbound, address));
         return;
       }
@@ -6689,9 +6697,10 @@ void Executor::executeMemoryOperation(
     terminateStateOnProgramError(
         *unbound,
         new ErrorEvent(locationOf(*unbound), StateTerminationType::Ptr,
-                       "memory error: out of bound pointer"),
-        mayBeFalsePositive ? StateTerminationConfidenceCategory::PROBABLY
+                       mayBeFalsePositive
+                           ? StateTerminationConfidenceCategory::PROBABLY
                            : StateTerminationConfidenceCategory::CONFIDENT,
+                       "memory error: out of bound pointer"),
         getAddressInfo(*unbound, address));
   }
 }
@@ -7343,21 +7352,25 @@ void Executor::getConstraintLog(const ExecutionState &state, std::string &res,
 }
 
 void Executor::addSARIFReport(const ExecutionState &state) {
-  ResultJson result{};
-
-  CodeFlowJson codeFlow = state.eventsRecorder.serialize();
-
   if (ref<ErrorEvent> lastEvent =
           llvm::dyn_cast<ErrorEvent>(state.eventsRecorder.last())) {
+
+    ResultJson result{};
+
+    CodeFlowJson codeFlow = state.eventsRecorder.serialize();
+
     result.locations.push_back(lastEvent->serialize());
     result.message = {Message{lastEvent->message}};
     result.ruleId = {terminationTypeName(lastEvent->ruleID)};
-    result.level = {"error"};
+    result.level = {lastEvent->confidence ==
+                            StateTerminationConfidenceCategory::CONFIDENT
+                        ? "error"
+                        : "warning"};
+
+    result.codeFlows.push_back(std::move(codeFlow));
+
+    sarifReport.runs.back().results.push_back(std::move(result));
   }
-
-  result.codeFlows.push_back(std::move(codeFlow));
-
-  sarifReport.runs.back().results.push_back(std::move(result));
 }
 
 SarifReportJson Executor::getSARIFReport() const { return sarifReport; }

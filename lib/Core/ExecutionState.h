@@ -321,7 +321,7 @@ public:
   bool lastBrConfidently = true;
 
   /// @brief: TODO:
-  ImmutableList<ref<Expr>> outOfMemoryMarkers;
+  ImmutableList<ref<Expr>> nullPointerMarkers;
 
   /// @brief Exploration depth, i.e., number of times KLEE branched for this
   /// state
