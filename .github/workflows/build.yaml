@@ -6,6 +6,10 @@ on:
     branches: [main, utbot-main]
   push:
     branches: [main, utbot-main]
+  workflow_run:
+    workflows: ["Clang Format"]
+    types: 
+      - completed
 
 # Defaults for building KLEE
 env:
@@ -35,6 +39,7 @@ env:
 jobs:
   Linux:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     strategy:
       matrix:
         name: [
@@ -144,6 +149,7 @@ jobs:
 
   macOS:
     runs-on: macos-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     env:
       BASE: /tmp
       SOLVERS: STP
@@ -164,6 +170,7 @@ jobs:
 
   Docker:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout KLEE Code
         uses: actions/checkout@v3
@@ -174,6 +181,7 @@ jobs:
 
   Coverage:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     strategy:
       matrix:
         name: [
@@ -209,14 +217,3 @@ jobs:
       - name: Run tests
         env: ${{ matrix.env }}
         run: scripts/build/run-tests.sh --coverage --upload-coverage --run-docker --debug
-
-  clang-format:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v4
-      with:
-        python-version: 3.x
-    - uses: pre-commit/action@v3.0.1
-    - uses: pre-commit-ci/lite-action@v1.0.2
-      if: always()
