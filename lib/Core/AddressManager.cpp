@@ -21,6 +21,7 @@ void *AddressManager::allocate(ref<Expr> address, uint64_t size) {
       newMO = sizeLocation->second;
     } else {
       newMO = nullptr;
+
       objects[size] = newMO;
     }
   } else {
