@@ -1,14 +1,15 @@
 name: Build in UTBot base_env
 
 on:
-  pull_request:
-    branches: [utbot-main]
-  push:
-    branches: [utbot-main]
+  workflow_run:
+    workflows: ["Clang Format"]
+    types: 
+      - completed
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     container:
       image: ghcr.io/unittestbot/utbotcpp/base_env:02-02-2022
       credentials:
