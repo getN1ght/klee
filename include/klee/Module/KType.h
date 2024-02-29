@@ -8,7 +8,7 @@
 #include <vector>
 
 namespace llvm {
-class Type;
+class  Type;
 class raw_ostream;
 } // namespace llvm
 
