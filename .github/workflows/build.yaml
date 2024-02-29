@@ -33,7 +33,19 @@ env:
   JSON_VERSION: v3.11.3
 
 jobs:
+  clang-format:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: 3.x
+    - uses: pre-commit/action@v3.0.1
+    - uses: pre-commit-ci/lite-action@v1.0.2
+      if: always()
+
   Linux:
+    needs: clang-format
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -143,6 +155,7 @@ jobs:
         run: scripts/build/run-tests.sh --run-docker --debug
 
   macOS:
+    needs: clang-format
     runs-on: macos-latest
     env:
       BASE: /tmp
@@ -163,6 +176,7 @@ jobs:
         run: scripts/build/run-tests.sh /tmp/klee_build* --debug
 
   Docker:
+    needs: clang-format
     runs-on: ubuntu-latest
     steps:
       - name: Checkout KLEE Code
@@ -173,6 +187,7 @@ jobs:
         run: docker build .
 
   Coverage:
+    needs: clang-format
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -209,14 +224,3 @@ jobs:
       - name: Run tests
         env: ${{ matrix.env }}
         run: scripts/build/run-tests.sh --coverage --upload-coverage --run-docker --debug
-
-  clang-format:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v4
-      with:
-        python-version: 3.x
-    - uses: pre-commit/action@v3.0.1
-    - uses: pre-commit-ci/lite-action@v1.0.2
-      if: always()
