@@ -488,9 +488,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(nullptr),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
-      pathWriter(0), symPathWriter(0),
-      specialFunctionHandler(0), timers{time::Span(TimerInterval)},
-      guidanceKind(opts.Guidance), codeGraphInfo(new CodeGraphInfo()),
+      pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
+      timers{time::Span(TimerInterval)}, guidanceKind(opts.Guidance),
+      codeGraphInfo(new CodeGraphInfo()),
       distanceCalculator(new DistanceCalculator(*codeGraphInfo)),
       targetCalculator(new TargetCalculator(*codeGraphInfo)),
       targetManager(new TargetManager(guidanceKind, *distanceCalculator,
@@ -5457,7 +5457,7 @@ bool Executor::resolveExact(ExecutionState &estate, ref<Expr> address,
   bool incomplete = false;
 
   /* We do not need this variable here, just a placeholder for resolve */
-  bool success = resolveMemoryObjects(
+  [[maybe_unused]] bool success = resolveMemoryObjects(
       state, address, type, state.prevPC, 0, rl, mayBeOutOfBound,
       hasLazyInitialized, incomplete,
       LazyInitialization == LazyInitializationPolicy::Only);
@@ -6115,12 +6115,9 @@ void Executor::collectReads(
     const std::vector<IDType> &resolvedMemoryObjects,
     const std::vector<Assignment> &resolveConcretizations,
     std::vector<ref<Expr>> &results) {
-  ref<Expr> base = address; // TODO: unused
-  unsigned size = bytes;
+  ref<Expr> base = address;
   if (state.isGEPExpr(address)) {
     base = state.gepExprBases[address].first;
-    size = kmodule->targetData->getTypeStoreSize(
-        state.gepExprBases[address].second);
   }
 
   for (unsigned int i = 0; i < resolvedMemoryObjects.size(); ++i) {
@@ -6634,7 +6631,7 @@ IDType Executor::lazyInitializeLocalObject(ExecutionState &state,
     }
   }
   IDType id;
-  bool success = lazyInitializeObject(
+  [[maybe_unused]] bool success = lazyInitializeObject(
       state, address, target, typeSystemManager->getWrappedType(ai->getType()),
       elementSize, true, id,
       /*state.isolated || UseSymbolicSizeLazyInit*/ UseSymbolicSizeLazyInit);
@@ -6771,8 +6768,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
                (!AllowSeedTruncation && obj->numBytes > mo->size))) {
             std::stringstream msg;
             msg << "replace size mismatch: " << mo->name << "[" << mo->size
-                << "]"
-                << " vs " << obj->name << "[" << obj->numBytes << "]"
+                << "]" << " vs " << obj->name << "[" << obj->numBytes << "]"
                 << " in test\n";
 
             terminateStateOnUserError(state, msg.str());
@@ -7216,8 +7212,7 @@ void Executor::logState(const ExecutionState &state, int id,
     *f << "Address memory object: " << object.first->address << "\n";
     *f << "Memory object size: " << object.first->size << "\n";
   }
-  *f << state.symbolics.size() << " symbolics total. "
-     << "Symbolics:\n";
+  *f << state.symbolics.size() << " symbolics total. " << "Symbolics:\n";
   size_t sc = 0;
   for (const auto &symbolic : state.symbolics) {
     *f << "Symbolic number " << sc++ << "\n";
@@ -7381,7 +7376,7 @@ Assignment Executor::computeConcretization(const ConstraintSet &constraints,
   if (Query(constraints, condition, queryMetaData.id).containsSymcretes()) {
     ref<SolverResponse> response;
     solver->setTimeout(coreSolverTimeout);
-    bool success = solver->getResponse(
+    [[maybe_unused]] bool success = solver->getResponse(
         constraints, Expr::createIsZero(condition), response, queryMetaData);
     solver->setTimeout(time::Span());
     assert(success);
