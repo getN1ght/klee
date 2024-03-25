@@ -6569,10 +6569,7 @@ void Executor::executeMemoryOperation(
       }
     }
 
-    if (!unbound && resolveConditions.size() == 0) {
-      std::terminate();
-      klee_error("");
-    }
+    assert(unbound || !resolveConditions.empty());
   } else {
     std::vector<ExecutionState *> statesForMemoryOperation;
     if (mayBeOutOfBound) {
