@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Module/Annotation.h"
+#include "klee/Support/CompilerWarning.h"
 #include "klee/Support/ErrorHandling.h"
 
 #include <fstream>
@@ -160,6 +161,8 @@ Ptr stringToKindPtr(const std::string &str) {
     return std::make_shared<Alloc>(str);
   case Statement::Kind::Free:
     return std::make_shared<Free>(str);
+  default:
+    unreachable();
   }
 }
 

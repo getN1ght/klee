@@ -6423,6 +6423,7 @@ void Executor::executeMemoryOperation(
     }
 
     if (!unbound && resolveConditions.size() == 0) {
+      std::terminate();
       klee_error("");
     }
   } else {
@@ -6768,7 +6769,8 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
                (!AllowSeedTruncation && obj->numBytes > mo->size))) {
             std::stringstream msg;
             msg << "replace size mismatch: " << mo->name << "[" << mo->size
-                << "]" << " vs " << obj->name << "[" << obj->numBytes << "]"
+                << "]"
+                << " vs " << obj->name << "[" << obj->numBytes << "]"
                 << " in test\n";
 
             terminateStateOnUserError(state, msg.str());
@@ -7212,7 +7214,8 @@ void Executor::logState(const ExecutionState &state, int id,
     *f << "Address memory object: " << object.first->address << "\n";
     *f << "Memory object size: " << object.first->size << "\n";
   }
-  *f << state.symbolics.size() << " symbolics total. " << "Symbolics:\n";
+  *f << state.symbolics.size() << " symbolics total. "
+     << "Symbolics:\n";
   size_t sc = 0;
   for (const auto &symbolic : state.symbolics) {
     *f << "Symbolic number " << sc++ << "\n";
