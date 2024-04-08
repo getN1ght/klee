@@ -3584,7 +3584,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     KGEPInstruction *kgepi = static_cast<KGEPInstruction *>(ki);
     GetElementPtrInst *gepInst =
         static_cast<GetElementPtrInst *>(kgepi->inst());
-    Expr::Width pointerWidthInBits = Context::get().getPointerWidth();
 
     ref<Expr> base = eval(ki, 0, state).value;
     ref<PointerExpr> pointer = makePointer(base);
@@ -6309,9 +6308,8 @@ void Executor::executeMemoryOperation(
   KType *baseTargetType = targetType;
 
   if (estate.isGEPExpr(base)) {
-    KType *baseTargetType = typeSystemManager->getWrappedType(
-        llvm::PointerType::get(estate.gepExprBases[base],
-                               kmodule->targetData->getAllocaAddrSpace()));
+    baseTargetType = typeSystemManager->getWrappedType(llvm::PointerType::get(
+        estate.gepExprBases[base], kmodule->targetData->getAllocaAddrSpace()));
   }
 
   if (SimplifySymIndices) {
