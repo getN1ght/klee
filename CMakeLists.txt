@@ -353,6 +353,24 @@ if (HAVE_PTY_H OR HAVE_UTIL_H OR HAVE_LIBUTIL_H)
 endif (HAVE_PTY_H OR HAVE_UTIL_H OR HAVE_LIBUTIL_H)
 
 ################################################################################
+# SVF
+################################################################################
+if (SVF_ROOT_DIR)
+    message(STATUS "SVF root directory: ${SVF_ROOT_DIR}")
+else()
+    message(FATAL_ERROR "set SVF_ROOT_DIR")
+endif()
+find_file(SVF_EXT_API_BC extapi.bc HINTS ${SVF_ROOT_DIR}/build/lib REQUIRED)
+
+################################################################################
+# DG
+################################################################################
+if (DG_ROOT_DIR)
+    message(STATUS "DG root directory: ${DG_ROOT_DIR}")
+else()
+    message(FATAL_ERROR "set DG_ROOT_DIR")
+endif()
+################################################################################
 # Miscellaneous header file detection
 ################################################################################
 check_cxx_symbol_exists(__ctype_b_loc ctype.h HAVE_CTYPE_EXTERNALS)

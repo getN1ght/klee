@@ -42,6 +42,20 @@ build_klee() {
     )
   fi
 
+
+
+  if [ -n ${SVF_ROOT_DIR+x} ]; then
+    CMAKE_ARGUMENTS+=(-DSVF_ROOT_DIR=${SVF_ROOT_DIR})
+  fi
+
+  if [ -n ${DG_ROOT_DIR+x} ]; then
+    CMAKE_ARGUMENTS+=(
+      -DDG_ROOT_DIR=${DG_ROOT_DIR}
+      -DHAVE_LLVM=1
+      -DENABLE_CFG=1
+    )
+  fi
+
 ###############################################################################
 # libc++
 ###############################################################################

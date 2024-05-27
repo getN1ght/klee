@@ -434,6 +434,10 @@ private:
   unsigned m_pathsCompleted;    // number of completed paths
   unsigned m_pathsExplored; // number of partially explored and completed paths
 
+  unsigned m_recoveryStatesCount;  // number of recovery states
+  unsigned m_generatedSlicesCount; // number of generated slices
+  unsigned m_snapshotsCount;       // number of created snapshots
+
   // used for writing .ktest files
   int m_argc;
   char **m_argv;
@@ -442,25 +446,39 @@ public:
   KleeHandler(int argc, char **argv);
   ~KleeHandler();
 
-  llvm::raw_ostream &getInfoStream() const { return *m_infoFile; }
+  llvm::raw_ostream &getInfoStream() const override { return *m_infoFile; }
   /// Returns the number of test cases successfully generated so far
   unsigned getNumTestCases() { return m_numGeneratedTests; }
   unsigned getNumPathsCompleted() { return m_pathsCompleted; }
   unsigned getNumPathsExplored() { return m_pathsExplored; }
-  void incPathsCompleted() { ++m_pathsCompleted; }
-  void incPathsExplored(std::uint32_t num = 1) { m_pathsExplored += num; }
+  void incPathsCompleted() override { ++m_pathsCompleted; }
+  void incPathsExplored(std::uint32_t num = 1) override {
+    m_pathsExplored += num;
+  }
+
+  unsigned getRecoveryStatesCount() { return m_recoveryStatesCount; }
+
+  void incRecoveryStatesCount() override { m_recoveryStatesCount++; }
+
+  unsigned getGeneratedSlicesCount() { return m_generatedSlicesCount; }
+
+  void incGeneratedSlicesCount() override { m_generatedSlicesCount++; }
+
+  unsigned getSnapshotsCount() { return m_snapshotsCount; }
+
+  void incSnapshotsCount() override { m_snapshotsCount++; }
 
   void setInterpreter(Interpreter *i);
 
   void processTestCase(const ExecutionState &state, const char *message,
-                       const char *suffix, bool isError = false);
+                       const char *suffix, bool isError = false) override;
 
   void writeTestCaseXML(bool isError, const KTest &out, unsigned id,
                         unsigned version = 0);
 
-  std::string getOutputFilename(const std::string &filename);
+  std::string getOutputFilename(const std::string &filename) override;
   std::unique_ptr<llvm::raw_fd_ostream>
-  openOutputFile(const std::string &filename);
+  openOutputFile(const std::string &filename) override;
   std::string getTestFilename(const std::string &suffix, unsigned id,
                               unsigned version = 0);
   std::unique_ptr<llvm::raw_fd_ostream>
@@ -1548,8 +1566,8 @@ static int run_klee_on_function(int pArgc, char **pArgv, char **pEnvp,
       KTest *out = *it;
       interpreter->setReplayKTest(out);
       llvm::errs() << "KLEE: replaying: " << *it << " (" << kTest_numBytes(out)
-                   << " bytes)"
-                   << " (" << ++i << "/" << kTestFiles.size() << ")\n";
+                   << " bytes)" << " (" << ++i << "/" << kTestFiles.size()
+                   << ")\n";
       // XXX should put envp in .ktest ?
       interpreter->runFunctionAsMain(mainFn, out->numArgs, out->args, pEnvp);
       if (interrupted)
@@ -1591,7 +1609,7 @@ static int run_klee_on_function(int pArgc, char **pArgv, char **pEnvp,
     }
 
     if (!seeds.empty()) {
-      klee_message("KLEE: using %lu seeds\n", seeds.size());
+      klee_message("KLEE: using %zu seeds\n", seeds.size());
       interpreter->useSeeds(&seeds);
     }
     if (RunInDir != "") {

@@ -31,6 +31,9 @@
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/SourceBuilder.h"
 #include "klee/Expr/SymbolicSource.h"
+#include "klee/Internal/Analysis/Inliner.h"
+#include "klee/Internal/Analysis/ModRefAnalysis.h"
+#include "klee/Internal/Analysis/SliceGenerator.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
@@ -236,6 +239,24 @@ private:
 
   // @brief buffer to store logs before flushing to file
   llvm::raw_string_ostream debugLogBuffer;
+
+  ////////////////////////////////////////////////////////////////
+
+  /* TODO: ... */
+  std::vector<ExecutionState *> suspendedStates;
+  std::vector<ExecutionState *> resumedStates;
+  ReachabilityAnalysis *ra;
+  Inliner *inliner;
+  AAPass *aa;
+  ModRefAnalysis *mra;
+  Cloner *cloner;
+  SliceGenerator *sliceGenerator;
+
+  unsigned int errorCount;
+
+  std::unique_ptr<llvm::raw_ostream> logFile;
+
+  ////////////////////////////////////////////////////////////////
 
   /// Optimizes expressions
   ExprOptimizer optimizer;
@@ -694,6 +715,55 @@ private:
 
   void printDebugInstructions(ExecutionState &state);
   void doDumpStates();
+
+  /////////////////////////////////////////////////////////////////////////
+
+  bool isMayBlockingLoad(ExecutionState &state, KInstruction *ki);
+  bool isRecoveryRequired(ExecutionState &state, KInstruction *ki);
+  bool handleMayBlockingLoad(ExecutionState &state, KInstruction *ki,
+                             bool &success);
+  bool getAllRecoveryInfo(ExecutionState &state, KInstruction *kinst,
+                          std::list<ref<RecoveryInfo>> &result);
+  bool getLoadInfo(ExecutionState &state, KInstruction *kinst,
+                   uint64_t &loadBase, uint64_t &loadAddr, uint64_t &loadSize,
+                   ModRefAnalysis::AllocSite &allocSite);
+  void suspendState(ExecutionState &state);
+  void resumeState(ExecutionState &state, bool implicitlyCreated);
+  void notifyDependentState(ExecutionState &recoveryState);
+  void onRecoveryStateExit(ExecutionState &state);
+  void startRecoveryState(ExecutionState &state,
+                          ref<RecoveryInfo> recoveryInfo);
+  void onRecoveryStateWrite(ExecutionState &state, ref<Expr> address,
+                            const MemoryObject *mo, ref<Expr> offset,
+                            ref<Expr> value);
+  void onNormalStateWrite(ExecutionState &state, ref<Expr> address,
+                          ref<Expr> value);
+  bool isOverridingStore(KInstruction *kinst);
+  void onNormalStateRead(ExecutionState &state, ref<Expr> address,
+                         Expr::Width width);
+  void dumpConstrains(ExecutionState &state);
+  ref<MemoryObject> onExecuteAlloc(ExecutionState &state, uint64_t size,
+                                   bool isLocal, llvm::Instruction *allocInst,
+                                   bool zeroMemory);
+  bool isDynamicAlloc(llvm::Instruction *allocInst);
+  void onExecuteFree(ExecutionState *state, const MemoryObject *mo);
+  void terminateStateRecursively(ExecutionState &state);
+  void mergeConstraints(ExecutionState &dependedState, ref<Expr> condition);
+  bool isFunctionToSkip(ExecutionState &state, llvm::Function *f);
+  bool canSkipCallSite(ExecutionState &state, llvm::Function *f);
+  void bindAll(ExecutionState *state, MemoryObject *mo, bool isLocal,
+               bool zeroMemory);
+  void unbindAll(ExecutionState *state, const MemoryObject *mo);
+  void forkDependentStates(ExecutionState *trueState,
+                           ExecutionState *falseState);
+  void mergeConstraintsForAll(ExecutionState &recoveryState,
+                              ref<Expr> condition);
+  llvm::Function *getSlice(llvm::Function *target, uint32_t sliceId,
+                           ModRefAnalysis::SideEffectType type,
+                           llvm::RoundingMode rm);
+  ExecutionState *createSnapshotState(ExecutionState &state);
+
+  /////////////////////////////////////////////////////////////////////////
 
   /// Only for debug purposes; enable via debugger or klee-control
   void dumpStates();

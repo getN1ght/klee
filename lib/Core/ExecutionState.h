@@ -28,13 +28,13 @@
 #include "klee/Module/TargetForest.h"
 #include "klee/Module/TargetHash.h"
 #include "klee/Solver/Solver.h"
-#include "klee/System/Time.h"
 #include "klee/Utilities/Math.h"
 
 #include "CodeLocation.h"
 #include "EventRecorder.h"
 
 #include "klee/Support/CompilerWarning.h"
+#include <cstdint>
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APFloat.h"
@@ -48,7 +48,6 @@ DISABLE_WARNING_POP
 #include <optional>
 #include <set>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -67,6 +66,59 @@ class Target;
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const MemoryMap &mm);
 
 extern llvm::cl::opt<unsigned long long> MaxCyclesBeforeStuck;
+
+#define NORMAL_STATE (1 << 0)
+#define RECOVERY_STATE (1 << 1)
+
+struct WrittenAddressInfo {
+  size_t maxSize;
+  unsigned int snapshotIndex;
+};
+
+/* recovery state result information */
+struct RecoveryResult {
+  /* did the recovery state wrote to the blocking load address */
+  bool modified;
+};
+
+enum {
+  PRIORITY_LOW,
+  PRIORITY_HIGH,
+};
+
+struct Snapshot {
+  /// @brief Required by klee::ref-managed objects
+  class ReferenceCounter _refCount;
+
+  ref<ExecutionState> state;
+  llvm::Function *f;
+
+  /* TODO: is it required? */
+  Snapshot() : state(0), f(0) {}
+
+  Snapshot(ref<ExecutionState> state, llvm::Function *f) : state(state), f(f) {}
+};
+
+struct RecoveryInfo {
+  /// @brief Required by klee::ref-managed objects
+  class ReferenceCounter _refCount;
+
+  /* TODO: is it required? */
+  llvm::Instruction *loadInst;
+  uint64_t loadBase;
+  uint64_t loadAddr;
+  uint64_t loadSize;
+  /* TODO: a bit strange that it is here, will be fixed later */
+  llvm::Function *f;
+  uint32_t sliceId;
+  /* TODO: a bit strange that it is here, will be fixed later */
+  ref<Snapshot> snapshot;
+  unsigned int snapshotIndex;
+
+  RecoveryInfo()
+      : loadInst(0), loadBase(0), loadAddr(0), loadSize(0), f(0), sliceId(0),
+        snapshot(0), snapshotIndex(0) {}
+};
 
 struct CallStackFrame {
   KInstIterator caller;
@@ -283,6 +335,11 @@ typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;
 
 /// @brief ExecutionState representing a path under exploration
 class ExecutionState {
+public:
+  /// TODO: remove
+  /// @brief Required by klee::ref-managed objects
+  class ReferenceCounter _refCount;
+
 #ifdef KLEE_UNITTEST
 public:
 #else
@@ -424,6 +481,56 @@ private:
   ref<TargetsHistory> history_;
   bool isTargeted_ = false;
   bool areTargetsChanged_ = false;
+
+  unsigned int type = NORMAL_STATE;
+
+  /* normal state properties */
+
+  typedef std::map<uint64_t, WrittenAddressInfo> WrittenAddresses;
+  typedef std::map<uint64_t, ref<Expr>> ValuesCache;
+  typedef std::map<std::pair<uint32_t, uint32_t>, ValuesCache> RecoveryCache;
+
+  ////////////////////////////////////////////////////////////////////////
+
+  /* a normal state has a suspend status */
+  bool suspendStatus = false;
+  /* history of taken snapshots, which are uses to create recovery states */
+  std::vector<ref<Snapshot>> snapshots;
+  /* a normal state has a unique recovery state */
+  ExecutionState *recoveryState = nullptr;
+  /* TODO: rename/re-implement */
+  bool blockingLoadStatus = true;
+  /* resloved load addresses */
+  std::set<uint64_t> recoveredLoads;
+  /* we have to remember which allocations were executed */
+  AllocationRecord allocationRecord;
+  /* used for guiding multiple recovery states */
+  std::set<ref<Expr>> guidingConstraints;
+  /* we need to know if an address was written  */
+  WrittenAddresses writtenAddresses;
+  /* we use this to determine which recovery states must be run */
+  std::list<ref<RecoveryInfo>> pendingRecoveryInfos;
+  /* TODO: add docs */
+  RecoveryCache recoveryCache;
+
+  /* recovery state properties */
+
+  /* a recovery state must stop when reaching this instruction */
+  llvm::Instruction *exitInst = nullptr;
+  /* a recovery state has its own dependent state */
+  ExecutionState *dependentState = nullptr;
+  /* a reference to the originating state */
+  ExecutionState *originatingState = nullptr;
+  /* TODO: should be ref<RecoveryInfo> */
+  ref<RecoveryInfo> recoveryInfo = nullptr;
+  /* we use this record while executing a recovery state  */
+  AllocationRecord guidingAllocationRecord;
+  /* recursion level */
+  unsigned int recursionLevel = 0;
+  /* search priority */
+  int priority = PRIORITY_LOW;
+
+  ////////////////////////////////////////////////////////////////////////
 
 public:
   // only to create the initial state
@@ -571,6 +678,282 @@ public:
     coveredNew.clear();
   }
   void clearCoveredNewError() const { coveredNewError->value = false; }
+
+  void setType(int type) { this->type = type; }
+
+  bool isNormalState() { return (type & NORMAL_STATE) != 0; }
+
+  bool isRecoveryState() { return (type & RECOVERY_STATE) != 0; }
+
+  bool isSuspended() { return suspendStatus; }
+
+  bool isResumed() { return !isSuspended(); }
+
+  void setSuspended() {
+    assert(isNormalState());
+    suspendStatus = true;
+  }
+
+  void setResumed() {
+    assert(isNormalState());
+    suspendStatus = false;
+  }
+
+  std::vector<ref<Snapshot>> &getSnapshots() {
+    assert(isNormalState());
+    return snapshots;
+  }
+
+  void addSnapshot(ref<Snapshot> snapshot) {
+    assert(isNormalState());
+    snapshots.push_back(snapshot);
+  }
+
+  unsigned int getCurrentSnapshotIndex() {
+    assert(isNormalState());
+    assert(!snapshots.empty());
+    return snapshots.size() - 1;
+  }
+
+  ExecutionState *getRecoveryState() {
+    assert(isNormalState());
+    return recoveryState;
+  }
+
+  void setRecoveryState(ExecutionState *state) {
+    assert(isNormalState());
+    if (state) {
+      assert(state->isRecoveryState());
+    }
+    recoveryState = state;
+  }
+
+  /* TODO: rename/re-implement */
+  bool isBlockingLoadRecovered() {
+    assert(isNormalState());
+    return blockingLoadStatus;
+  }
+
+  /* TODO: rename/re-implement */
+  void markLoadAsUnrecovered() {
+    assert(isNormalState());
+    blockingLoadStatus = false;
+  }
+
+  /* TODO: rename/re-implement */
+  void markLoadAsRecovered() {
+    assert(isNormalState());
+    blockingLoadStatus = true;
+  }
+
+  std::set<uint64_t> &getRecoveredLoads() {
+    assert(isNormalState());
+    return recoveredLoads;
+  }
+
+  void addRecoveredAddress(uint64_t address) {
+    assert(isNormalState());
+    recoveredLoads.insert(address);
+  }
+
+  bool isAddressRecovered(uint64_t address) {
+    assert(isNormalState());
+    return recoveredLoads.find(address) != recoveredLoads.end();
+  }
+
+  void clearRecoveredAddresses() {
+    assert(isNormalState());
+    recoveredLoads.clear();
+  }
+
+  llvm::Instruction *getExitInst() {
+    assert(isRecoveryState());
+    return exitInst;
+  }
+
+  void setExitInst(llvm::Instruction *exitInst) {
+    assert(isRecoveryState());
+    this->exitInst = exitInst;
+  }
+
+  ExecutionState *getDependentState() {
+    assert(isRecoveryState());
+    return dependentState;
+  }
+
+  void setDependentState(ExecutionState *state) {
+    assert(isRecoveryState());
+    assert(state->isNormalState());
+    dependentState = state;
+  }
+
+  ExecutionState *getOriginatingState() {
+    assert(isRecoveryState());
+    return originatingState;
+  }
+
+  void setOriginatingState(ExecutionState *state) {
+    assert(isRecoveryState());
+    assert(state->isNormalState());
+    originatingState = state;
+  }
+
+  ref<RecoveryInfo> getRecoveryInfo() {
+    assert(isRecoveryState());
+    return recoveryInfo;
+  }
+
+  void setRecoveryInfo(ref<RecoveryInfo> recoveryInfo) {
+    assert(isRecoveryState());
+    this->recoveryInfo = recoveryInfo;
+  }
+
+  void getCallTrace(std::vector<llvm::Instruction *> &callTrace);
+
+  AllocationRecord &getAllocationRecord() {
+    assert(isNormalState());
+    return allocationRecord;
+  }
+
+  void setAllocationRecord(AllocationRecord &record) {
+    assert(isNormalState());
+    allocationRecord = record;
+  }
+
+  AllocationRecord &getGuidingAllocationRecord() {
+    assert(isRecoveryState());
+    return guidingAllocationRecord;
+  }
+
+  void setGuidingAllocationRecord(AllocationRecord &record) {
+    assert(isRecoveryState());
+    guidingAllocationRecord = record;
+  }
+
+  std::set<ref<Expr>> &getGuidingConstraints() {
+    assert(isNormalState());
+    return guidingConstraints;
+  }
+
+  void setGuidingConstraints(std::set<ref<Expr>> &constraints) {
+    assert(isNormalState());
+    guidingConstraints = constraints;
+  }
+
+  void addGuidingConstraint(ref<Expr> condition) {
+    assert(isNormalState());
+    guidingConstraints.insert(condition);
+  }
+
+  void clearGuidingConstraints() {
+    assert(isNormalState());
+    guidingConstraints.clear();
+  }
+
+  void addWrittenAddress(uint64_t address, size_t size,
+                         unsigned int snapshotIndex) {
+    assert(isNormalState());
+    WrittenAddressInfo &info = writtenAddresses[address];
+    if (size > info.maxSize) {
+      info.maxSize = size;
+    }
+    info.snapshotIndex = snapshotIndex;
+  }
+
+  bool getWrittenAddressInfo(uint64_t address, size_t loadSize,
+                             WrittenAddressInfo &info) {
+    assert(isNormalState());
+    WrittenAddresses::iterator i = writtenAddresses.find(address);
+    if (i == writtenAddresses.end()) {
+      return false;
+    }
+
+    info = i->second;
+
+    // we have a complete overwrite iff we write at least loadSize bits
+    size_t writtenSize = i->second.maxSize;
+    return writtenSize >= loadSize;
+  }
+
+  unsigned int getStartingIndex(uint64_t address, size_t size) {
+    WrittenAddressInfo info;
+    if (!getWrittenAddressInfo(address, size, info)) {
+      /* there was no overwrite... */
+      return 0;
+    }
+
+    return info.snapshotIndex + 1;
+  }
+
+  bool isInDependentMode() {
+    assert(isNormalState());
+    /* TODO: add doc... */
+    return !getSnapshots().empty();
+  }
+
+  std::list<ref<RecoveryInfo>> &getPendingRecoveryInfos() {
+    return pendingRecoveryInfos;
+  }
+
+  ref<RecoveryInfo> getPendingRecoveryInfo() {
+    ref<RecoveryInfo> ri = pendingRecoveryInfos.front();
+    pendingRecoveryInfos.pop_front();
+    return ri;
+  }
+
+  bool hasPendingRecoveryInfo() { return !pendingRecoveryInfos.empty(); }
+
+  RecoveryCache &getRecoveryCache() {
+    assert(isNormalState());
+    return recoveryCache;
+  }
+
+  void setRecoveryCache(RecoveryCache &cache) {
+    assert(isNormalState());
+    recoveryCache = cache;
+  }
+
+  void updateRecoveredValue(unsigned int index, unsigned int sliceId,
+                            uint64_t address, ref<Expr> expr) {
+    auto key = std::make_pair(index, sliceId);
+    ValuesCache &valuesCache = recoveryCache[key];
+    valuesCache[address] = expr;
+  };
+
+  bool getRecoveredValue(unsigned int index, unsigned int sliceId,
+                         uint64_t address, ref<Expr> &expr) {
+    auto key = std::make_pair(index, sliceId);
+    RecoveryCache::iterator i = recoveryCache.find(key);
+    if (i == recoveryCache.end()) {
+      return false;
+    }
+
+    ValuesCache &valuesCache = i->second;
+    ValuesCache::iterator j = valuesCache.find(address);
+    if (j == valuesCache.end()) {
+      return false;
+    }
+
+    expr = j->second;
+    return true;
+  };
+
+  unsigned int getLevel() {
+    assert(isRecoveryState());
+    return recursionLevel;
+  }
+
+  void setLevel(unsigned int level) { this->recursionLevel = level; }
+
+  int getPriority() {
+    assert(isRecoveryState());
+    return priority;
+  }
+
+  void setPriority(int priority) {
+    assert(isRecoveryState());
+    this->priority = priority;
+  }
 };
 
 struct ExecutionStateIDCompare {

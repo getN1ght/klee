@@ -19,6 +19,12 @@ target_include_directories(klee PRIVATE ${KLEE_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS
 target_compile_options(klee PRIVATE ${KLEE_COMPONENT_CXX_FLAGS})
 target_compile_definitions(klee PRIVATE ${KLEE_COMPONENT_CXX_DEFINES})
 
+# target_include_directories(klee SYSTEM PUBLIC
+#     ${SVF_ROOT_DIR}/svf/include
+#     ${SVF_ROOT_DIR}/build/include
+#     ${DG_ROOT_DIR}/include
+#     ${DG_ROOT_DIR}/tools/include
+# )
 
 # Copy run script
 configure_file(${CMAKE_SOURCE_DIR}/scripts/kleef ${CMAKE_BINARY_DIR}/bin/kleef COPYONLY)

@@ -1,0 +1,60 @@
+diff a/CMakeLists.txt b/CMakeLists.txt	(rejected hunks)
+@@ -25,6 +25,8 @@ if (POLICY CMP0054)
+   cmake_policy(SET CMP0054 OLD)
+ endif()
+ 
++set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
++
+ if (POLICY CMP0042)
+   # Enable `MACOSX_RPATH` by default.
+   cmake_policy(SET CMP0042 NEW)
+@@ -243,6 +245,12 @@ if (NOT EXISTS "${LLVM_AS}")
+   message(FATAL_ERROR "Failed to find llvm-as at \"${LLVM_AS}\"")
+ endif()
+ 
++# Find opt (LLVM)
++set(LLVM_OPT "${LLVM_TOOLS_BINARY_DIR}/opt")
++if (NOT EXISTS "${LLVM_OPT}")
++  message(FATAL_ERROR "Failed to find opt at \"${LLVM_OPT}\"")
++endif()
++
+ ################################################################################
+ # Find bitcode compiler
+ ################################################################################
+@@ -274,8 +282,10 @@ if (USE_CXX11)
+ else()
+   # This is needed because with GCC 6 the default changed from gnu++98 to
+   # gnu++14.
+-  add_global_cxx_flag("-std=gnu++98" REQUIRED)
++  add_global_cxx_flag("-std=gnu++11" REQUIRED)
+ endif()
++# specific flags for DG
++add_global_cxx_flag("-DHAVE_LLVM -DENABLE_CFG")
+ 
+ ################################################################################
+ # Warnings
+@@ -619,6 +634,24 @@ else()
+   set(SUPPORT_KLEE_UCLIBC 0) # For config.h
+ endif()
+ 
++################################################################################
++# SVF
++################################################################################
++if (SVF_ROOT_DIR)
++    message(STATUS "SVF root directory: ${SVF_ROOT_DIR}")
++else()
++    message(FATAL_ERROR "set SVF_ROOT_DIR")
++endif()
++
++################################################################################
++# DG
++################################################################################
++if (DG_ROOT_DIR)
++    message(STATUS "DG root directory: ${DG_ROOT_DIR}")
++else()
++    message(FATAL_ERROR "set DG_ROOT_DIR")
++endif()
++
+ ################################################################################
+ # Generate `config.h`
+ ################################################################################

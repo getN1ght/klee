@@ -1,0 +1,1650 @@
+diff a/lib/Core/Executor.cpp b/lib/Core/Executor.cpp	(rejected hunks)
+@@ -30,6 +30,7 @@
+ #include "klee/TimerStatIncrementer.h"
+ #include "klee/CommandLine.h"
+ #include "klee/Common.h"
++#include "klee/ASContext.h"
+ #include "klee/util/Assignment.h"
+ #include "klee/util/ExprPPrinter.h"
+ #include "klee/util/ExprSMTLIBPrinter.h"
+@@ -46,6 +47,7 @@
+ #include "klee/Internal/Support/FloatEvaluation.h"
+ #include "klee/Internal/System/Time.h"
+ #include "klee/Internal/System/MemoryUsage.h"
++#include "klee/Internal/Support/Debug.h"
+ #include "klee/SolverStats.h"
+ 
+ #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
+@@ -60,6 +62,7 @@
+ #include "llvm/IR/Module.h"
+ #include "llvm/IR/DataLayout.h"
+ #include "llvm/IR/TypeBuilder.h"
++#include "llvm/IR/User.h"
+ #else
+ #include "llvm/Attributes.h"
+ #include "llvm/BasicBlock.h"
+@@ -89,6 +92,15 @@
+ #include "llvm/IR/CallSite.h"
+ #endif
+ 
++#include "llvm/PassManager.h"
++
++#include "klee/Internal/Analysis/ReachabilityAnalysis.h"
++#include "klee/Internal/Analysis/Inliner.h"
++#include "klee/Internal/Analysis/AAPass.h"
++#include "klee/Internal/Analysis/ModRefAnalysis.h"
++#include "klee/Internal/Analysis/Cloner.h"
++#include "klee/Internal/Analysis/SliceGenerator.h"
++
+ #ifdef HAVE_ZLIB_H
+ #include "klee/Internal/Support/CompressionStream.h"
+ #endif
+@@ -119,7 +131,7 @@ namespace {
+   DumpStatesOnHalt("dump-states-on-halt",
+                    cl::init(true),
+ 		   cl::desc("Dump test cases for all active states on exit (default=on)"));
+-  
++
+   cl::opt<bool>
+   AllowExternalSymCalls("allow-external-sym-calls",
+                         cl::init(false),
+@@ -290,10 +302,17 @@ namespace {
+ 		    clEnumValEnd),
+ 		  cl::ZeroOrMore);
+ 
++#if LLVM_VERSION_CODE < LLVM_VERSION(3, 0)
+   cl::opt<unsigned int>
+   StopAfterNInstructions("stop-after-n-instructions",
+                          cl::desc("Stop execution after specified number of instructions (default=0 (off))"),
+                          cl::init(0));
++#else
++  cl::opt<unsigned long long>
++  StopAfterNInstructions("stop-after-n-instructions",
++                         cl::desc("Stop execution after specified number of instructions (default=0 (off))"),
++                         cl::init(0));
++#endif
+   
+   cl::opt<unsigned>
+   MaxForks("max-forks",
+@@ -314,6 +333,22 @@ namespace {
+   MaxMemoryInhibit("max-memory-inhibit",
+             cl::desc("Inhibit forking at memory cap (vs. random terminate) (default=on)"),
+             cl::init(true));
++
++  // CHASER options
++
++  cl::opt<bool>
++  PrintFunctionCalls("print-functions", cl::init(false),
++                     cl::desc("Print function calls (default=off)"));
++
++  cl::opt<bool>
++  LazySlicing("lazy-slicing", cl::init(true),
++              cl::desc("Lazy slicing of skipped functions (default=on)"));
++
++  llvm::cl::opt<bool> UseSlicer("use-slicer",
++                                llvm::cl::desc("Slice skipped functions"),
++                                llvm::cl::init(true));
++
++  llvm::cl::opt<bool> UseRecoveryCache("use-recovery-cache", cl::init(true), cl::desc(""));
+ }
+ 
+ 
+@@ -336,7 +371,9 @@ const char *Executor::TerminateReasonNames[] = {
+   [ Unhandled ] = "xxx",
+ };
+ 
+-Executor::Executor(const InterpreterOptions &opts, InterpreterHandler *ih)
++#define HUGE_ALLOC_SIZE (1U << 31)
++
++Executor::Executor(InterpreterOptions &opts, InterpreterHandler *ih)
+     : Interpreter(opts), kmodule(0), interpreterHandler(ih), searcher(0),
+       externalDispatcher(new ExternalDispatcher()), statsTracker(0),
+       pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
+@@ -346,7 +383,9 @@ Executor::Executor(const InterpreterOptions &opts, InterpreterHandler *ih)
+       coreSolverTimeout(MaxCoreSolverTime != 0 && MaxInstructionTime != 0
+                             ? std::min(MaxCoreSolverTime, MaxInstructionTime)
+                             : std::max(MaxCoreSolverTime, MaxInstructionTime)),
+-      debugInstFile(0), debugLogBuffer(debugBufferString) {
++      debugInstFile(0), debugLogBuffer(debugBufferString),
++      errorCount(0),
++      logFile(0) {
+ 
+   if (coreSolverTimeout) UseForkedCoreSolver = true;
+   Solver *coreSolver = klee::createCoreSolver(CoreSolverToUse);
+@@ -392,6 +431,13 @@ Executor::Executor(const InterpreterOptions &opts, InterpreterHandler *ih)
+                  ErrorInfo.c_str());
+     }
+   }
++
++  ra = NULL;
++  inliner = NULL;
++  aa = NULL;
++  mra = NULL;
++  cloner = NULL;
++  sliceGenerator = NULL;
+ }
+ 
+ 
+@@ -400,7 +446,7 @@ const Module *Executor::setModule(llvm::Module *module,
+   assert(!kmodule && module && "can only register one module"); // XXX gross
+   
+   kmodule = new KModule(module);
+-
++  
+   // Initialize the context.
+ #if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
+   TargetData *TD = kmodule->targetData;
+@@ -411,9 +457,31 @@ const Module *Executor::setModule(llvm::Module *module,
+                       (Expr::Width) TD->getPointerSizeInBits());
+ 
+   specialFunctionHandler = new SpecialFunctionHandler(*this);
+-
+   specialFunctionHandler->prepare();
+-  kmodule->prepare(opts, interpreterHandler);
++
++  if (!interpreterOpts.skippedFunctions.empty()) {
++    /* build target functions */
++    std::vector<std::string> targets;
++    for (auto i = interpreterOpts.skippedFunctions.begin(), e = interpreterOpts.skippedFunctions.end(); i != e; i++) {
++      targets.push_back(i->name);
++    }
++
++    logFile = interpreterHandler->openOutputFile("sa.log");
++
++    ra = new ReachabilityAnalysis(module, opts.EntryPoint, targets, *logFile);
++    inliner = new Inliner(module, ra, targets, interpreterOpts.inlinedFunctions, *logFile);
++    aa = new AAPass();
++    aa->setPAType(PointerAnalysis::Andersen_WPA);
++
++    mra = new ModRefAnalysis(kmodule->module, ra, aa, opts.EntryPoint, targets, *logFile);
++    cloner = new Cloner(module, ra, *logFile);
++    if (UseSlicer) {
++      sliceGenerator = new SliceGenerator(module, ra, aa, mra, cloner, *logFile, LazySlicing);
++    }
++  }
++
++  kmodule->prepare(opts, interpreterOpts.skippedFunctions, interpreterHandler, ra, inliner, aa, mra, cloner, sliceGenerator);
++
+   specialFunctionHandler->bind();
+ 
+   if (StatsTracker::useStatistics() || userSearcherRequiresMD2U()) {
+@@ -422,7 +490,7 @@ const Module *Executor::setModule(llvm::Module *module,
+                        interpreterHandler->getOutputFilename("assembly.ll"),
+                        userSearcherRequiresMD2U());
+   }
+-  
++
+   return module;
+ }
+ 
+@@ -436,6 +504,12 @@ Executor::~Executor() {
+   if (statsTracker)
+     delete statsTracker;
+   delete solver;
++  /* TODO: is it the right place? */
++  if (sliceGenerator) delete sliceGenerator;
++  if (cloner) delete cloner;
++  if (mra) delete mra;
++  if (inliner) delete inliner;
++  if (ra) delete ra;
+   delete kmodule;
+   while(!timers.empty()) {
+     delete timers.back();
+@@ -444,6 +518,9 @@ Executor::~Executor() {
+   if (debugInstFile) {
+     delete debugInstFile;
+   }
++  if (logFile) {
++    delete logFile;
++  }
+ }
+ 
+ /***/
+@@ -679,6 +756,7 @@ void Executor::branch(ExecutionState &state,
+                       const std::vector< ref<Expr> > &conditions,
+                       std::vector<ExecutionState*> &result) {
+   TimerStatIncrementer timer(stats::forkTime);
++
+   unsigned N = conditions.size();
+   assert(N);
+ 
+@@ -699,6 +777,9 @@ void Executor::branch(ExecutionState &state,
+     for (unsigned i=1; i<N; ++i) {
+       ExecutionState *es = result[theRNG.getInt32() % i];
+       ExecutionState *ns = es->branch();
++      if (ns->isRecoveryState()) {
++        interpreterHandler->incRecoveryStatesCount();
++      }
+       addedStates.push_back(ns);
+       result.push_back(ns);
+       es->ptreeNode->data = 0;
+@@ -756,9 +837,35 @@ void Executor::branch(ExecutionState &state,
+     }
+   }
+ 
+-  for (unsigned i=0; i<N; ++i)
+-    if (result[i])
+-      addConstraint(*result[i], conditions[i]);
++  /* handle the forks */
++  for (unsigned i=0; i<N; ++i) {
++    ExecutionState *current = result[i];
++    if (current) {
++      if (current->isRecoveryState()) {
++        if (i != 0) {
++          /* here we must fork the dependent state */
++          DEBUG_WITH_TYPE(
++            DEBUG_BASIC,
++            klee_message("forked recovery state (switch): %p", current)
++          );
++          ExecutionState *prev = result[i - 1];
++          forkDependentStates(prev, current);
++        }
++      }
++    }
++  }
++
++  /* handle the constraints */
++  for (unsigned i=0; i<N; ++i) {
++    ExecutionState *current = result[i];
++    if (current) {
++      ref<Expr> condition = conditions[i];
++      addConstraint(*current, condition);
++      if (current->isRecoveryState()) {
++        mergeConstraintsForAll(*current, condition);
++      }
++    }
++  }
+ }
+ 
+ Executor::StatePair 
+@@ -912,12 +1019,19 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
+     return StatePair(0, &current);
+   } else {
+     TimerStatIncrementer timer(stats::forkTime);
+-    ExecutionState *falseState, *trueState = &current;
++    ExecutionState *falseState = NULL, *trueState = &current;
++    ref<Expr> negatedCondition = Expr::createIsZero(condition);
+ 
+     ++stats::forks;
+-
+     falseState = trueState->branch();
+     addedStates.push_back(falseState);
++    if (trueState->isRecoveryState()) {
++      DEBUG_WITH_TYPE(
++        DEBUG_BASIC,
++        klee_message("forked recovery state: %p", falseState)
++      );
++      interpreterHandler->incRecoveryStatesCount();
++    }
+ 
+     if (it != seedMap.end()) {
+       std::vector<SeedInfo> seeds = it->second;
+@@ -961,20 +1075,21 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
+ 
+     if (!isInternal) {
+       if (pathWriter) {
+-        falseState->pathOS = pathWriter->open(current.pathOS);
+         trueState->pathOS << "1";
++        falseState->pathOS = pathWriter->open(current.pathOS);
+         falseState->pathOS << "0";
+       }      
+       if (symPathWriter) {
+-        falseState->symPathOS = symPathWriter->open(current.symPathOS);
+         trueState->symPathOS << "1";
++        falseState->symPathOS = symPathWriter->open(current.symPathOS);
+         falseState->symPathOS << "0";
+       }
+     }
+ 
+     addConstraint(*trueState, condition);
+-    addConstraint(*falseState, Expr::createIsZero(condition));
++    addConstraint(*falseState, negatedCondition);
+ 
++    /* TODO: handle termination of recovery states... */
+     // Kinda gross, do we even really still want this option?
+     if (MaxDepth && MaxDepth<=trueState->depth) {
+       terminateStateEarly(*trueState, "max-depth exceeded.");
+@@ -982,6 +1097,14 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
+       return StatePair(0, 0);
+     }
+ 
++    if (trueState->isRecoveryState()) {
++      forkDependentStates(trueState, falseState);
++
++      /* propagate constraints if required */
++      mergeConstraintsForAll(*trueState, condition);
++      mergeConstraintsForAll(*falseState, negatedCondition);
++    }
++
+     return StatePair(trueState, falseState);
+   }
+ }
+@@ -1255,6 +1378,10 @@ void Executor::executeCall(ExecutionState &state,
+                            Function *f,
+                            std::vector< ref<Expr> > &arguments) {
+   Instruction *i = ki->inst;
++
++  if (f && PrintFunctionCalls)
++    klee_message("Function: %s", f->getName().str().c_str());
++
+   if (f && f->isDeclaration()) {
+     switch(f->getIntrinsicID()) {
+     case Intrinsic::not_intrinsic:
+@@ -1300,6 +1427,10 @@ void Executor::executeCall(ExecutionState &state,
+       }
+       break;
+     }
++    // FIXME: terrible hack to fix an issue with inlining of memcpy
++    case Intrinsic::lifetime_start:
++    case Intrinsic::lifetime_end:
++    // FIXME: terrible hack end
+     case Intrinsic::vaend:
+       // va_end is a noop for the interpreter.
+       //
+@@ -1323,6 +1454,60 @@ void Executor::executeCall(ExecutionState &state,
+     // guess. This just done to avoid having to pass KInstIterator everywhere
+     // instead of the actual instruction, since we can't make a KInstIterator
+     // from just an instruction (unlike LLVM).
++
++    /* TODO: make it more readable... */
++    if (state.isNormalState() && !state.isRecoveryState() && isFunctionToSkip(state, f)) {
++      /* first, check if the skipped function has side effects */
++      if (mra->hasSideEffects(f)) {
++        /* create snapshot, recovery state will be created on demand... */
++        unsigned int index = state.getSnapshots().size();
++        DEBUG_WITH_TYPE(
++          DEBUG_BASIC,
++          klee_message("%p: adding snapshot (index = %u)", &state, index)
++        );
++        ref<ExecutionState> snapshotState(createSnapshotState(state));
++        ref<Snapshot> snapshot(new Snapshot(snapshotState, f));
++        state.addSnapshot(snapshot);
++        interpreterHandler->incSnapshotsCount();
++
++        /* TODO: will be replaced later... */
++        state.clearRecoveredAddresses();
++
++        DEBUG_WITH_TYPE(
++          DEBUG_BASIC,
++          klee_message("%p: skipping function call to %s", &state, f->getName().data())
++        );
++      }
++      return;
++    }
++
++    /* inject the sliced function if needed */
++    if (state.isRecoveryState()) {
++      ref<RecoveryInfo> recoveryInfo = state.getRecoveryInfo();
++      if (UseSlicer) {
++        f = getSlice(f, recoveryInfo->sliceId, ModRefAnalysis::Modifier);
++        DEBUG_WITH_TYPE(
++          DEBUG_BASIC,
++          klee_message("injecting slice: %s", f->getName().data())
++        );
++
++        /* handle fully sliced functions */
++        if (f->isDeclaration()) {
++          DEBUG_WITH_TYPE(
++            DEBUG_BASIC,
++            klee_message("ignoring fully sliced function: %s", f->getName().data())
++          );
++          return;
++        }
++      } else {
++        /* we do it for consistent debugging... */
++        DEBUG_WITH_TYPE(
++          DEBUG_BASIC,
++          klee_message("injecting: %s", f->getName().data())
++        );
++      }
++    }
++
+     KFunction *kf = kmodule->functionMap[f];
+     state.pushFrame(state.prevPC, kf);
+     state.pc = kf->instructions;
+@@ -1514,6 +1699,12 @@ static inline const llvm::fltSemantics * fpWidthToSemantics(unsigned width) {
+ 
+ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
+   Instruction *i = ki->inst;
++  /* TODO: replace with a better predicate (call stack counter?) */
++  if (state.isRecoveryState() && state.getExitInst() == i) {
++    onRecoveryStateExit(state);
++    return;
++  }
++
+   switch (i->getOpcode()) {
+     // Control flow
+   case Instruction::Ret: {
+@@ -1772,6 +1963,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
+     Value *fp = cs.getCalledValue();
+     Function *f = getTargetFunction(fp, state);
+ 
++    /* skip slicing annotations */
++    if (f && f->getName().startswith(StringRef("__crit"))) {
++        break;
++    }
++
+     // Skip debug intrinsics, we can't evaluate their metadata arguments.
+     if (f && isDebugIntrinsic(f, kmodule))
+       break;
+@@ -2108,6 +2304,20 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
+   }
+ 
+   case Instruction::Load: {
++    if (state.isNormalState() && state.isInDependentMode()) {
++      if (state.isBlockingLoadRecovered() && isMayBlockingLoad(state, ki)) {
++        /* TODO: rename variable */
++        bool success;
++        bool isBlocking = handleMayBlockingLoad(state, ki, success);
++        if (!success) {
++          return;
++        }
++        if (isBlocking) {
++          /* TODO: break? */
++          return;
++        }
++      }
++    }
+     ref<Expr> base = eval(ki, 0, state).value;
+     executeMemoryOperation(state, false, base, 0, ki);
+     break;
+@@ -2558,7 +2768,32 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
+ 
+ void Executor::updateStates(ExecutionState *current) {
+   if (searcher) {
+-    searcher->update(current, addedStates, removedStates);
++    if (!removedStates.empty()) {
++        /* we don't want to pass suspended states to the searcher */
++        std::vector<ExecutionState *> filteredStates;
++        for (std::vector<ExecutionState *>::iterator i = removedStates.begin(); i != removedStates.end(); i++) {
++            ExecutionState *removedState = *i;
++            if (removedState->isNormalState() && removedState->isSuspended()) {
++                continue;
++            }
++            filteredStates.push_back(removedState);
++        }
++        searcher->update(current, addedStates, filteredStates);
++    } else {
++        searcher->update(current, addedStates, removedStates);
++    }
++
++    /* handle suspended states */
++    for (std::vector<ExecutionState *>::iterator i = suspendedStates.begin(); i != suspendedStates.end(); i++) {
++      searcher->removeState(*i);
++    }
++    suspendedStates.clear();
++
++    /* handle resumed states */
++    for (std::vector<ExecutionState *>::iterator i = resumedStates.begin(); i != resumedStates.end(); i++) {
++      searcher->addState(*i);
++    }
++    resumedStates.clear();
+   }
+   
+   states.insert(addedStates.begin(), addedStates.end());
+@@ -2569,8 +2804,13 @@ void Executor::updateStates(ExecutionState *current) {
+        it != ie; ++it) {
+     ExecutionState *es = *it;
+     std::set<ExecutionState*>::iterator it2 = states.find(es);
+-    assert(it2!=states.end());
+-    states.erase(it2);
++    if (it2 == states.end()) {
++      /* TODO: trying to handle removal of suspended states. Find a better solution... */
++      assert(es->isNormalState() && es->isSuspended());
++      continue;
++    } else {
++      states.erase(it2);
++    }
+     std::map<ExecutionState*, std::vector<SeedInfo> >::iterator it3 = 
+       seedMap.find(es);
+     if (it3 != seedMap.end())
+@@ -2618,7 +2858,7 @@ void Executor::bindInstructionConstants(KInstruction *KI) {
+   KGEPInstruction *kgepi = static_cast<KGEPInstruction*>(KI);
+ 
+   if (GetElementPtrInst *gepi = dyn_cast<GetElementPtrInst>(KI->inst)) {
+-    computeOffsets(kgepi, gep_type_begin(gepi), gep_type_end(gepi));
++    computeOffsets(kgepi, klee::gep_type_begin(gepi), klee::gep_type_end(gepi));
+   } else if (InsertValueInst *ivi = dyn_cast<InsertValueInst>(KI->inst)) {
+     computeOffsets(kgepi, iv_type_begin(ivi), iv_type_end(ivi));
+     assert(kgepi->indices.empty() && "InsertValue constant offset expected");
+@@ -2636,10 +2876,11 @@ void Executor::bindModuleConstants() {
+       bindInstructionConstants(kf->instructions[i]);
+   }
+ 
+-  kmodule->constantTable = new Cell[kmodule->constants.size()];
+   for (unsigned i=0; i<kmodule->constants.size(); ++i) {
+-    Cell &c = kmodule->constantTable[i];
+-    c.value = evalConstant(kmodule->constants[i]);
++    Cell c = {
++        .value = evalConstant(kmodule->constants[i])
++    };
++    kmodule->constantTable.push_back(c);
+   }
+ }
+ 
+@@ -2659,7 +2900,14 @@ void Executor::checkMemoryUsage() {
+         unsigned numStates = states.size();
+         unsigned toKill = std::max(1U, numStates - numStates * MaxMemory / mbs);
+         klee_warning("killing %d states (over memory cap)", toKill);
+-        std::vector<ExecutionState *> arr(states.begin(), states.end());
++        std::vector<ExecutionState *> arr;
++        for (std::set<ExecutionState *>::iterator i = states.begin(); i != states.end(); i++) {
++          ExecutionState *toremove = *i;
++          if ((toremove->isNormalState() && toremove->isSuspended()) || toremove->isRecoveryState())  {
++            continue;
++          }
++          arr.push_back(toremove);
++        }
+         for (unsigned i = 0, N = arr.size(); N && i < toKill; ++i, --N) {
+           unsigned idx = rand() % N;
+           // Make two pulls to try and not hit a state that
+@@ -2776,6 +3024,7 @@ void Executor::run(ExecutionState &initialState) {
+   searcher->update(0, newStates, std::vector<ExecutionState *>());
+ 
+   while (!states.empty() && !haltExecution) {
++    assert(!searcher->empty());
+     ExecutionState &state = searcher->selectState();
+     KInstruction *ki = state.pc;
+     stepInstruction(state);
+@@ -2850,7 +3099,9 @@ void Executor::terminateState(ExecutionState &state) {
+                       "replay did not consume all objects in test input.");
+   }
+ 
+-  interpreterHandler->incPathsExplored();
++  if (!state.isRecoveryState()) {
++    interpreterHandler->incPathsExplored();
++  }
+ 
+   std::vector<ExecutionState *>::iterator it =
+       std::find(addedStates.begin(), addedStates.end(), &state);
+@@ -2876,14 +3127,22 @@ void Executor::terminateStateEarly(ExecutionState &state,
+       (AlwaysOutputSeeds && seedMap.count(&state)))
+     interpreterHandler->processTestCase(state, (message + "\n").str().c_str(),
+                                         "early");
+-  terminateState(state);
++  if (state.isRecoveryState()) {
++    terminateStateRecursively(state);
++  } else {
++    terminateState(state);
++  }
+ }
+ 
+ void Executor::terminateStateOnExit(ExecutionState &state) {
+   if (!OnlyOutputStatesCoveringNew || state.coveredNew || 
+       (AlwaysOutputSeeds && seedMap.count(&state)))
+     interpreterHandler->processTestCase(state, 0, 0);
+-  terminateState(state);
++  if (state.isRecoveryState()) {
++    terminateStateRecursively(state);
++  } else {
++    terminateState(state);
++  }
+ }
+ 
+ const InstructionInfo & Executor::getLastNonKleeInternalInstruction(const ExecutionState &state,
+@@ -2952,6 +3211,9 @@ void Executor::terminateStateOnError(ExecutionState &state,
+   
+   if (EmitAllErrors ||
+       emittedErrors.insert(std::make_pair(lastInst, message)).second) {
++    if (shouldExitOn(termReason)) {
++      errorCount++;
++    }
+     if (ii.file != "") {
+       klee_message("ERROR: %s:%d: %s", ii.file.c_str(), ii.line, message.c_str());
+     } else {
+@@ -2984,11 +3246,38 @@ void Executor::terminateStateOnError(ExecutionState &state,
+ 
+     interpreterHandler->processTestCase(state, msg.str().c_str(), suffix);
+   }
+-    
+-  terminateState(state);
+ 
+-  if (shouldExitOn(termReason))
+-    haltExecution = true;
++  if (state.isRecoveryState()) {
++    terminateStateRecursively(state);
++  } else {
++    terminateState(state);
++  }
++
++  if (shouldExitOn(termReason)) {
++    unsigned int maxCount = interpreterOpts.maxErrorCount;
++
++    if (interpreterOpts.errorLocations.empty()) {
++      if (maxCount == 0 || maxCount == errorCount) {
++        haltExecution = true;
++      }
++    } else if (ii.file != "") {
++      InterpreterOptions::ErrorLocations &errorLocations = interpreterOpts.errorLocations;
++      for (std::vector<ErrorLocationOption>::size_type i = 0; i < errorLocations.size(); ++i) {
++        std::string basename = ii.file.substr(ii.file.find_last_of("/\\") + 1);
++        InterpreterOptions::ErrorLocations::iterator entry = errorLocations.find(basename);
++        if (entry != errorLocations.end()) {
++          entry->second.erase(std::remove(entry->second.begin(), entry->second.end(), ii.line), entry->second.end());
++          if (entry->second.empty()) {
++            errorLocations.erase(entry);
++          }
++          break;
++        }
++      }
++      if (errorLocations.empty()) {
++        haltExecution = true;
++      }
++    }
++  }
+ }
+ 
+ // XXX shoot me
+@@ -3141,8 +3430,17 @@ void Executor::executeAlloc(ExecutionState &state,
+                             const ObjectState *reallocFrom) {
+   size = toUnique(state, size);
+   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) {
+-    MemoryObject *mo = memory->allocate(CE->getZExtValue(), isLocal, false, 
+-                                        state.prevPC->inst);
++    MemoryObject *mo = NULL;
++    if (state.isRecoveryState() && isDynamicAlloc(state.prevPC->inst)) {
++      mo = onExecuteAlloc(state, CE->getZExtValue(), isLocal, state.prevPC->inst, zeroMemory);
++    } else {
++      if (CE->getZExtValue() < HUGE_ALLOC_SIZE) {
++        mo = memory->allocate(CE->getZExtValue(), isLocal, false, state.prevPC->inst);
++      } else {
++        klee_message("NOTE: found huge concrete malloc (size = %ld), returning 0",
++                     CE->getZExtValue());
++      }
++    }
+     if (!mo) {
+       bindLocal(target, state, 
+                 ConstantExpr::alloc(0, Context::get().getPointerWidth()));
+@@ -3178,7 +3476,7 @@ void Executor::executeAlloc(ExecutionState &state,
+     bool success = solver->getValue(state, size, example);
+     assert(success && "FIXME: Unhandled solver failure");
+     (void) success;
+-    
++
+     // Try and start with a small example.
+     Expr::Width W = example->getWidth();
+     while (example->Ugt(ConstantExpr::alloc(128, W))->isTrue()) {
+@@ -3214,7 +3512,7 @@ void Executor::executeAlloc(ExecutionState &state,
+         // malloc will fail for it, so lets fork and return 0.
+         StatePair hugeSize = 
+           fork(*fixedSize.second, 
+-               UltExpr::create(ConstantExpr::alloc(1<<31, W), size), 
++               UltExpr::create(ConstantExpr::alloc(HUGE_ALLOC_SIZE, W), size),
+                true);
+         if (hugeSize.first) {
+           klee_message("NOTE: found huge malloc, returning 0");
+@@ -3264,6 +3562,9 @@ void Executor::executeFree(ExecutionState &state,
+                               getAddressInfo(*it->second, address));
+       } else {
+         it->second->addressSpace.unbindObject(mo);
++        if (it->second->isRecoveryState()) {
++            onExecuteFree(it->second, mo);
++        }
+         if (target)
+           bindLocal(target, *it->second, Expr::createPointer(0));
+       }
+@@ -3356,9 +3657,18 @@ void Executor::executeMemoryOperation(ExecutionState &state,
+         } else {
+           ObjectState *wos = state.addressSpace.getWriteable(mo, os);
+           wos->write(offset, value);
+-        }          
++          if (state.isRecoveryState()) {
++            onRecoveryStateWrite(state, address, mo, offset, value);
++          }
++          if (state.isNormalState()) {
++            onNormalStateWrite(state, address, value);
++          }
++        }
+       } else {
+         ref<Expr> result = os->read(offset, type);
++        if (state.isNormalState()) {
++          onNormalStateRead(state, address, type);
++        }
+         
+         if (interpreterOpts.MakeConcreteSymbolic)
+           result = replaceReadWithSymbolic(state, result);
+@@ -3749,7 +4059,943 @@ Expr::Width Executor::getWidthForLLVMType(LLVM_TYPE_Q llvm::Type *type) const {
+ 
+ ///
+ 
+-Interpreter *Interpreter::create(const InterpreterOptions &opts,
++Interpreter *Interpreter::create(InterpreterOptions &opts,
+                                  InterpreterHandler *ih) {
+   return new Executor(opts, ih);
+ }
++
++bool Executor::isMayBlockingLoad(ExecutionState &state, KInstruction *ki) {
++  /* basic check based on static analysis */
++  if (!ki->mayBlock) {
++    return false;
++  }
++
++  /* there is no need for recovery, if the value is not used... */
++  if (ki->inst->hasNUses(0)) {
++    return false;
++  }
++
++  if (!isRecoveryRequired(state, ki)) {
++    return false;
++  }
++
++  return true;
++}
++
++bool Executor::isRecoveryRequired(ExecutionState &state, KInstruction *ki) {
++  /* resolve address expression */
++  ref<Expr> addressExpr = eval(ki, 0, state).value;
++  if (!isa<ConstantExpr>(addressExpr)) {
++    addressExpr = state.constraints.simplifyExpr(addressExpr);
++    addressExpr = toConstant(state, addressExpr, "resolveOne failure");
++  }
++
++  uint64_t address = dyn_cast<ConstantExpr>(addressExpr)->getZExtValue();
++  Expr::Width width = getWidthForLLVMType(ki->inst->getType());
++  size_t size = Expr::getMinBytesForWidth(width);
++
++  /* check if already recovered */
++  if (state.isAddressRecovered(address)) {
++    DEBUG_WITH_TYPE(
++      DEBUG_BASIC,
++      klee_message("%p: load from %#lx is already recovered", &state, address)
++    );
++    return false;
++  }
++
++  /* check if someone has written to this location */
++  WrittenAddressInfo info;
++  if (!state.getWrittenAddressInfo(address, size, info)) {
++    /* this address was not overriden */
++    return true;
++  }
++
++  /* TODO: handle recovered loads... */
++  if (state.getCurrentSnapshotIndex() == info.snapshotIndex) {
++    /* TODO: hack... */
++    state.markLoadAsUnrecovered();
++    DEBUG_WITH_TYPE(
++      DEBUG_BASIC,
++      klee_message("location (%lx, %zu) was written, recovery is not required", address, size);
++    );
++    return false;
++  }
++
++  return true;
++}
++
++bool Executor::handleMayBlockingLoad(ExecutionState &state, KInstruction *ki,
++                                     bool &success) {
++  success = true;
++  /* find which slices should be executed... */
++  std::list< ref<RecoveryInfo> > &recoveryInfos = state.getPendingRecoveryInfos();
++  if (!getAllRecoveryInfo(state, ki, recoveryInfos)) {
++    success = false;
++    return false;
++  }
++  if (recoveryInfos.empty()) {
++    /* we are not dependent on previously skipped functions */
++    return false;
++  }
++
++  /* TODO: move to another place? */
++  state.pc = state.prevPC;
++
++  ref<RecoveryInfo> ri = state.getPendingRecoveryInfo();
++  startRecoveryState(state, ri);
++
++  if (!state.isSuspended()) {
++    suspendState(state);
++  }
++
++  return true;
++}
++
++bool Executor::getAllRecoveryInfo(ExecutionState &state, KInstruction *ki,
++                                  std::list<ref<RecoveryInfo> > &result) {
++  Instruction *loadInst;
++  uint64_t loadBase;
++  uint64_t loadAddr;
++  uint64_t loadSize;
++  ModRefAnalysis::AllocSite preciseAllocSite;
++
++  /* TODO: decide which value to pass (original, cloned) */
++  loadInst = ki->getOrigInst();
++  DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("%p: may-blocking load:", &state));
++  DEBUG_WITH_TYPE(DEBUG_BASIC, errs() << "- instruction:" << *loadInst << "\n");
++  DEBUG_WITH_TYPE(DEBUG_BASIC, errs() << "- stack trace:\n");
++  DEBUG_WITH_TYPE(DEBUG_BASIC, state.dumpStack(errs()));
++
++  if (!getLoadInfo(state, ki, loadBase, loadAddr, loadSize, preciseAllocSite))
++    return false;
++
++  /* get the allocation site computed by static analysis */
++  std::set<ModRefAnalysis::ModInfo> approximateModInfos;
++  mra->getApproximateModInfos(ki->getOrigInst(), preciseAllocSite, approximateModInfos);
++
++  /* all the recovery information which may be required  */
++  std::list< ref<RecoveryInfo> > required;
++  /* the snapshots of the state */
++  std::vector< ref<Snapshot> > &snapshots = state.getSnapshots();
++  /* we start from the last snapshot which is not affected by an overwrite */
++  unsigned int startIndex = state.getStartingIndex(loadAddr, loadSize);
++
++  /* collect recovery information */
++  for (unsigned int index = startIndex; index < snapshots.size(); index++) {
++    if (state.isRecoveryState()) {
++      if (state.getRecoveryInfo()->snapshotIndex == index) {
++        break;
++      }
++    }
++
++    ref<Snapshot> snapshot = snapshots[index];
++    Function *snapshotFunction = snapshot->f;
++
++    for (std::set<ModRefAnalysis::ModInfo>::iterator j = approximateModInfos.begin(); j != approximateModInfos.end(); j++) {
++      ModRefAnalysis::ModInfo modInfo = *j;
++      if (modInfo.first != snapshotFunction) {
++        /* the function of the snapshot must match the modifier */
++        continue;
++      }
++
++      /* get the corresponding slice id */
++      ModRefAnalysis::ModInfoToIdMap &modInfoToIdMap = mra->getModInfoToIdMap();
++      ModRefAnalysis::ModInfoToIdMap::iterator entry = modInfoToIdMap.find(modInfo);
++      if (entry == modInfoToIdMap.end()) {
++        llvm_unreachable("ModInfoToIdMap is empty");
++      }
++
++      uint32_t sliceId = entry->second;
++
++      /* initialize... */
++      ref<RecoveryInfo> recoveryInfo(new RecoveryInfo());
++      recoveryInfo->loadInst = loadInst;
++      recoveryInfo->loadBase = loadBase;
++      recoveryInfo->loadAddr = loadAddr;
++      recoveryInfo->loadSize = loadSize;
++      recoveryInfo->f = modInfo.first;
++      recoveryInfo->sliceId = sliceId;
++      recoveryInfo->snapshot = snapshot;
++      recoveryInfo->snapshotIndex = index;
++
++      required.push_back(recoveryInfo);
++
++      /* TODO: validate that each snapshot corresponds to at most one modifier */
++      break;
++    }
++  }
++
++  /* do some filtering... */
++  for (std::list< ref<RecoveryInfo> >::reverse_iterator i = required.rbegin(); i != required.rend(); i++) {
++    ref<RecoveryInfo> recoveryInfo = *i;
++    unsigned int index = recoveryInfo->snapshotIndex;
++    unsigned int sliceId = recoveryInfo->sliceId;
++
++    DEBUG_WITH_TYPE(
++      DEBUG_BASIC,
++      klee_message(
++        "recovery info: addr = %#lx, size = %lx, function: %s, slice id = %u, snapshot index = %u",
++        recoveryInfo->loadAddr,
++        recoveryInfo->loadSize,
++        recoveryInfo->f->getName().data(),
++        recoveryInfo->sliceId,
++        recoveryInfo->snapshotIndex
++      )
++    );
++
++    ref<Expr> expr;
++    if (UseRecoveryCache && state.getRecoveredValue(index, sliceId, loadAddr, expr)) {
++      /* this slice was already executed from this snapshot,
++         and we know which value was written (or not) */
++      state.addRecoveredAddress(loadAddr);
++
++      if (!expr.isNull()) {
++        DEBUG_WITH_TYPE(
++          DEBUG_BASIC,
++          klee_message(
++            "%p: cached recovered value (index = %u, slice id = %u, addr = %lx)",
++            &state,
++            index,
++            sliceId,
++            loadAddr
++          )
++        );
++
++        /* execute write without recovering */
++        ref<Expr> base = eval(ki, 0, state).value;
++        executeMemoryOperation(state, true, base, expr, 0);
++
++        /* TODO: add docs */
++        break;
++
++      } else {
++        DEBUG_WITH_TYPE(
++          DEBUG_BASIC,
++          klee_message(
++            "%p: ignoring non-modifying slice (index = %u, slice id = %u, addr = %lx)",
++            &state,
++            index,
++            sliceId,
++            loadAddr
++          )
++        );
++      }
++    } else {
++      /* the slice was never executed, so we must add it */
++      DEBUG_WITH_TYPE(
++        DEBUG_BASIC,
++        klee_message(
++          "%p: adding recovery info for a non-executed slice (index = %u, slice id = %u)",
++          &state,
++          index,
++          sliceId
++        )
++      );
++      /* TODO: add docs */
++      if (UseRecoveryCache) {
++        state.updateRecoveredValue(index, sliceId, loadAddr, NULL);
++      }
++      result.push_front(recoveryInfo);
++    }
++  }
++  return true;
++}
++
++bool Executor::getLoadInfo(ExecutionState &state, KInstruction *ki,
++                           uint64_t &loadBase, uint64_t &loadAddr, uint64_t &loadSize,
++                           ModRefAnalysis::AllocSite &allocSite) {
++  ObjectPair op;
++  bool success;
++  ConstantExpr *ce;
++
++  ref<Expr> address = eval(ki, 0, state).value;
++
++  if (SimplifySymIndices) {
++    if (!isa<ConstantExpr>(address)) {
++      address = state.constraints.simplifyExpr(address);
++    }
++  }
++
++  /* execute solver query */
++  solver->setTimeout(coreSolverTimeout);
++  if (!state.addressSpace.resolveOne(state, solver, address, op, success)) {
++    address = toConstant(state, address, "resolveOne failure (getLoadInfo)");
++    success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
++  }
++  solver->setTimeout(0);
++
++  if (success) {
++    /* get load address */
++    ce = dyn_cast<ConstantExpr>(address);
++    if (!ce) {
++      /* TODO: use the resolve() API in order to support symbolic addresses */
++      state.dumpStack(llvm::errs());
++      llvm_unreachable("getLoadInfo() does not support symbolic addresses");
++    }
++
++    loadBase = op.first->address;
++    loadAddr = ce->getZExtValue();
++
++    /* get load size */
++    Expr::Width width = getWidthForLLVMType(ki->inst->getType());
++    loadSize = Expr::getMinBytesForWidth(width);
++
++    /* get allocation site value and offset */
++    const MemoryObject *mo = op.first;
++    /* TODO: we don't actually need the offset... */
++    ref<Expr> offsetExpr = mo->getOffsetExpr(address);
++    offsetExpr = toConstant(state, offsetExpr, "...");
++    ce = dyn_cast<ConstantExpr>(offsetExpr);
++    assert(ce);
++
++    /* translate value... */
++    const Value *translatedValue = cloner->translateValue((Value *)(mo->allocSite));
++    uint64_t offset = ce->getZExtValue();
++
++    /* get the precise allocation site */
++    allocSite = std::make_pair(translatedValue, offset);
++  } else {
++    DEBUG_WITH_TYPE(
++      DEBUG_BASIC,
++      klee_message("Unable to resolve blocking load address to one memory object")
++    );
++    ResolutionList rl;
++    solver->setTimeout(coreSolverTimeout);
++    bool incomplete = state.addressSpace.resolve(state, solver, address, rl, 0,
++                                                 coreSolverTimeout);
++    solver->setTimeout(0);
++
++    if (rl.empty()) {
++      if (!incomplete) {
++        klee_warning(
++            "Unable to resolve blocking load to any address. Terminating state");
++        terminateStateOnError(
++            state, "Unable to resolve blocking load to any address", Unhandled);
++      } else {
++        klee_warning("Unable to resolve blocking load address: Solver timeout");
++        terminateStateEarly(
++            state, "Unable to resolve blocking load address: solver timeout");
++      }
++    } else {
++      klee_warning("Resolving blocking load address: multiple resolutions");
++      terminateStateEarly(
++          state, "Resolving blocking load address: multiple resolutions");
++    }
++    return false;
++  }
++  return true;
++}
++
++void Executor::suspendState(ExecutionState &state) {
++  DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("suspending: %p", &state));
++  state.setSuspended();
++  suspendedStates.push_back(&state);
++}
++
++void Executor::resumeState(ExecutionState &state, bool implicitlyCreated) {
++  DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("resuming: %p", &state));
++  state.setResumed();
++  state.setRecoveryState(0);
++  state.markLoadAsUnrecovered();
++  if (implicitlyCreated) {
++    DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("adding an implicitly created state: %p", &state));
++    addedStates.push_back(&state);
++  } else {
++    resumedStates.push_back(&state);
++  }
++
++  /* debug... */
++  state.getAllocationRecord().dump();
++}
++
++void Executor::onRecoveryStateExit(ExecutionState &state) {
++  DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("%p: recovery state reached exit instruction", &state));
++
++  ExecutionState *dependentState = state.getDependentState();
++  //dumpConstrains(*dependentState);
++
++  /* check if we need to run another recovery state */
++  if (dependentState->hasPendingRecoveryInfo()) {
++    ref<RecoveryInfo> ri = dependentState->getPendingRecoveryInfo();
++    startRecoveryState(*dependentState, ri);
++  } else {
++    notifyDependentState(state);
++  }
++  terminateState(state);
++}
++
++void Executor::notifyDependentState(ExecutionState &recoveryState) {
++  ExecutionState *dependentState = recoveryState.getDependentState();
++  DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("%p: notifying dependent state %p", &recoveryState, dependentState));
++
++  if (recoveryState.isNormalState()) {
++    /* the allocation record of the recovery states contains the allocation record of the dependent state */
++    dependentState->setAllocationRecord(recoveryState.getAllocationRecord());
++  }
++
++  if (states.find(dependentState) == states.end()) {
++    resumeState(*dependentState, true);
++  } else {
++    resumeState(*dependentState, false);
++  }
++}
++
++void Executor::startRecoveryState(ExecutionState &state, ref<RecoveryInfo> recoveryInfo) {
++  DEBUG_WITH_TYPE(
++    DEBUG_BASIC,
++    klee_message(
++      "starting recovery for function %s, load address %#lx",
++      recoveryInfo->f->getName().str().c_str(),
++      recoveryInfo->loadAddr
++    )
++  );
++
++  ref<ExecutionState> snapshotState = recoveryInfo->snapshot->state;
++
++  /* TODO: non-first snapshots hold normal state properties! */
++
++  /* initialize recovery state */
++  ExecutionState *recoveryState = new ExecutionState(*snapshotState);
++  if (recoveryInfo->snapshotIndex == 0) {
++    /* a recovery state which is created from the first snapshot has no dependencies */
++    recoveryState->setType(RECOVERY_STATE);
++  } else {
++    /* in this case, a recovery state may depend on previous skipped functions */
++    recoveryState->setType(NORMAL_STATE | RECOVERY_STATE);
++
++    /* initialize... */
++    recoveryState->setResumed();
++    /* not linked to any recovery state at this point */
++    recoveryState->setRecoveryState(0);
++    /* TODO: we need only a prefix of the snapshots... */
++    recoveryState->markLoadAsRecovered();
++    recoveryState->clearRecoveredAddresses();
++    /* TODO: we actually need only a prefix of that */
++    recoveryState->setRecoveryCache(state.getRecoveryCache());
++    /* this state may create another recovery state, so it must hold the allocation record */
++    recoveryState->setAllocationRecord(state.getAllocationRecord());
++    /* make sure it is empty... */
++    assert(recoveryState->getGuidingConstraints().empty());
++    /* TODO: handle writtenAddresses */
++
++    assert(recoveryState->getPendingRecoveryInfos().empty());
++  }
++
++  /* set exit instruction */
++  recoveryState->setExitInst(snapshotState->pc->inst);
++
++  /* set dependent state */
++  recoveryState->setDependentState(&state);
++
++  /* set originating state */
++  ExecutionState *originatingState;
++  if (state.isRecoveryState()) {
++    originatingState = state.getOriginatingState();
++  } else {
++    /* this must be the originating state */
++    originatingState = &state;
++  }
++  recoveryState->setOriginatingState(originatingState);
++
++  /* set recovery information */
++  recoveryState->setRecoveryInfo(recoveryInfo);
++
++  /* pass allocation record to recovery state */
++  recoveryState->setGuidingAllocationRecord(state.getAllocationRecord());
++
++  /* recursion level */
++  unsigned int level = state.isRecoveryState() ? state.getLevel() + 1 : 0;
++  recoveryState->setLevel(level);
++
++  /* add the guiding constraints to the recovery state */
++  std::set< ref<Expr> > &constraints = originatingState->getGuidingConstraints();
++  for (std::set< ref<Expr> >::iterator i = constraints.begin(); i != constraints.end(); i++) {
++    addConstraint(*recoveryState, *i);
++  }
++  DEBUG_WITH_TYPE(
++    DEBUG_BASIC,
++    klee_message("adding %lu guiding constraints", constraints.size())
++  );
++
++  /* TODO: update prevPC? */
++  recoveryState->pc = recoveryState->prevPC;
++
++  DEBUG_WITH_TYPE(
++    DEBUG_BASIC,
++    klee_message(
++      "adding recovery state: %p (snapshot index = %u, level = %u)",
++      recoveryState,
++      recoveryInfo->snapshotIndex,
++      recoveryState->getLevel()
++    )
++  );
++
++  /* link the current state to it's recovery state */
++  state.setRecoveryState(recoveryState);
++
++  /* update process tree */
++  state.ptreeNode->data = 0;
++  std::pair<PTree::Node*, PTree::Node*> res = processTree->split(state.ptreeNode, recoveryState, &state);
++  recoveryState->ptreeNode = res.first;
++  state.ptreeNode = res.second;
++
++  /* add the recovery state to the searcher */
++  recoveryState->setPriority(PRIORITY_HIGH);
++  addedStates.push_back(recoveryState);
++
++  /* update statistics */
++  interpreterHandler->incRecoveryStatesCount();
++}
++
++/* TODO: handle vastart calls */
++void Executor::onRecoveryStateWrite(
++  ExecutionState &state,
++  ref<Expr> address,
++  const MemoryObject *mo,
++  ref<Expr> offset,
++  ref<Expr> value
++) {
++  ref<RecoveryInfo> recoveryInfo = state.getRecoveryInfo();
++  if (recoveryInfo->loadBase != mo->address) {
++    return;
++  }
++
++  assert(isa<ConstantExpr>(address));
++  assert(isa<ConstantExpr>(offset));
++
++  DEBUG_WITH_TYPE(
++    DEBUG_BASIC,
++    klee_message(
++      "write in state %p: mo = %p, address = %lx, size = %x, offset = %lx",
++      &state,
++      mo,
++      mo->address,
++      mo->size,
++      dyn_cast<ConstantExpr>(offset)->getZExtValue()
++    )
++  );
++
++  uint64_t storeAddr = dyn_cast<ConstantExpr>(address)->getZExtValue();
++  if (storeAddr != recoveryInfo->loadAddr) {
++    return;
++  }
++
++  /* copy data to dependent state... */
++  ExecutionState *dependentState = state.getDependentState();
++  const ObjectState *os = dependentState->addressSpace.findObject(mo);
++  ObjectState *wos = dependentState->addressSpace.getWriteable(mo, os);
++  wos->write(offset, value);
++  DEBUG_WITH_TYPE(
++    DEBUG_BASIC,
++    klee_message("copying from %p to %p", &state, dependentState)
++  );
++
++  /* TODO: ... */
++  DEBUG_WITH_TYPE(
++    DEBUG_BASIC,
++    klee_message(
++      "%p: updating recovered value for %p (index = %u, slice id = %u)",
++      &state,
++      dependentState,
++      recoveryInfo->snapshotIndex,
++      recoveryInfo->sliceId
++    )
++  );
++  if (UseRecoveryCache) {
++    dependentState->updateRecoveredValue(
++      recoveryInfo->snapshotIndex,
++      recoveryInfo->sliceId,
++      storeAddr,
++      value
++    );
++  }
++}
++
++void Executor::onNormalStateWrite(
++  ExecutionState &state,
++  ref<Expr> address,
++  ref<Expr> value
++) {
++  if (!state.isInDependentMode()) {
++    return;
++  }
++
++  if (state.prevPC->inst->getOpcode() != Instruction::Store) {
++    /* TODO: this must be a vastart call, check! */
++    return;
++  }
++
++  if (!isOverridingStore(state.prevPC)) {
++    return;
++  }
++
++  assert(isa<ConstantExpr>(address));
++
++  uint64_t concreteAddress = dyn_cast<ConstantExpr>(address)->getZExtValue();
++  size_t sizeInBytes = value->getWidth() / 8;
++  if (value->getWidth() == Expr::Bool) {
++    /* in this case, the width of the written value is extended to Int8 */
++    sizeInBytes = 1;
++  } else {
++    sizeInBytes = value->getWidth() / 8;
++    assert(sizeInBytes * 8 == value->getWidth());
++  }
++
++  /* TODO: don't add if already recovered */
++  state.addWrittenAddress(concreteAddress, sizeInBytes, state.getCurrentSnapshotIndex());
++  DEBUG_WITH_TYPE(
++    DEBUG_BASIC,
++    klee_message("%p: adding written address: (%lx, %zu)",
++      &state,
++      concreteAddress,
++      sizeInBytes
++    )
++  );
++}
++
++/* checking if a store may override a skipped function stores ... */
++bool Executor::isOverridingStore(KInstruction *ki) {
++  assert(ki->inst->getOpcode() == Instruction::Store);
++  return ki->mayOverride;
++}
++
++void Executor::onNormalStateRead(
++  ExecutionState &state,
++  ref<Expr> address,
++  Expr::Width width
++) {
++  if (!state.isInDependentMode()) {
++    return;
++  }
++
++  if (state.isBlockingLoadRecovered()) {
++    return;
++  }
++
++  assert(isa<ConstantExpr>(address));
++
++  ConstantExpr *ce = dyn_cast<ConstantExpr>(address);
++  uint64_t addr = ce->getZExtValue();
++
++  /* update recovered loads */
++  state.addRecoveredAddress(addr);
++  state.markLoadAsRecovered();
++}
++
++void Executor::dumpConstrains(ExecutionState &state) {
++  DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("constraints (state = %p):", &state));
++  for (ConstraintManager::constraint_iterator i = state.constraints.begin(); i != state.constraints.end(); i++) {
++      ref<Expr> e = *i;
++      DEBUG_WITH_TYPE(DEBUG_BASIC, errs() << "  -- "; e->dump());
++  }
++}
++
++MemoryObject *Executor::onExecuteAlloc(ExecutionState &state, uint64_t size, bool isLocal, Instruction *allocInst, bool zeroMemory) {
++    MemoryObject *mo = NULL;
++
++    /* get the context of the allocation instruction */
++    std::vector<Instruction *> callTrace;
++    state.getCallTrace(callTrace);
++    ASContext context(cloner, callTrace, allocInst);
++
++    ExecutionState *dependentState = state.getDependentState();
++    AllocationRecord &guidingAllocationRecord = state.getGuidingAllocationRecord();
++    AllocationRecord &allocationRecord = dependentState->getAllocationRecord();
++
++    if (guidingAllocationRecord.exists(context)) {
++        /* the address should be already bound */
++        mo = guidingAllocationRecord.getAddr(context);
++        if (mo) {
++            DEBUG_WITH_TYPE(
++                DEBUG_BASIC,
++                klee_message("%p: reusing allocated address: %lx, size: %lu", &state, mo->address, size)
++            );
++        } else {
++            DEBUG_WITH_TYPE(
++                DEBUG_BASIC,
++                klee_message("%p: reusing null address", &state)
++            );
++        }
++    } else {
++        if (size < HUGE_ALLOC_SIZE) {
++            mo = memory->allocate(size, isLocal, false, allocInst);
++            DEBUG_WITH_TYPE(
++                DEBUG_BASIC,
++                klee_message("%p: allocating new address: %lx, size: %lu", &state, mo->address, size)
++            );
++        } else {
++            mo = NULL;
++            DEBUG_WITH_TYPE(
++                DEBUG_BASIC,
++                klee_message("%p: allocating null address", &state)
++            );
++        }
++
++        /* TODO: do we need to add the MemoryObject here? */
++        allocationRecord.addAddr(context, mo);
++        if (state.isNormalState()) {
++          state.getAllocationRecord().addAddr(context, mo);
++        }
++    }
++
++    if (mo) {
++        /* bind the address to the dependent states */
++        bindAll(dependentState, mo, isLocal, zeroMemory);
++    }
++
++    return mo;
++}
++
++bool Executor::isDynamicAlloc(Instruction *allocInst) {
++    CallInst *callInst = dyn_cast<CallInst>(allocInst);
++    if (!callInst) {
++        return false;
++    }
++
++    Value *calledValue = callInst->getCalledValue();
++    const char *functions[] = {
++        "malloc",
++        "calloc",
++        "realloc",
++    };
++
++    for (unsigned int i = 0; i < sizeof(functions) / sizeof(functions[0]); i++) {
++        if (calledValue->getName() == StringRef(functions[i])) {
++            return true;
++        }
++    }
++
++    return false;
++}
++
++void Executor::onExecuteFree(ExecutionState *state, const MemoryObject *mo) {
++    ExecutionState *dependentState = state->getDependentState();
++    unbindAll(dependentState, mo);
++}
++
++void Executor::terminateStateRecursively(ExecutionState &state) {
++  ExecutionState *current = &state;
++  ExecutionState *next = NULL;
++
++  DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("recursively terminating..."));
++  while (current) {
++    if (current->isRecoveryState()) {
++      next = current->getDependentState();
++      assert(next);
++    } else {
++      next = NULL;
++    }
++
++    DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("terminating state %p", current));
++    terminateState(*current);
++    current = next;
++  }
++}
++
++void Executor::mergeConstraints(ExecutionState &dependentState, ref<Expr> condition) {
++    assert(dependentState.isNormalState());
++    addConstraint(dependentState, condition);
++}
++
++bool Executor::isFunctionToSkip(ExecutionState &state, Function *f) {
++    for (auto i = interpreterOpts.skippedFunctions.begin(), e = interpreterOpts.skippedFunctions.end(); i != e; i++) {
++        const SkippedFunctionOption &option = *i;
++        if ((option.name == f->getName().str())) {
++            Instruction *callInst = state.prevPC->inst;
++            const InstructionInfo &info = kmodule->infos->getInfo(callInst);
++            const std::vector<unsigned int> &lines = option.lines;
++
++            /* skip any call site */
++            if (lines.empty()) {
++                return true;
++            }
++
++            /* check if we have debug information */
++            if (info.line == 0) {
++                klee_warning_once(0, "call filter for %s: debug info not found...", option.name.data());
++                return true;
++            }
++
++            return std::find(lines.begin(), lines.end(), info.line) != lines.end();
++        }
++    }
++
++    return false;
++}
++
++void Executor::bindAll(ExecutionState *state, MemoryObject *mo, bool isLocal, bool zeroMemory) {
++    ExecutionState *next;
++    do {
++        /* this state is a normal state (and might be a recovery state as well) */
++        next = NULL;
++        if (state->isRecoveryState()) {
++            next = state->getDependentState();
++        }
++
++        DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("%p: binding address: %lx", state, mo->address));
++        if (!state->addressSpace.findObject(mo)) {
++            ObjectState *os = bindObjectInState(*state, mo, isLocal);
++            /* initialize allocated object */
++            if (zeroMemory) {
++                os->initializeToZero();
++            } else {
++                os->initializeToRandom();
++            }
++        }
++
++        state = next;
++    } while (next);
++}
++
++void Executor::unbindAll(ExecutionState *state, const MemoryObject *mo) {
++    ExecutionState *next;
++    do {
++        /* this state is a normal state (and might be a recovery state as well) */
++        next = NULL;
++        if (state->isRecoveryState()) {
++            next = state->getDependentState();
++        }
++
++        DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("%p: unbinding address %lx", state, mo->address));
++        state->addressSpace.unbindObject(mo);
++
++        state = next;
++    } while (next);
++}
++
++void Executor::forkDependentStates(ExecutionState *trueState, ExecutionState *falseState) {
++    ExecutionState *current = trueState->getDependentState();
++    ExecutionState *forked = NULL;
++    ExecutionState *prevForked = falseState;
++    ExecutionState *forkedOriginatingState = NULL;
++
++    /* fork the chain of dependent states */
++    do {
++        forked = new ExecutionState(*current);
++        assert(forked->isSuspended());
++        DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("forked dependent state: %p (from %p)", forked, current));
++
++        if (forked->isRecoveryState()) {
++            interpreterHandler->incRecoveryStatesCount();
++        }
++
++        forked->setRecoveryState(prevForked);
++        prevForked->setDependentState(forked);
++
++        current->ptreeNode->data = 0;
++        std::pair<PTree::Node*, PTree::Node*> res = processTree->split(current->ptreeNode, forked, current);
++        forked->ptreeNode = res.first;
++        current->ptreeNode = res.second;
++
++        if (current->isRecoveryState()) {
++            prevForked = forked;
++            current = current->getDependentState();
++        } else {
++            forkedOriginatingState = forked;
++            current = NULL;
++        }
++    } while (current);
++
++    /* update originating state */
++    current = falseState;
++    do {
++        if (current->isRecoveryState()) {
++            DEBUG_WITH_TYPE(
++              DEBUG_BASIC,
++              klee_message("%p: updating originating state %p", current, forkedOriginatingState)
++            );
++            current->setOriginatingState(forkedOriginatingState);
++            current = current->getDependentState();
++        } else {
++            /* TODO: initialize originating state to NULL? */
++            current = NULL;
++        }
++    } while (current);
++}
++
++void Executor::mergeConstraintsForAll(ExecutionState &recoveryState, ref<Expr> condition) {
++    ExecutionState *next = recoveryState.getDependentState();
++    do {
++        mergeConstraints(*next, condition);
++
++        if (next->isRecoveryState()) {
++            next = next->getDependentState();
++        } else {
++            next = NULL;
++        }
++    } while (next);
++
++    /* add the guiding constraints only to the originating state */
++    ExecutionState *originatingState = recoveryState.getOriginatingState();
++    originatingState->addGuidingConstraint(condition);
++}
++
++/* on demand slicing... */
++Function *Executor::getSlice(Function *target, uint32_t sliceId, ModRefAnalysis::SideEffectType type) {
++    Cloner::SliceInfo *sliceInfo = NULL;
++
++    sliceInfo = cloner->getSliceInfo(target, sliceId);
++    if (!sliceInfo || !sliceInfo->isSliced) {
++        DEBUG_WITH_TYPE(DEBUG_BASIC,
++            klee_message("generating slice for: %s (id = %u)", target->getName().data(), sliceId)
++        );
++        sliceGenerator->generateSlice(target, sliceId, type);
++        sliceGenerator->dumpSlice(target, sliceId, true);
++
++        /* update statistics */
++        interpreterHandler->incGeneratedSlicesCount();
++
++        if (!sliceInfo) {
++            sliceInfo = cloner->getSliceInfo(target, sliceId);
++            assert(sliceInfo);
++        }
++
++        std::set<Function *> &reachable = ra->getReachableFunctions(target);
++        for (std::set<Function *>::iterator i = reachable.begin(); i != reachable.end(); i++) {
++            /* original function */
++            Function *f = *i;
++            if (f->isDeclaration()) {
++                continue;
++            }
++
++            /* get the cloned function (using the slice id) */
++            Function *cloned = cloner->getSliceInfo(f, sliceId)->f;
++            if (cloned->isDeclaration()) {
++                /* a sliced function can become empty (a decleration) */
++                continue;
++            }
++
++            /* initialize KFunction */
++            KFunction *kcloned = new KFunction(cloned, kmodule);
++            kcloned->isCloned = true;
++
++            DEBUG_WITH_TYPE(DEBUG_BASIC, klee_message("adding function: %s", cloned->getName().data()));
++            /* update debug info */
++            kmodule->infos->addClonedInfo(cloner, cloned);
++            /* update function map */
++            kmodule->addFunction(kcloned, true, cloner, mra);
++            /* update the instruction constants of the new KFunction */
++            for (unsigned i = 0; i < kcloned->numInstructions; ++i) {
++                bindInstructionConstants(kcloned->instructions[i]);
++            }
++            /* when we add a KFunction, additional constants might be added */
++            for (unsigned i = kmodule->constantTable.size(); i < kmodule->constants.size(); ++i) {
++                Cell c = {
++                    .value = evalConstant(kmodule->constants[i])
++                };
++                kmodule->constantTable.push_back(c);
++            }
++        }
++    }
++
++    return sliceInfo->f;
++}
++
++ExecutionState *Executor::createSnapshotState(ExecutionState &state) {
++    ExecutionState *snapshotState = new ExecutionState(state);
++
++    /* remove guiding constraints */
++    snapshotState->clearGuidingConstraints();
++
++    return snapshotState;
++}

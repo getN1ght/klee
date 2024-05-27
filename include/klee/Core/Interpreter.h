@@ -56,6 +56,12 @@ public:
   virtual void incPathsCompleted() = 0;
   virtual void incPathsExplored(std::uint32_t num = 1) = 0;
 
+  /// Chopped symbolic exectuions stats API
+  virtual void incRecoveryStatesCount() = 0;
+  virtual void incGeneratedSlicesCount() = 0;
+  virtual void incSnapshotsCount() = 0;
+  ///////////////////////////////////////////////////////////////////////////
+
   virtual void processTestCase(const ExecutionState &state, const char *message,
                                const char *suffix, bool isError = false) = 0;
 
@@ -130,6 +136,23 @@ public:
           WithFPRuntime(_WithFPRuntime), WithPOSIXRuntime(_WithPOSIXRuntime) {}
   };
 
+  struct SkippedFunctionOption {
+    std::string name;
+    /* TODO: change to lines? */
+    std::vector<unsigned int> lines;
+
+    SkippedFunctionOption(std::string name, std::vector<unsigned int> &lines)
+        : name(name), lines(lines) {}
+  };
+
+  struct ErrorLocationOption {
+    std::string filename;
+    std::vector<unsigned> lines;
+
+    ErrorLocationOption(std::string filename, std::vector<unsigned> &lines)
+        : filename(filename), lines(lines) {}
+  };
+
   enum LogType {
     STP,    //.CVC (STP's native language)
     KQUERY, //.KQUERY files (kQuery native language)
@@ -142,7 +165,14 @@ public:
     /// A frequency at which to make concrete reads return constrained
     /// symbolic values. This is used to test the correctness of the
     /// symbolic execution on concrete programs.
+    typedef std::map<std::string, std::vector<unsigned>> ErrorLocations;
+
     unsigned MakeConcreteSymbolic;
+    std::vector<SkippedFunctionOption> skippedFunctions;
+    std::vector<std::string> inlinedFunctions;
+    ErrorLocations errorLocations;
+    unsigned int maxErrorCount = 0;
+
     GuidanceKind Guidance;
     std::optional<SarifReport> Paths;
     MockPolicy Mock;

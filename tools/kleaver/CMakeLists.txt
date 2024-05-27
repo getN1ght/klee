@@ -19,5 +19,11 @@ target_compile_definitions(kleaver PRIVATE ${KLEE_COMPONENT_CXX_DEFINES})
 
 target_compile_definitions(kleaver PRIVATE ${KLEE_COMPONENT_CXX_DEFINES})
 
+target_include_directories(kleaver SYSTEM PUBLIC
+    ${SVF_ROOT_DIR}/svf/include
+    ${SVF_ROOT_DIR}/build/include
+    ${DG_ROOT_DIR}/include
+    ${DG_ROOT_DIR}/tools/include
+)
 
 install(TARGETS kleaver RUNTIME DESTINATION bin)

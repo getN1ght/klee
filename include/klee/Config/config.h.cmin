@@ -31,6 +31,12 @@
 /* Define if mallinfo() is available on this platform. */
 #cmakedefine HAVE_MALLINFO @HAVE_MALLINFO@
 
+#cmakedefine HAVE_LLVM @HAVE_LLVM@
+
+#cmakedefine ENABLE_CFG @ENABLE_CFG@
+
+#cmakedefine SVF_EXT_API_BC "@SVF_EXT_API_BC@"
+
 /* Define if mallinfo2() is available on this platform. */
 #cmakedefine HAVE_MALLINFO2 @HAVE_MALLINFO2@
 

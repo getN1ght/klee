@@ -12,6 +12,7 @@
 
 #include "klee/Config/Version.h"
 
+#include "klee/Core/Interpreter.h"
 #include "klee/Support/CompilerWarning.h"
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
@@ -258,6 +259,24 @@ public:
   static char ID;
   LocalVarDeclarationFinderPass() : llvm::FunctionPass(ID) {}
   bool runOnFunction(llvm::Function &) override;
+};
+
+class ReturnToVoidFunctionPass : public llvm::ModulePass {
+  static char ID;
+  const std::vector<Interpreter::SkippedFunctionOption> skippedFunctions;
+
+public:
+  ReturnToVoidFunctionPass(
+      const std::vector<Interpreter::SkippedFunctionOption> _skippedFunctions)
+      : ModulePass(ID), skippedFunctions(_skippedFunctions) {}
+  virtual bool runOnModule(llvm::Module &module);
+  virtual bool runOnFunction(llvm::Function &f, llvm::Module &modue);
+  llvm::Function *createWrapperFunction(llvm::Function &f,
+                                        llvm::Module &module);
+  void replaceCalls(llvm::Function *f, llvm::Function *wrapper,
+                    const std::vector<unsigned int> &lines);
+  void replaceCall(llvm::CallInst *origCallInst, llvm::Function *f,
+                   llvm::Function *wrapper);
 };
 
 } // namespace klee

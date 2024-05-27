@@ -55,6 +55,8 @@ private:
 
 public:
   PTreeNodePtr root;
+  bool changed = false;
+
   PTree(ExecutionState *initialState, uint32_t id);
   explicit PTree(ExecutionState *initialState) : PTree(initialState, 0) {}
   ~PTree() = default;

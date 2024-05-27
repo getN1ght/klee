@@ -29,7 +29,6 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 DISABLE_WARNING_POP
 
 #include <cassert>
-#include <fstream>
 #include <iomanip>
 #include <set>
 #include <sstream>
@@ -178,9 +177,30 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       forkDisabled(state.forkDisabled), returnValue(state.returnValue),
       gepExprBases(state.gepExprBases), prevTargets_(state.prevTargets_),
       targets_(state.targets_), prevHistory_(state.prevHistory_),
-      history_(state.history_), isTargeted_(state.isTargeted_) {
+      history_(state.history_), isTargeted_(state.isTargeted_),
+      type(state.type), suspendStatus(state.suspendStatus),
+      snapshots(state.snapshots), recoveryState(state.recoveryState),
+      blockingLoadStatus(state.blockingLoadStatus),
+      recoveredLoads(state.recoveredLoads),
+      allocationRecord(state.allocationRecord),
+      /* TODO: copy only for originating states */
+      // guidingConstraints(state.guidingConstraints),
+      writtenAddresses(state.writtenAddresses),
+      pendingRecoveryInfos(state.pendingRecoveryInfos),
+      recoveryCache(state.recoveryCache),
+      /* recovery state properties */
+      exitInst(state.exitInst), dependentState(state.dependentState),
+      originatingState(state.originatingState),
+      recoveryInfo(state.recoveryInfo),
+      guidingAllocationRecord(state.guidingAllocationRecord),
+      recursionLevel(state.recursionLevel), priority(state.priority) {
   constraints.fork();
   queryMetaData.id = state.id;
+
+  /* TODO: possibly not required if snapshots are cleared */
+  if (isNormalState() && !isRecoveryState()) {
+    guidingConstraints = state.guidingConstraints;
+  }
 }
 
 ExecutionState *ExecutionState::branch() {
@@ -191,6 +211,14 @@ ExecutionState *ExecutionState::branch() {
   falseState->coveredLines.clear();
   falseState->prevTargets_ = falseState->targets_;
   falseState->prevHistory_ = falseState->history_;
+
+  /* TODO remove assertions */
+  if (this->isNormalState()) {
+    assert(falseState->isNormalState() && "false state is not a normal state");
+  } else {
+    assert(falseState->isRecoveryState() &&
+           "false state is not a recovery state");
+  }
 
   return falseState;
 }
@@ -480,3 +508,15 @@ Query ExecutionState::toQuery(ref<Expr> head) const {
 }
 
 Query ExecutionState::toQuery() const { return toQuery(Expr::createFalse()); }
+
+void ExecutionState::getCallTrace(std::vector<Instruction *> &callTrace) {
+  for (const auto &sf : stack.callStack()) {
+    /* skip the main frame */
+    if (sf.kf->function()->getName() == "main") {
+      continue;
+    }
+
+    Instruction *inst = sf.caller->inst();
+    callTrace.push_back(inst);
+  }
+}

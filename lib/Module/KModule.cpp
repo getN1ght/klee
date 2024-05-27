@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/Internal/Analysis/AAPass.h"
 #define DEBUG_TYPE "KModule"
 
 #include "Passes.h"
@@ -266,6 +267,15 @@ void KModule::instrument(const Interpreter::ModuleOptions &opts) {
 void KModule::optimiseAndPrepare(
     const Interpreter::ModuleOptions &opts,
     llvm::ArrayRef<const char *> preservedFunctions) {
+  {
+    legacy::PassManager pm;
+
+    auto aa = new AAPass();
+    aa->setPAType(SVF::PointerAnalysis::Andersen_WPA);
+    pm.add(aa);
+    pm.run(*module);
+  }
+
   // Preserve all functions containing klee-related function calls from being
   // optimised around
   if (!OptimiseKLEECall) {
@@ -526,6 +536,40 @@ Function *llvm::getTargetFunction(Value *calledVal) {
     } else
       return 0;
   }
+}
+
+void KModule::addFunction(KFunction *kf, bool isSkippingFunctions,
+                          Cloner *cloner, ModRefAnalysis *mra) {
+  for (unsigned i = 0; i < kf->numInstructions; ++i) {
+    KInstruction *ki = kf->instructions[i];
+    // ki->info = &infos->getInfo(ki->inst());
+    ki->isCloned = kf->isCloned;
+    ki->origInst = NULL;
+    ki->mayBlock = false;
+    ki->mayOverride = false;
+
+    if (!isSkippingFunctions) {
+      continue;
+    }
+
+    if (kf->isCloned) {
+      Value *origValue = cloner->translateValue(ki->inst());
+      if (origValue) {
+        /* TODO: some instructions can't be translated (RET, ...) */
+        ki->origInst = dyn_cast<llvm::Instruction>(origValue);
+      }
+    }
+
+    if (ki->inst()->getOpcode() == Instruction::Load) {
+      ki->mayBlock = mra->mayBlock(ki->getOrigInst());
+    }
+    if (ki->inst()->getOpcode() == Instruction::Store) {
+      ki->mayOverride = mra->mayOverride(ki->getOrigInst());
+    }
+  }
+
+  functions.emplace_back(kf);
+  functionMap.insert(std::make_pair(kf->function(), kf));
 }
 
 KConstant *KModule::getKConstant(const Constant *c) {

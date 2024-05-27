@@ -1,0 +1,123 @@
+diff a/lib/Core/Searcher.h b/lib/Core/Searcher.h	(rejected hunks)
+@@ -10,6 +10,8 @@
+ #ifndef KLEE_SEARCHER_H
+ #define KLEE_SEARCHER_H
+ 
++#include "PTree.h"
++
+ #include "llvm/Support/raw_ostream.h"
+ #include <vector>
+ #include <set>
+@@ -78,6 +80,11 @@ namespace klee {
+       NURS_CPICnt,
+       NURS_QC
+     };
++
++    enum RecoverySearchType {
++      RS_DFS,
++      RS_RandomPath,
++    };
+   };
+ 
+   class DFSSearcher : public Searcher {
+@@ -288,7 +295,14 @@ namespace klee {
+     void update(ExecutionState *current,
+                 const std::vector<ExecutionState *> &addedStates,
+                 const std::vector<ExecutionState *> &removedStates);
+-    bool empty() { return searchers[0]->empty(); }
++    bool empty() {
++      for (Searcher *s : searchers) {
++        if (!s->empty()) {
++          return false;
++        }
++      }
++      return true;
++    }
+     void printName(llvm::raw_ostream &os) {
+       os << "<InterleavedSearcher> containing "
+          << searchers.size() << " searchers:\n";
+@@ -299,6 +313,84 @@ namespace klee {
+     }
+   };
+ 
++  class SplittedSearcher : public Searcher {
++    Searcher *baseSearcher;
++    Searcher *recoverySearcher;
++    unsigned int ratio;
++
++  public:
++    SplittedSearcher(Searcher *baseSearcher, Searcher *recoverySearcher, unsigned int ratio);
++    ~SplittedSearcher();
++
++    ExecutionState &selectState();
++    void update(ExecutionState *current,
++                const std::vector<ExecutionState *> &addedStates,
++                const std::vector<ExecutionState *> &removedStates);
++    bool empty();
++    void printName(llvm::raw_ostream &os) {
++      os << "SplittedSearcher\n";
++      os << "- base searcher: "; baseSearcher->printName(os);
++      os << "- recovery searcher: "; recoverySearcher->printName(os);
++      os << "- ratio = " << ratio << "\n";
++    }
++  };
++
++  class RandomRecoveryPath : public Searcher {
++    Executor &executor;
++    /* a stack of recovery states,
++     * where each state is the root of a recovery tree
++     */
++    std::stack<PTree::Node *> treeStack;
++    /* this is a simple way to keep track of the states of the recovery trees */
++    std::vector<ExecutionState *> states;
++
++  public:
++    RandomRecoveryPath(Executor &executor);
++
++    ~RandomRecoveryPath();
++
++    ExecutionState &selectState();
++
++    void update(ExecutionState *current,
++                const std::vector<ExecutionState *> &addedStates,
++                const std::vector<ExecutionState *> &removedStates);
++
++    bool empty();
++
++    void printName(llvm::raw_ostream &os) {
++      os << "RandomRecoveryPath\n";
++    }
++
++  };
++
++  class OptimizedSplittedSearcher : public Searcher {
++    Searcher *baseSearcher;
++    Searcher *recoverySearcher;
++    Searcher *highPrioritySearcher;
++    unsigned int ratio;
++
++  public:
++    OptimizedSplittedSearcher(
++      Searcher *baseSearcher,
++      Searcher *recoverySearcher,
++      Searcher *highPrioritySearcher,
++      unsigned int ratio
++    );
++    ~OptimizedSplittedSearcher();
++
++    ExecutionState &selectState();
++    void update(ExecutionState *current,
++                const std::vector<ExecutionState *> &addedStates,
++                const std::vector<ExecutionState *> &removedStates);
++    bool empty();
++    void printName(llvm::raw_ostream &os) {
++      os << "OptimizedSplittedSearcher\n";
++      os << "- base searcher: "; baseSearcher->printName(os);
++      os << "- low priority searcher: "; recoverySearcher->printName(os);
++      os << "- high priority searcher: "; highPrioritySearcher->printName(os);
++      os << "- ratio = " << ratio << "\n";
++    }
++  };
+ }
+ 
+ #endif

@@ -12,6 +12,8 @@
 
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
+#include "klee/Internal/Analysis/Cloner.h"
+#include "klee/Internal/Analysis/ModRefAnalysis.h"
 #include "klee/Module/KCallable.h"
 #include "klee/Module/KValue.h"
 
@@ -169,6 +171,8 @@ private:
   const unsigned globalIndex;
 
 public:
+  bool isCloned;
+
   KModule *parent;
   KInstruction **instructions;
 
@@ -325,7 +329,7 @@ public:
                      std::unique_ptr<KGlobalVariable>>
       globalMap;
 
-  std::unique_ptr<Cell[]> constantTable;
+  std::vector<Cell> constantTable;
 
   // Functions which are part of KLEE runtime
   std::set<const llvm::Function *> internalFunctions;
@@ -340,6 +344,19 @@ public:
                        const char *original, const char *replacement);
 
   KModule() = default;
+
+  // -    void prepare(const Interpreter::ModuleOptions &opts,
+  // -                 InterpreterHandler *ihandler);
+  // +    void prepare(const Interpreter::ModuleOptions &opts,
+  // +                 const std::vector<Interpreter::SkippedFunctionOption>
+  // &skippedFunctions,
+  // +                 InterpreterHandler *ihandler,
+  // +                 ReachabilityAnalysis *ra,
+  // +                 Inliner *inliner,
+  // +                 AAPass *aa,
+  // +                 ModRefAnalysis *mra,
+  // +                 Cloner *cloner,
+  // +                 SliceGenerator *sliceGenerator);
 
   /// Optimise and prepare module such that KLEE can execute it
   //
@@ -374,6 +391,9 @@ public:
 
   /// Return an id for the given constant, creating a new one if necessary.
   unsigned getConstantID(llvm::Constant *c, KInstruction *ki);
+
+  void addFunction(KFunction *kf, bool isSkippingFunctions, Cloner *cloner,
+                   ModRefAnalysis *mra);
 
   /// Run passes that check if module is valid LLVM IR and if invariants
   /// expected by KLEE's Executor hold.

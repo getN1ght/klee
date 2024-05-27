@@ -84,6 +84,15 @@ private:
   const unsigned globalIndex;
 
 public:
+  /* TODO: add doc... */
+  bool isCloned;
+  /* points to the original instruction if the instruction is cloned */
+  llvm::Instruction *origInst;
+  /* relevant only for load instructions */
+  bool mayBlock;
+  /* relevant only for store instructions */
+  bool mayOverride;
+
   /// Unique index for KFunction and KInstruction inside KModule
   /// from 0 to [KFunction + KInstruction]
   [[nodiscard]] unsigned getGlobalIndex() const;
@@ -100,6 +109,14 @@ public:
   KInstruction() = delete;
   explicit KInstruction(const KInstruction &ki) = delete;
   virtual ~KInstruction();
+
+  llvm::Instruction *getOrigInst() {
+    if (isCloned) {
+      return origInst;
+    }
+    return inst();
+  }
+
   std::string getSourceLocation() const;
 
   [[nodiscard]] size_t getLine() const;

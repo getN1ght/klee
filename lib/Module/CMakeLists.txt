@@ -33,6 +33,7 @@ set(KLEE_MODULE_COMPONENT_SRCS
   Target.cpp
   TargetHash.cpp
   TargetForest.cpp
+  ReturnToVoidFunctionPass.cpp
 )
 
 add_library(kleeModule
@@ -57,8 +58,17 @@ llvm_config(kleeModule "${USE_LLVM_SHARED}"
   )
 
 target_link_libraries(kleeModule PRIVATE
+  kleeAnalysis
   kleeSupport
 )
 target_include_directories(kleeModule PRIVATE ${KLEE_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
 target_compile_options(kleeModule PRIVATE ${KLEE_COMPONENT_CXX_FLAGS})
 target_compile_definitions(kleeModule PRIVATE ${KLEE_COMPONENT_CXX_DEFINES})
+
+target_include_directories(kleeModule SYSTEM PUBLIC
+    ${SVF_ROOT_DIR}/svf/include
+    ${SVF_ROOT_DIR}/svf-llvm/include
+    ${SVF_ROOT_DIR}/build/include
+    ${DG_ROOT_DIR}/include
+    ${DG_ROOT_DIR}/tools/include
+)

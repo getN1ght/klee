@@ -5,6 +5,7 @@
 #include "PForest.h"
 #include "klee/ADT/Ref.h"
 #include "klee/Core/BranchTypes.h"
+#include "klee/Core/Interpreter.h"
 #include "klee/Module/KModule.h"
 
 #include <set>
@@ -68,8 +69,10 @@ public:
 private:
   std::vector<Subscriber *> subscribers;
   PForest *processForest;
+  // TODO: stub. Remove it later.
 
 public:
+  InterpreterHandler *interpreterHandler;
   states_ty states;
 
   // These are used to buffer execution results and pass the updates to

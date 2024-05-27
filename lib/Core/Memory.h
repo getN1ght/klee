@@ -15,6 +15,7 @@
 #include "TimingSolver.h"
 #include "klee/ADT/Ref.h"
 #include "klee/ADT/SparseStorage.h"
+#include "klee/AllocationRecord.h"
 #include "klee/Core/Context.h"
 
 #include "klee/Expr/Assignment.h"
@@ -54,6 +55,7 @@ class MemoryObject {
   friend class ExecutionState;
   friend class ref<MemoryObject>;
   friend class ref<const MemoryObject>;
+  friend class AllocationRecord;
 
 private:
   // Counter is using for id's of MemoryObjects.

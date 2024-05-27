@@ -37,6 +37,9 @@ ExecutionState *ObjectManager::branchState(ExecutionState *state,
                                            BranchType reason) {
   assert(statesUpdated);
   ExecutionState *newState = state->branch();
+  if (newState->isRecoveryState()) {
+    // interpreterHandler->incRecoveryStatesCount();
+  }
   addedStates.push_back(newState);
   processForest->attach(state->ptreeNode, newState, state, reason);
   stats::incBranchStat(reason, 1);

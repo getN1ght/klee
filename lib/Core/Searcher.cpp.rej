@@ -1,0 +1,326 @@
+diff a/lib/Core/Searcher.cpp b/lib/Core/Searcher.cpp	(rejected hunks)
+@@ -109,8 +109,17 @@ void BFSSearcher::update(ExecutionState *current,
+   if (!addedStates.empty() && current &&
+       std::find(removedStates.begin(), removedStates.end(), current) ==
+           removedStates.end()) {
+-    assert(states.front() == current);
+-    states.pop_front();
++    if (states.front() == current) {
++      // BFS is the only searcher
++      states.pop_front();
++    } else {
++      // interleaved with other searcher
++      std::deque<ExecutionState*>::iterator pos = std::find(states.begin(),
++                                                            states.end(),
++                                                            current);
++      assert(pos != states.end());
++      states.erase(pos);
++    }
+     states.push_back(current);
+   }
+ 
+@@ -292,7 +301,11 @@ ExecutionState &RandomPathSearcher::selectState() {
+     }
+   }
+ 
+-  return *n->data;
++  ExecutionState *es = n->data;
++  while (es->isSuspended()) {
++    es = es->getRecoveryState();
++  }
++  return *es;
+ }
+ 
+ void
+@@ -634,8 +647,14 @@ InterleavedSearcher::~InterleavedSearcher() {
+ }
+ 
+ ExecutionState &InterleavedSearcher::selectState() {
+-  Searcher *s = searchers[--index];
+-  if (index==0) index = searchers.size();
++  assert(!empty());
++  Searcher *s;
++  do {
++    s = searchers[--index];
++    if (index == 0) {
++      index = searchers.size();
++    }
++  } while (s->empty());
+   return s->selectState();
+ }
+ 
+@@ -646,3 +665,274 @@ void InterleavedSearcher::update(
+          ie = searchers.end(); it != ie; ++it)
+     (*it)->update(current, addedStates, removedStates);
+ }
++
++/* splitted searcher */
++SplittedSearcher::SplittedSearcher(Searcher *baseSearcher, Searcher *recoverySearcher, unsigned int ratio)
++  : baseSearcher(baseSearcher), recoverySearcher(recoverySearcher), ratio(ratio)
++{
++
++}
++
++SplittedSearcher::~SplittedSearcher() {
++  delete baseSearcher;
++}
++
++ExecutionState &SplittedSearcher::selectState() {
++  if (baseSearcher->empty()) {
++    /* the recovery states are supposed to be not empty */
++    return recoverySearcher->selectState();
++  }
++
++  if (recoverySearcher->empty()) {
++    /* the base searcher is supposed to be not empty */
++    return baseSearcher->selectState();
++  }
++
++  /* in this case, both searchers are supposed to be not empty */
++  if (theRNG.getInt32() % 100 < ratio) {
++    /* we handle recovery states in a DFS manner */
++    return recoverySearcher->selectState();
++  } else {
++    return baseSearcher->selectState();
++  }
++}
++
++void SplittedSearcher::update(
++  ExecutionState *current,
++  const std::vector<ExecutionState *> &addedStates,
++  const std::vector<ExecutionState *> &removedStates
++) {
++  std::vector<ExecutionState *> addedOriginatingStates;
++  std::vector<ExecutionState *> addedRecoveryStates;
++  std::vector<ExecutionState *> removedOriginatingStates;
++  std::vector<ExecutionState *> removedRecoveryStates;
++
++  /* split added states */
++  for (auto i = addedStates.begin(); i != addedStates.end(); i++) {
++    ExecutionState *es = *i;
++    if (es->isRecoveryState()) {
++      addedRecoveryStates.push_back(es);
++    } else {
++      addedOriginatingStates.push_back(es);
++    }
++  }
++
++  /* split removed states */
++  for (auto i = removedStates.begin(); i != removedStates.end(); i++) {
++    ExecutionState *es = *i;
++    if (es->isRecoveryState()) {
++      removedRecoveryStates.push_back(es);
++    } else {
++      removedOriginatingStates.push_back(es);
++    }
++  }
++
++  if (current && current->isRecoveryState()) {
++    baseSearcher->update(NULL, addedOriginatingStates, removedOriginatingStates);
++  } else {
++    baseSearcher->update(current, addedOriginatingStates, removedOriginatingStates);
++  }
++
++  if (current && !current->isRecoveryState()) {
++    recoverySearcher->update(NULL, addedRecoveryStates, removedRecoveryStates);
++  } else {
++    recoverySearcher->update(current, addedRecoveryStates, removedRecoveryStates);
++  }
++}
++
++bool SplittedSearcher::empty() {
++  return baseSearcher->empty() && recoverySearcher->empty();
++}
++
++/* random-path searcher for the recovery model */
++RandomRecoveryPath::RandomRecoveryPath(Executor &executor)
++  : executor(executor)
++{
++
++}
++
++RandomRecoveryPath::~RandomRecoveryPath() {
++
++}
++
++ExecutionState &RandomRecoveryPath::selectState() {
++  if (treeStack.empty()) {
++    /* as this point, the order of selection does not matter */
++    return *states.front();
++  }
++
++  unsigned int flips = 0;
++  unsigned int bits = 0;
++
++  /* select the root */
++  PTree::Node *n = treeStack.top();
++
++  while (!n->data) {
++    if (!n->left) {
++      n = n->right;
++    } else if (!n->right) {
++      n = n->left;
++    } else {
++      if (bits==0) {
++        flips = theRNG.getInt32();
++        bits = 32;
++      }
++      --bits;
++      n = (flips&(1<<bits)) ? n->left : n->right;
++    }
++  }
++
++  ExecutionState *es = n->data;
++  while (es->isSuspended()) {
++    es = es->getRecoveryState();
++  }
++  return *es;
++}
++
++void RandomRecoveryPath::update(
++  ExecutionState *current,
++  const std::vector<ExecutionState *> &addedStates,
++  const std::vector<ExecutionState *> &removedStates
++) {
++  for (auto i = addedStates.begin(); i != addedStates.end(); i++) {
++    ExecutionState *es = *i;
++    if (es->getLevel() == treeStack.size()) {
++      /* this state has a higher level, so we push it as a root */
++      treeStack.push(es->ptreeNode);
++    }
++
++    /* add state */
++    states.push_back(es);
++  }
++  for (auto i = removedStates.begin(); i != removedStates.end(); i++) {
++    ExecutionState *es = *i;
++    /* a top level recovery state terminated, so we pop it's root from the stack */
++    if (es->isResumed() && es->getLevel() == treeStack.size() - 1) {
++      treeStack.pop();
++    }
++
++    /* remove state */
++    for (auto j = states.begin(); j != states.end(); j++) {
++      if (es == *j) {
++        states.erase(j);
++        break;
++      }
++    }
++  }
++}
++
++bool RandomRecoveryPath::empty() {
++  return treeStack.empty() && states.empty();
++}
++
++/* optimized splitted searcher */
++OptimizedSplittedSearcher::OptimizedSplittedSearcher(
++  Searcher *baseSearcher,
++  Searcher *recoverySearcher,
++  Searcher *highPrioritySearcher,
++  unsigned int ratio
++) :
++  baseSearcher(baseSearcher),
++  recoverySearcher(recoverySearcher),
++  highPrioritySearcher(highPrioritySearcher),
++  ratio(ratio)
++{
++
++}
++
++OptimizedSplittedSearcher::~OptimizedSplittedSearcher() {
++  delete highPrioritySearcher;
++  delete recoverySearcher;
++  delete baseSearcher;
++}
++
++ExecutionState &OptimizedSplittedSearcher::selectState() {
++  /* high priority recovery states must be considered first */
++  if (!highPrioritySearcher->empty()) {
++    return highPrioritySearcher->selectState();
++  }
++
++  if (baseSearcher->empty()) {
++    /* the recovery states are supposed to be not empty */
++    return recoverySearcher->selectState();
++  }
++
++  if (recoverySearcher->empty()) {
++    /* the base searcher is supposed to be not empty */
++    return baseSearcher->selectState();
++  }
++
++  /* in this case, both searchers are supposed to be not empty */
++  if (theRNG.getInt32() % 100 < ratio) {
++    /* we handle recovery states in a DFS manner */
++    return recoverySearcher->selectState();
++  } else {
++    return baseSearcher->selectState();
++  }
++}
++
++void OptimizedSplittedSearcher::update(
++  ExecutionState *current,
++  const std::vector<ExecutionState *> &addedStates,
++  const std::vector<ExecutionState *> &removedStates
++) {
++  std::vector<ExecutionState *> addedOriginatingStates;
++  std::vector<ExecutionState *> addedRecoveryStates;
++  std::vector<ExecutionState *> removedOriginatingStates;
++  std::vector<ExecutionState *> removedRecoveryStates;
++
++  /* split added states */
++  for (auto i = addedStates.begin(); i != addedStates.end(); i++) {
++    ExecutionState *es = *i;
++    if (es->isRecoveryState()) {
++      if (es->getPriority() == PRIORITY_HIGH) {
++        highPrioritySearcher->addState(es);
++      } else {
++        addedRecoveryStates.push_back(es);
++      }
++    } else {
++      addedOriginatingStates.push_back(es);
++    }
++  }
++
++  /* split removed states */
++  for (auto i = removedStates.begin(); i != removedStates.end(); i++) {
++    ExecutionState *es = *i;
++    if (es->isRecoveryState()) {
++      if (es->getPriority() == PRIORITY_HIGH) {
++        highPrioritySearcher->removeState(es);
++        /* flush the high priority recovery states, only when a root recovery state terminates */
++        if ((es->isResumed() && es->getLevel() == 0)) {
++          int count = 0;
++          while (!highPrioritySearcher->empty()) {
++            ExecutionState &rs = highPrioritySearcher->selectState();
++            highPrioritySearcher->removeState(&rs);
++            rs.setPriority(PRIORITY_LOW);
++            recoverySearcher->addState(&rs);
++            count++;
++          }
++        }
++      } else {
++        removedRecoveryStates.push_back(es);
++      }
++    } else {
++      removedOriginatingStates.push_back(es);
++    }
++  }
++
++  if (current && current->isRecoveryState()) {
++    baseSearcher->update(NULL, addedOriginatingStates, removedOriginatingStates);
++  } else {
++    baseSearcher->update(current, addedOriginatingStates, removedOriginatingStates);
++  }
++
++  if (current && !current->isRecoveryState()) {
++    recoverySearcher->update(NULL, addedRecoveryStates, removedRecoveryStates);
++  } else {
++    recoverySearcher->update(current, addedRecoveryStates, removedRecoveryStates);
++  }
++}
++
++bool OptimizedSplittedSearcher::empty() {
++  return baseSearcher->empty() && recoverySearcher->empty() && highPrioritySearcher->empty();
++}
