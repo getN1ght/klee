@@ -42,7 +42,6 @@
 // #include "LIA.h"
 #include "Propositional.h"
 
-
 namespace {
 // NOTE: Very useful for debugging Z3 behaviour. These files can be given to
 // the z3 binary to replay all Z3 API calls using its `-log` option.
@@ -362,9 +361,11 @@ bool Z3SolverImpl::internalRunSolver(
 
   SolverBuilder newSolverBuilder =
       SolverBuilderFactory::forSolver<Z3Adapter>()
-          .thenApply<Arrays<BV, BV>>()
+          // ? Arrays<LIA, LIA>
           .thenApply<Propositional>()
-          // // .thenApply<SolverTheory::Sort::LIA>()
+          // .thenApply<Arrays<SolverTheory::Sort::LIA, SolverTheory::Sort::LIA>>()
+          // .thenApply<SolverTheory::Sort::LIA>()
+          .thenApply<Arrays<BV, BV>>()
           // .thenApply<FPBV>()
           .thenApply<BV>()
           .build();

@@ -78,10 +78,7 @@ SolverBuilder::buildWithTheory(const ref<SolverTheory> &theory,
   return theory->translate(expr, kidsHandles);
 }
 
-
-ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
-  
-}
+ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {}
 
 /*
  * Casts an expression to specified theory.
@@ -92,7 +89,7 @@ ref<TheoryHandle> SolverBuilder::build(const ref<Expr> &expr) {
  * weighted and use graph algorithms in order to
  * find the less expensive path to specified theory.
  */
-ref<TheoryHandle> SolverBuilder::castToTheory(const ref<TheoryHandle> &arg,
+ref<TheoryHandle> SolverBuilder::castToTheory(const ref<TheworyHandle> &arg,
                                               SolverTheory::Sort sort) {
   std::queue<ref<TheoryHandle>> castedHandlesQueue;
   castedHandlesQueue.push(arg);

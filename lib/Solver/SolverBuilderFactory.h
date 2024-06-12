@@ -1,19 +1,17 @@
 #ifndef SOLVERBUILDERFACTORY_H
 #define SOLVERBUILDERFACTORY_H
 
-#include <memory>
 #include <type_traits>
-#include <vector>
 
 #include "SolverAdapter.h"
 #include "SolverBuilder.h"
 #include "SolverTheory.h"
 
-#include "Arrays.h"
-#include "BV.h"
+// #include "Arrays.h"
+// #include "BV.h"
 // #include "FPBV.h"
 // #include "LIA.h"
-#include "Propositional.h"
+// #include "Propositional.h"
 
 namespace klee {
 class SolverBuilderFactory {
@@ -37,9 +35,8 @@ private:
      * in order of calls to this method.
      */
     template <typename ST>
-    constexpr RawSolverBuilder<Theory..., SolverTheory<ST>> thenApply() noexcept {
-      static_assert(std::is_base_of_v<SolverTheory, ST>,
-                    "Solver theory required to instantiate a factory");
+    constexpr RawSolverBuilder<Theory..., SolverTheory<ST>>
+    thenApply() noexcept {
       return RawSolverBuilder<Theory..., SolverTheory<ST>>(std::move(*this));
     }
 
@@ -53,7 +50,7 @@ public:
    * Constructs the factory for specified solver.
    * Takes class of adapter.
    */
-  template <typename SA> constexpr static RawSolverBuilder<> forSolver() {
+  template <typename SA> static RawSolverBuilder<> forSolver() {
     static_assert(std::is_base_of_v<SolverAdapter, SA>,
                   "Solver adapter required to instantiate a factory");
     return RawSolverBuilder<>(new SA());

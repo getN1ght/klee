@@ -1,12 +1,8 @@
 #include "Z3Adapter.h"
 
-#include "SolverBuilder.h"
 #include "z3++.h"
 
 #include "llvm/ADT/APInt.h"
-#include "llvm/Support/Casting.h"
-
-#include <iostream>
 
 using namespace klee;
 

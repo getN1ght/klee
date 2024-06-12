@@ -5,8 +5,6 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 
-#include <optional>
-
 using namespace klee;
 
 ref<SortHandle> SolverAdapter::bvSort(uint64_t width) { return nullptr; }

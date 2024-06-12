@@ -1,16 +1,10 @@
-#ifndef SOLVERTHEORY_H
-#define SOLVERTHEORY_H
+#ifndef _SOLVERTHEORY_H
+#define _SOLVERTHEORY_H
 
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Expr.h"
-#include "klee/util/EDM.h"
-
-#include "llvm/Support/Casting.h"
 
 #include "TheoryHandle.h"
-
-#include <type_traits>
-#include <unordered_map>
 
 namespace klee {
 
@@ -28,7 +22,7 @@ template <typename> class ExprHashMap;
  * Maintains a inner representation for solver
  * and type of expression inside.
  */
-template <typename D> struct SolverTheory {
+template <typename D> class SolverTheory {
 public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
@@ -42,101 +36,11 @@ public:
 
 private:
   template <typename... Args> bool isAllValid(const Args &&...args) {
-    return (![&](auto arg) -> bool {
-      return !isa<BrokenTheoryHandle>(arg);
-    }(args) && ...);
+    return ([&](const auto &arg) -> bool { return arg.has_value(); }(args) &&
+                                        ...);
   }
 
-  template <typename... Args>
-  std::vector<ref<Expr>> collectRequired(const Args &&...args) {
-    std::vector<ref<Expr>> required;
-    (
-        [&](auto arg) {
-          if (ref<IncompleteResponse> incompleteResponse =
-                  dyn_cast<IncompleteResponse>(arg)) {
-            required.insert(required.end(), incompleteResponse->toBuild.begin(),
-                            incompleteResponse->toBuild.end());
-          }
-        }(args),
-        ...);
-    return required;
-  }
-
-public:
-  /*
-   * Applies the given function to the list of
-   * args if args satisfy the signature. Also
-   * checks the completeness of all arguments,
-   * and if argument is incomplete, then returns
-   * incomplete handle with functor able to complete
-   * entire handle.
-   */
-  template <typename Functor, typename RT, typename... Args>
-  ref<TheoryHandle<RT>> apply(const Functor &functor, Args &&...args) {
-    /*
-     * If at least one argument is broken, then we
-     * can not build handle for that expression. Hence,
-     * we return a broken handle.
-     */
-    if (isAllValid(args)) {
-      /// FIXME: report with correct expression.
-      return new BrokenTheoryHandle(nullptr);
-    }
-
-    const std::vector<ref<Expr>> toBuild = collectRequired(args...);
-
-    /*
-     * Here we prepared array of expressions ``toBuild'', which are required
-     * to complete the handle. If this array is empty, then we may complete the
-     * handle right now. Otherwise, we return a completer, which require
-     * completed handles for all expressions from that list.
-     */
-    IncompleteResponse::completer_t completer =
-        [functor,
-         args...](const IncompleteResponse::TheoryHandleProvider &provider)
-        -> ref<SolverHandle> {
-      
-      auto unwrap =
-          [&provider](auto arg) -> ref<SolverHandle> {
-
-        /* Get the type of theory of received handle */
-        using theory_t = typename std::decay_t<decltype(arg)>::theory_t;
-
-        if (ref<IncompleteResponse<theory_t>> incompleteTheoryHandle =
-                dyn_cast<IncompleteResponse<theory_t>>(arg)) {
-          arg = incompleteTheoryHandle->complete(provider);
-        }
-        if (ref<CompleteTheoryHandle<theory_t>> completeTheoryHandle =
-                dyn_cast<CompleteTheoryHandle<theory_t>>(arg)) {
-          return completeTheoryHandle->expr();
-        }
-        std::abort();
-        return nullptr;
-      };
-
-      /*
-       * Check if functor applicable to given args and returns appropriate type.
-       */
-      if constexpr (std::is_invocable_v<functor, decltype(unwrap(args))...>) {
-        return functor(unwrap(args)...);
-      } else {
-        /* FIXME: Report an error in given expression */
-        return new BrokenTheoryHandle(nullptr);
-      }
-
-    };
-
-    if (toBuild.empty()) {
-      return new CompleteTheoryHandle<RT>(
-          completer(IncompleteResponse::TheoryHandleProvider()), expr);
-    } else {
-      return new IncompleteResponse(completer, toBuild);
-    }
-  }
-
-  /* FIXME: figure out better style */
   // std::unordered_map<SolverTheory::Sort, cast_function_t> castMapping;
-
 protected:
   ref<SolverAdapter> solverAdapter;
 

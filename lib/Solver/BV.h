@@ -3,6 +3,7 @@
 
 #include "SolverAdapter.h"
 #include "SolverTheory.h"
+#include "TheoryHandle.h"
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Expr.h"
 
@@ -20,11 +21,10 @@ struct BV : public SolverTheory<BV> {
   friend class SolverTheory;
 
 protected:
-
-  template <typename T, typename... Args>
-  ref<TheoryHandle<T>> translate(const ref<Expr> &expr,
-                                 Args &&...args) {
+  template <typename... Args>
+  ref<TheoryHandle<BV>> translate(const ref<Expr> &expr, Args &&...args) {
     typedef Expr::Kind Kind;
+
     switch (expr->getKind()) {
     case Kind::Constant:
       return constant(expr);
@@ -77,11 +77,12 @@ protected:
     case Kind::Eq:
       return eq(args[0], args[1]);
     default:
-      return new BrokenTheoryHandle(expr);
+      return nullptr;
     }
   }
 
-  // ref<TheoryHandle<Propositional>> castToBool(const ref<TheoryHandle<BV>> &handle) override {
+  // ref<TheoryHandle<Propositional>> castToBool(const ref<TheoryHandle<BV>>
+  // &handle) override {
   //   // SelectExpr::create()
   //   std::abort();
   //   return nullptr;
@@ -97,25 +98,15 @@ public:
 
   ref<TheoryHandle<BV>> constant(const ref<Expr> &val) {
     ref<ConstantExpr> cVal = dyn_cast<ConstantExpr>(val);
-    if (!cVal) {
-      // llvm::report_fatal_error()
-      // TODO: REPORT FATAL ERROR
-      std::abort();
-    }
-    return new CompleteTheoryHandle<BV>(
-        solverAdapter->bvConst(cVal->getAPValue()), val);
-  }
+    assert(!cVal.isNull());
 
-  template<typename ...Args>
-  ref<TheoryHandle<BV>> add(const Args... &&args) {
-    return new BrokenTheoryHandle(nullptr);
+    return new TheoryHandle<BV>(solverAdapter->bvConst(cVal->getAPValue()),
+                                val);
   }
 
   ref<TheoryHandle<BV>> add(const ref<TheoryHandle<BV>> &lhs,
                             const ref<TheoryHandle<BV>> &rhs) {
-    return apply(std::bind(&SolverAdapter::bvAdd, solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2),
-                 lhs, rhs);
+    return new TheoryHandle<BV>(solverAdapter->bvAdd(lhs, rhs), nullptr);
   }
 
   ref<TheoryHandle<BV>> sub(const ref<TheoryHandle<BV>> &lhs,
@@ -147,7 +138,7 @@ public:
   }
 
   ref<TheoryHandle<BV>> shl(const ref<TheoryHandle<BV>> &arg,
-                        const ref<TheoryHandle<BV>> &wth) {
+                            const ref<TheoryHandle<BV>> &wth) {
     return apply(std::bind(&SolverAdapter::bvShl, solverAdapter,
                            std::placeholders::_1, std::placeholders::_2),
                  arg, wth);
@@ -230,7 +221,7 @@ public:
   }
 
   ref<TheoryHandle<Propositional>> sle(const ref<TheoryHandle<BV>> &lhs,
-                            const ref<TheoryHandle<BV>> &rhs) {
+                                       const ref<TheoryHandle<BV>> &rhs) {
     return apply(std::bind(&SolverAdapter::bvSle, solverAdapter,
                            std::placeholders::_1, std::placeholders::_2),
                  lhs, rhs);

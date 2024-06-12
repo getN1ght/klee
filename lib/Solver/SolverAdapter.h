@@ -31,10 +31,6 @@ public:
 
 class SolverAdapter {
 public:
-  /// @brief Required by klee::ref-managed objects
-  class ReferenceCounter _refCount;
-
-public:
   virtual ref<SortHandle> bvSort(uint64_t width);
 
   /* Floats section */
@@ -174,6 +170,7 @@ public:
   virtual ref<SolverHandle> eq(const ref<SolverHandle> &lhs,
                                const ref<SolverHandle> &rhs);
 
+public:
   virtual ~SolverAdapter() = 0;
 };
 
