@@ -27,12 +27,8 @@ public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
 
-public:
   enum Sort { ARRAYS, BOOL, BV, FPBV, LIA };
   const Sort theorySort;
-
-  // typedef ref<TheoryHandle> (SolverTheory::*cast_function_t)(
-  //     const ref<TheoryHandle> &);
 
 private:
   template <typename... Args> bool isAllValid(const Args &&...args) {
@@ -40,24 +36,12 @@ private:
                                         ...);
   }
 
-  // std::unordered_map<SolverTheory::Sort, cast_function_t> castMapping;
 protected:
   ref<SolverAdapter> solverAdapter;
 
-  // FIXME: do casts in another way
-  // protected:
-  // template <typename D, typename R>
-  // virtual ref<TheoryHandle<Arrays<D, R>>>
-  // castToArray(const ref<TheoryHandle> &arg);
-
-  // virtual ref<TheoryHandle<BV>> castToBV(const ref<TheoryHandle<>> &arg);
-  // virtual ref<TheoryHandle<Propositional>>
-  // castToBool(const ref<TheoryHandle> &arg);
-  // virtual ref<TheoryHandle<FPBV>> castToFPBV(const ref<TheoryHandle> &arg);
-  // virtual ref<TheoryHandle<LIA>> castToLIA(const ref<TheoryHandle> &arg);
-
 public:
-  SolverTheory(Sort, const ref<SolverAdapter> &);
+  SolverTheory(Sort sort, ref<SolverAdapter> solverAdapter)
+      : theorySort(sort), solverAdapter(solverAdapter) {}
 
   virtual std::string toString() const = 0;
 
@@ -70,15 +54,14 @@ public:
 
   /*
    * Translates the given expression into a theory expression.
-   * Note: using ``Curiously recurring template pattern trick''.
+   * TODO: Useless comment below
+   Note: using ``Curiously recurring template pattern trick''.
    * Allows to make an analogue of templated virtual function.
    */
   template <typename RT, typename... Args>
   ref<TheoryHandle<RT>> translate(const ref<Expr> &expr, const Args &&...args) {
     return static_cast<D *>(this)->translate(expr, args...);
   }
-
-  // ref<TheoryHandle> castTo(Sort sort, const ref<TheoryHandle> &arg);
 
   Sort getSort() const { return theorySort; }
 

@@ -46,7 +46,7 @@ protected:
       return lshr(expr, args...);
     case Kind::SExt:
       // FIXME: remove complex logic
-      return sext(args[0],
+      return sext(args[0],w
                   constant(ConstantExpr::create(
                       expr->getWidth(), sizeof(expr->getWidth()) * CHAR_BIT)));
     case Kind::ZExt:

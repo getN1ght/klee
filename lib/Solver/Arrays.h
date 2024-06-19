@@ -1,12 +1,13 @@
 #ifndef ARRAYS_H
 #define ARRAYS_H
 
+#include "Propositional.h"
 #include "SolverAdapter.h"
 #include "SolverTheory.h"
 
+#include "TheoryHandle.h"
 #include "klee/Expr/Expr.h"
 
-#include <map>
 #include <vector>
 
 namespace klee {
@@ -19,111 +20,83 @@ private:
     const Array *array = readExpr->updates.root;
 
     // Create bitvector sorts
-    ref<SortHandle> domainSort = DS(solverAdapter).sort(array->getDomain());
-    ref<SortHandle> rangeSort = RS(solverAdapter).sort(array->getRange());
-    ref<SortHandle> arraySort = solverAdapter->arraySort(domainSort, rangeSort);
+    ref<SortHandle> domainSort =
+        DS(this->solverAdapter).sort(array->getDomain());
+    ref<SortHandle> rangeSort = RS(this->solverAdapter).sort(array->getRange());
+    ref<SortHandle> arraySort =
+        this->solverAdapter->arraySort(domainSort, rangeSort);
 
     ref<TheoryHandle<Arrays<DS, RS>>> arrayHandle =
-        new CompleteTheoryHandle<Arrays<DS, RS>>(
-            solverAdapter->array(array->getName(), arraySort), readExpr);
-
-    std::vector<ref<Expr>> required;
-    uint64_t exprToBuildInUpdateList = readExpr->updates.getSize() * 2;
+        new TheoryHandle<Arrays<DS, RS>>(
+            this->solverAdapter->array(array->getName(), arraySort), readExpr);
 
     if (ref<ConstantSource> constantSource =
             dyn_cast<ConstantSource>(array->source)) {
-      required.reserve(constantSource->constantValues.size() +
-                       exprToBuildInUpdateList);
-      for (ref<Expr> constantWriteExpr : constantSource->constantValues) {
-        required.push_back(constantWriteExpr);
+      for (std::size_t i = 0; i < constantSource->constantValues.size(); ++i) {
+        auto domainHandle = DS(this->solverAdapter)
+                                .translate(ConstantExpr::create(i, sizeof(i)));
+        auto valueHandle = RS(this->solverAdapter)
+                               .translate(constantSource->constantValues[i]);
+        auto eqHandle =
+            Propositional(this->solverAdapter)
+                .translate(EqExpr::create(ConstantExpr::create(i, sizeof(i)),
+                                          constantSource->constantValues[i]));
+        // TODO: put in the constraint set
       }
-    } else {
-      required.reserve(exprToBuildInUpdateList);
     }
 
     for (const ref<UpdateNode> &node : readExpr->updates) {
-      required.push_back(node->index);
-      required.push_back(node->value);
+      auto domainHandle = DS(this->solverAdapter).translate(node->index);
+      auto valueHandle = RS(this->solverAdapter).translate(node->value);
+      arrayHandle = new decltype(arrayHandle)(
+          write(arrayHandle, domainHandle, valueHandle), readExpr);
     }
 
-    if (required.size() == 0) {
-      return arrayHandle;
-    }
-
-    IncompleteResponse::completer_t completer =
-        [*this, arrayHandle,
-         readExpr](const IncompleteResponse::TheoryHandleProvider &map) mutable
-        -> ref<TheoryHandle<Arrays<DS, RS>>> {
-      /*
-       * TODO: should be located here, or somewhere else?
-       *
-       * Optimization on values on constant indices.
-       * Forms expression in form of
-       * - ReadExpr Idx Array == ConstantExpr
-       */
-      // if (ref<ConstantSource> constantSource =
-      //   dyn_cast<ConstantSource>(readExpr->array->source)) {
-      //   const std::vector<ref<ConstantExpr>> &constantValues =
-      //       constantSource->constantValues;
-      //   for (unsigned idx = 0; idx < constantValues.size(); ++idx) {
-      //     ref<TheoryHandle> constantAssertion =
-      //     map.at(constantValues.at(idx));
-      //   }
-      // }
-
-      for (const ref<UpdateNode> &node : readExpr->updates) {
-        arrayHandle =
-            write(arrayHandle, map.at(node->index), map.at(node->value));
-      }
-      return arrayHandle;
-    };
-
-    return new IncompleteResponse<Arrays<DS, RS>>(this, completer, required);
+    return arrayHandle;
   }
 
 public:
   template <typename... Args>
-  ref<TheoryHandle> translate(const ref<Expr> &expr, const Args... &&args) {
+  ref<TheoryHandle<Arrays<DS, RS>>> translate(const ref<Expr> &expr,
+                                              Args &&...args) {
     switch (expr->getKind()) {
     case Expr::Kind::Read: {
       return read(expr, array(cast<ReadExpr>(expr)), args...);
     }
     default: {
-      return new BrokenTheoryHandle(expr);
+      return nullptr;
     }
     }
   }
 
   Arrays(const ref<SolverAdapter> &solverAdapter)
-      : SolverTheory(SolverTheory::ARRAYS, solverAdapter) {}
+      : SolverTheory<Arrays<DS, RS>>(SolverTheory<Arrays<DS, RS>>::ARRAYS,
+                                     solverAdapter) {}
 
   std::string toString() const override { return "Arrays"; }
 
   ref<SortHandle> sort(const ref<SortHandle> &domainSort,
                        const ref<SortHandle> &rangeSort) {
-    return solverAdapter->arraySort(domainSort, rangeSort);
+    return this->solverAdapter->arraySort(domainSort, rangeSort);
   }
 
   ref<TheoryHandle<RS>> read(const ref<Expr> &expr,
                              const ref<TheoryHandle<Arrays<DS, RS>>> &array,
                              const ref<TheoryHandle<DS>> &index) {
-    return apply(std::bind(&SolverAdapter::read, solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2),
-                 array, index);
+    return new TheoryHandle<Arrays<DS, RS>>(
+        this->solverAdapter->read(array, index), expr);
   }
 
   ref<TheoryHandle<Arrays<DS, RS>>>
-  write(const ref<TheoryHandle<Arrays<DS, RS>>> &array,
+  write(const ref<Expr> &expr, const ref<TheoryHandle<Arrays<DS, RS>>> &array,
         const ref<TheoryHandle<DS>> &index,
         const ref<TheoryHandle<RS>> &value) {
-    return apply(std::bind(&SolverAdapter::write, solverAdapter,
-                           std::placeholders::_1, std::placeholders::_2,
-                           std::placeholders::_3),
-                 array, index, value);
+    return new TheoryHandle<Arrays<DS, RS>>(
+        this->solverAdapter->write(array, index, value));
   }
 
   template <typename T> static bool classof(const SolverTheory<T> *th) {
-    return th->getSort() == Sort::ARRAYS;
+    return th->getSort() == SolverTheory<Arrays<DS, RS>>::ARRAYS;
   }
 };
 

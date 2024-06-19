@@ -22,6 +22,8 @@ public:
 
   TheoryHandle(const ref<SolverHandle> &handle, const ref<Expr> &source)
       : source(source), handle(handle) {}
+
+  operator ref<SolverHandle>() const { return handle; }
 };
 
 } // namespace klee

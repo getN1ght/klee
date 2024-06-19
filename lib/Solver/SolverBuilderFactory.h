@@ -7,12 +7,6 @@
 #include "SolverBuilder.h"
 #include "SolverTheory.h"
 
-// #include "Arrays.h"
-// #include "BV.h"
-// #include "FPBV.h"
-// #include "LIA.h"
-// #include "Propositional.h"
-
 namespace klee {
 class SolverBuilderFactory {
 private:
