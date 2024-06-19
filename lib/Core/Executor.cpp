@@ -5484,7 +5484,8 @@ void Executor::executeFree(ExecutionState &state, ref<PointerExpr> address,
   }
 
   auto type = target->inst()->getOperand(0)->getType();
-  unsigned bytes = getWidthForLLVMType(type->getPointerElementType());
+  unsigned bytes = Expr::getMinBytesForWidth(
+      getWidthForLLVMType(type->getPointerElementType()));
 
   if (zeroPointer.second) { // address != 0
     ExactResolutionList rl;
