@@ -165,8 +165,13 @@ KTest *kTest_fromFile(const char *path) {
     if (!read_uint32(f, &o->numBytes))
       goto error;
     o->bytes = (unsigned char *)malloc(o->numBytes);
+    o->finalBytes = (unsigned char *)malloc(o->numBytes);
+
     if (fread(o->bytes, o->numBytes, 1, f) != 1)
       goto error;
+    if (fread(o->finalBytes, o->numBytes, 1, f) != 1)
+      goto error;
+
     if (version >= 4) {
       if (!read_uint32(f, &o->numPointers))
         goto error;
@@ -252,6 +257,9 @@ int kTest_toFile(const KTest *bo, const char *path) {
       goto error;
     if (o->numBytes && fwrite(o->bytes, o->numBytes, 1, f) != 1)
       goto error;
+    if (o->numBytes && fwrite(o->finalBytes, o->numBytes, 1, f) != 1)
+      goto error;
+
     if (!write_uint32(f, o->numPointers))
       goto error;
     for (j = 0; j < o->numPointers; j++) {
@@ -290,6 +298,7 @@ void kTest_free(KTest *bo) {
   for (i = 0; i < bo->numObjects; i++) {
     free(bo->objects[i].name);
     free(bo->objects[i].bytes);
+    free(bo->objects[i].finalBytes);
     free(bo->objects[i].pointers);
   }
   free(bo->objects);

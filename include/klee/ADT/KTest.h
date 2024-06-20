@@ -29,6 +29,7 @@ struct KTestObject {
   uint64_t address; // As a heuristic for now
   unsigned numBytes;
   unsigned char *bytes;
+  unsigned char *finalBytes;
   unsigned numPointers;
   Pointer *pointers;
 };

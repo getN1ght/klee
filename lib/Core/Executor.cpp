@@ -7597,12 +7597,29 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
       o->numBytes = cast<ConstantExpr>(evaluator.visit(mo->getSizeExpr()))
                         ->getZExtValue();
       o->bytes = new unsigned char[o->numBytes];
+      o->finalBytes = new unsigned char[o->numBytes];
+
       for (size_t j = 0; j < o->numBytes; j++) {
         o->bytes[j] = values.load(j);
       }
       o->numPointers = 0;
       o->pointers = nullptr;
       i++;
+
+      auto op = state.addressSpace.findObject(mo.get());
+      if (op.second != nullptr) {
+        llvm::errs() << "EVALUATING " << o->name << "\n";
+        auto os = op.second;
+
+        for (std::size_t b = 0; i < o->numBytes; ++b) {
+          ref<Expr> re = os->read(Expr::Int8 * b, Expr::Int8);
+          ref<ConstantExpr> ceByte = cast<ConstantExpr>(evaluator.visit(re));
+          o->finalBytes[b] = ceByte->getZExtValue();
+        }
+      } else {
+        llvm::errs() << "NO FINAL VALUE FOR " << o->name << "\n";
+        memset(o->finalBytes, 0, o->numBytes);
+      }
     }
   }
 
