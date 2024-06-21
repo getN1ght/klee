@@ -7596,8 +7596,9 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
                        ->getZExtValue();
       o->numBytes = cast<ConstantExpr>(evaluator.visit(mo->getSizeExpr()))
                         ->getZExtValue();
+      o->finalBytes = nullptr;
+
       o->bytes = new unsigned char[o->numBytes];
-      o->finalBytes = new unsigned char[o->numBytes];
 
       for (size_t j = 0; j < o->numBytes; j++) {
         o->bytes[j] = values.load(j);
@@ -7608,17 +7609,30 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
 
       auto op = state.addressSpace.findObject(mo.get());
       if (op.second != nullptr) {
-        llvm::errs() << "EVALUATING " << o->name << "\n";
+        o->finalBytes = new unsigned char[o->numBytes];
+
         auto os = op.second;
 
-        for (std::size_t b = 0; i < o->numBytes; ++b) {
-          ref<Expr> re = os->read(Expr::Int8 * b, Expr::Int8);
-          ref<ConstantExpr> ceByte = cast<ConstantExpr>(evaluator.visit(re));
+        for (std::size_t b = 0; b < o->numBytes; ++b) {
+          auto evalRe = evaluator.visit(os->read8(b));
+          ref<ConstantExpr> ceByte = nullptr;
+          switch (evalRe->getKind()) {
+          case Expr::Constant: {
+            ceByte = cast<ConstantExpr>(evalRe);
+            break;
+          }
+          case Expr::ConstantPointer: {
+            ceByte = cast<ConstantPointerExpr>(evalRe)->getConstantValue();
+            break;
+          }
+          default: {
+            assert(false && "unexpected expression");
+          }
+          }
           o->finalBytes[b] = ceByte->getZExtValue();
         }
       } else {
         llvm::errs() << "NO FINAL VALUE FOR " << o->name << "\n";
-        memset(o->finalBytes, 0, o->numBytes);
       }
     }
   }
