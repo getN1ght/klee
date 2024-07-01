@@ -128,6 +128,9 @@ public:
 
 private:
   int *errno_addr;
+  decltype(__ctype_b_loc()) c_type_b_loc_addr;
+  decltype(__ctype_tolower_loc()) c_type_tolower_addr;
+  decltype(__ctype_toupper_loc()) c_type_toupper_addr;
 
   size_t maxNewWriteableOSSize = 0;
   size_t maxNewStateStackSize = 0;
@@ -269,6 +272,8 @@ private:
   // objects checked code can reference.
   MemoryObject *addExternalObject(ExecutionState &state, void *addr, KType *,
                                   unsigned size, bool isReadOnly);
+  ObjectPair addExternalObjectAsNonStatic(ExecutionState &state, KType *,
+                                          unsigned size, bool isReadOnly);
 
   void initializeGlobalAlias(const llvm::Constant *c, ExecutionState &state);
   void initializeGlobalObject(ExecutionState &state, ObjectState *os,

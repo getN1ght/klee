@@ -507,9 +507,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(nullptr),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
-      pathWriter(0), symPathWriter(0),
-      specialFunctionHandler(0), timers{time::Span(TimerInterval)},
-      guidanceKind(opts.Guidance), codeGraphInfo(new CodeGraphInfo()),
+      pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
+      timers{time::Span(TimerInterval)}, guidanceKind(opts.Guidance),
+      codeGraphInfo(new CodeGraphInfo()),
       distanceCalculator(new DistanceCalculator(*codeGraphInfo)),
       targetCalculator(new TargetCalculator(*codeGraphInfo)),
       targetManager(new TargetManager(guidanceKind, *distanceCalculator,
@@ -816,6 +816,19 @@ void Executor::initializeGlobalObject(ExecutionState &state, ObjectState *os,
   }
 }
 
+ObjectPair Executor::addExternalObjectAsNonStatic(ExecutionState &state,
+                                                  KType *type, unsigned size,
+                                                  bool isReadOnly) {
+  auto mo =
+      allocate(state, Expr::createPointer(size), false, true, nullptr, 8, type);
+  mo->isFixed = true;
+
+  auto os = bindObjectInState(state, mo, type, false);
+  os->setReadOnly(isReadOnly);
+
+  return ObjectPair{mo, os};
+}
+
 MemoryObject *Executor::addExternalObject(ExecutionState &state, void *addr,
                                           KType *type, unsigned size,
                                           bool isReadOnly) {
@@ -893,17 +906,13 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
   llvm::Type *pointerErrnoAddr = llvm::PointerType::get(
       llvm::IntegerType::get(m->getContext(), sizeof(*errno_addr) * CHAR_BIT),
       adressSpaceNum);
-  MemoryObject *errnoObj = nullptr;
+  const MemoryObject *errnoObj = nullptr;
 
   if (Context::get().getPointerWidth() == 32) {
-    errnoObj = allocate(state, Expr::createPointer(sizeof(*errno_addr)), false,
-                        true, nullptr, 8,
-                        typeSystemManager->getWrappedType(pointerErrnoAddr));
-    errnoObj->isFixed = true;
-
-    bindObjectInState(state, errnoObj,
-                      typeSystemManager->getWrappedType(pointerErrnoAddr),
-                      false);
+    errnoObj = addExternalObjectAsNonStatic(
+                   state, typeSystemManager->getWrappedType(pointerErrnoAddr),
+                   sizeof(*errno_addr), false)
+                   .first;
     errno_addr = reinterpret_cast<int *>(
         cast<ConstantExpr>(errnoObj->getBaseExpr())->getZExtValue());
   } else {
@@ -915,49 +924,142 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
   }
 
   // Copy values from and to program space explicitly
-  errnoObj->isUserSpecified = true;
+  const_cast<MemoryObject *>(errnoObj)->isUserSpecified = true;
 #endif
 
   // Disabled, we don't want to promote use of live externals.
 #ifdef HAVE_CTYPE_EXTERNALS
 #ifndef WINDOWS
 #ifndef DARWIN
-  /* from /usr/include/ctype.h:
-       These point into arrays of 384, so they can be indexed by any `unsigned
-       char' value [0,255]; by EOF (-1); or by any `signed char' value
-       [-128,-1).  ISO C requires that the ctype functions work for `unsigned */
-  const uint16_t **addr = __ctype_b_loc();
 
   llvm::Type *pointerAddr = llvm::PointerType::get(
-      llvm::IntegerType::get(m->getContext(), sizeof(**addr) * CHAR_BIT),
+      llvm::IntegerType::get(m->getContext(),
+                             sizeof(**__ctype_b_loc()) * CHAR_BIT),
       adressSpaceNum);
-  addExternalObject(state, const_cast<uint16_t *>(*addr - 128),
-                    typeSystemManager->getWrappedType(pointerAddr),
-                    384 * sizeof **addr, true);
-  addExternalObject(state, addr, typeSystemManager->getWrappedType(pointerAddr),
-                    sizeof(*addr), true);
-
-  const int32_t **lowerAddr = __ctype_tolower_loc();
   llvm::Type *pointerLowerAddr = llvm::PointerType::get(
-      llvm::IntegerType::get(m->getContext(), sizeof(**lowerAddr) * CHAR_BIT),
+      llvm::IntegerType::get(m->getContext(),
+                             sizeof(**__ctype_tolower_loc()) * CHAR_BIT),
       adressSpaceNum);
-  addExternalObject(state, const_cast<int32_t *>(*lowerAddr - 128),
-                    typeSystemManager->getWrappedType(pointerLowerAddr),
-                    384 * sizeof **lowerAddr, true);
-  addExternalObject(state, lowerAddr,
-                    typeSystemManager->getWrappedType(pointerLowerAddr),
-                    sizeof(*lowerAddr), true);
-
-  const int32_t **upper_addr = __ctype_toupper_loc();
   llvm::Type *pointerUpperAddr = llvm::PointerType::get(
-      llvm::IntegerType::get(m->getContext(), sizeof(**upper_addr) * CHAR_BIT),
-      0);
-  addExternalObject(state, const_cast<int32_t *>(*upper_addr - 128),
-                    typeSystemManager->getWrappedType(pointerUpperAddr),
-                    384 * sizeof **upper_addr, true);
-  addExternalObject(state, upper_addr,
-                    typeSystemManager->getWrappedType(pointerUpperAddr),
-                    sizeof(*upper_addr), true);
+      llvm::IntegerType::get(m->getContext(),
+                             sizeof(**__ctype_toupper_loc()) * CHAR_BIT),
+      adressSpaceNum);
+
+  if (Context::get().getPointerWidth() == 32) {
+    {
+      auto ctypeBLocObj = addExternalObjectAsNonStatic(
+          state, typeSystemManager->getWrappedType(pointerAddr),
+          384 * sizeof(**__ctype_b_loc()), true);
+      auto ctypeBLocPointerObj = addExternalObjectAsNonStatic(
+          state, typeSystemManager->getWrappedType(pointerAddr),
+          Context::get().getPointerWidthInBytes(), true);
+      state.addressSpace
+          .getWriteable(ctypeBLocPointerObj.first, ctypeBLocPointerObj.second)
+          ->write(0,
+                  AddExpr::create(ctypeBLocObj.first->getBaseExpr(),
+                                  Expr::createPointer(
+                                      128 * sizeof(**__ctype_toupper_loc()))));
+      c_type_b_loc_addr = reinterpret_cast<decltype(c_type_b_loc_addr)>(
+          cast<ConstantExpr>(ctypeBLocPointerObj.first->getBaseExpr())
+              ->getZExtValue());
+      ref<ConstantExpr> seg =
+          cast<ConstantExpr>(ctypeBLocObj.first->getBaseExpr());
+      auto addr = *__ctype_b_loc() - 128;
+      for (unsigned i = 0; i < 384 * sizeof(**__ctype_b_loc()); i++) {
+        ref<Expr> byte = ConstantExpr::create(((uint8_t *)addr)[i], Expr::Int8);
+        state.addressSpace
+            .getWriteable(ctypeBLocObj.first, ctypeBLocObj.second)
+            ->write(i, PointerExpr::create(seg, byte));
+      }
+    }
+
+    {
+      auto ctypeToLowerObj = addExternalObjectAsNonStatic(
+          state, typeSystemManager->getWrappedType(pointerAddr),
+          384 * sizeof(**__ctype_tolower_loc()), true);
+      auto ctypeToLowerPointerObj = addExternalObjectAsNonStatic(
+          state, typeSystemManager->getWrappedType(pointerAddr),
+          Context::get().getPointerWidthInBytes(), true);
+      state.addressSpace
+          .getWriteable(ctypeToLowerPointerObj.first,
+                        ctypeToLowerPointerObj.second)
+          ->write(0,
+                  AddExpr::create(ctypeToLowerObj.first->getBaseExpr(),
+                                  Expr::createPointer(
+                                      128 * sizeof(**__ctype_toupper_loc()))));
+      c_type_tolower_addr = reinterpret_cast<decltype(c_type_tolower_addr)>(
+          cast<ConstantExpr>(ctypeToLowerPointerObj.first->getBaseExpr())
+              ->getZExtValue());
+
+      ref<ConstantExpr> seg =
+          cast<ConstantExpr>(ctypeToLowerObj.first->getBaseExpr());
+      auto addr = *__ctype_tolower_loc() - 128;
+      for (unsigned i = 0; i < 384 * sizeof(**__ctype_tolower_loc()); i++) {
+        ref<Expr> byte = ConstantExpr::create(((uint8_t *)addr)[i], Expr::Int8);
+        state.addressSpace
+            .getWriteable(ctypeToLowerObj.first, ctypeToLowerObj.second)
+            ->write(i, PointerExpr::create(seg, byte));
+      }
+    }
+
+    {
+      auto ctypeToUpperObj = addExternalObjectAsNonStatic(
+          state, typeSystemManager->getWrappedType(pointerUpperAddr),
+          384 * sizeof(**__ctype_toupper_loc()), true);
+      auto ctypeToUpperPointerObj = addExternalObjectAsNonStatic(
+          state, typeSystemManager->getWrappedType(pointerUpperAddr),
+          Context::get().getPointerWidthInBytes(), true);
+      state.addressSpace
+          .getWriteable(ctypeToUpperPointerObj.first,
+                        ctypeToUpperPointerObj.second)
+          ->write(0,
+                  AddExpr::create(ctypeToUpperObj.first->getBaseExpr(),
+                                  Expr::createPointer(
+                                      128 * sizeof(**__ctype_toupper_loc()))));
+      c_type_toupper_addr = reinterpret_cast<decltype(c_type_toupper_addr)>(
+          cast<ConstantExpr>(ctypeToUpperPointerObj.first->getBaseExpr())
+              ->getZExtValue());
+
+      ref<ConstantExpr> seg =
+          cast<ConstantExpr>(ctypeToUpperObj.first->getBaseExpr());
+      auto addr = *__ctype_toupper_loc() - 128;
+      for (unsigned i = 0; i < 384 * sizeof(**__ctype_toupper_loc()); i++) {
+        ref<Expr> byte = ConstantExpr::create(((uint8_t *)addr)[i], Expr::Int8);
+        state.addressSpace
+            .getWriteable(ctypeToUpperObj.first, ctypeToUpperObj.second)
+            ->write(i, PointerExpr::create(seg, byte));
+      }
+    }
+  } else {
+    /* from /usr/include/ctype.h:
+           These point into arrays of 384, so they can be indexed by any
+       `unsigned char' value [0,255]; by EOF (-1); or by any `signed char' value
+           [-128,-1).  ISO C requires that the ctype functions work for
+       `unsigned */
+    c_type_b_loc_addr = __ctype_b_loc();
+    addExternalObject(state, const_cast<uint16_t *>(*c_type_b_loc_addr - 128),
+                      typeSystemManager->getWrappedType(pointerAddr),
+                      384 * sizeof **c_type_b_loc_addr, true);
+    addExternalObject(state, c_type_b_loc_addr,
+                      typeSystemManager->getWrappedType(pointerAddr),
+                      sizeof(*c_type_b_loc_addr), true);
+
+    c_type_tolower_addr = __ctype_tolower_loc();
+    addExternalObject(state, const_cast<int32_t *>(*c_type_tolower_addr - 128),
+                      typeSystemManager->getWrappedType(pointerLowerAddr),
+                      384 * sizeof **c_type_tolower_addr, true);
+    addExternalObject(state, c_type_tolower_addr,
+                      typeSystemManager->getWrappedType(pointerLowerAddr),
+                      sizeof(*c_type_tolower_addr), true);
+
+    c_type_toupper_addr = __ctype_toupper_loc();
+    addExternalObject(state, const_cast<int32_t *>(*c_type_toupper_addr - 128),
+                      typeSystemManager->getWrappedType(pointerUpperAddr),
+                      384 * sizeof **c_type_toupper_addr, true);
+    addExternalObject(state, c_type_toupper_addr,
+                      typeSystemManager->getWrappedType(pointerUpperAddr),
+                      sizeof(*c_type_toupper_addr), true);
+  }
 #endif
 #endif
 #endif
@@ -4310,9 +4412,20 @@ void Executor::computeOffsetsSeqTy(KGEPInstruction *kgepi,
       kmodule->targetData->getTypeStoreSize(it->getContainedType(0));
   const Value *operand = it.getOperand();
   if (const Constant *c = dyn_cast<Constant>(operand)) {
-    ref<ConstantExpr> index =
-        cast<ConstantExpr>(evalConstant(c, llvm::APFloat::rmNearestTiesToEven))
-            ->SExt(Context::get().getPointerWidth());
+    auto expr = evalConstant(c, llvm::APFloat::rmNearestTiesToEven);
+    ref<ConstantExpr> index = nullptr;
+    if (expr->getKind() == Expr::Constant) {
+      index = cast<ConstantExpr>(
+                  evalConstant(c, llvm::APFloat::rmNearestTiesToEven))
+                  ->SExt(Context::get().getPointerWidth());
+    } else {
+      assert(expr->getKind() == Expr::ConstantPointer);
+      index = cast<ConstantExpr>(
+                  cast<ConstantPointerExpr>(
+                      evalConstant(c, llvm::APFloat::rmNearestTiesToEven))
+                      ->getValue())
+                  ->SExt(Context::get().getPointerWidth());
+    }
     ref<ConstantExpr> addend = index->Mul(
         ConstantExpr::alloc(elementSize, Context::get().getPointerWidth()));
     constantOffset = constantOffset->Add(addend);
@@ -5131,6 +5244,10 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
                                     std::vector<ref<Expr>> &arguments) {
   // check if specialFunctionHandler wants it
   if (const auto *func = dyn_cast<KFunction>(callable)) {
+    if (func->getName() == "raise") {
+      return;
+    }
+
     if (specialFunctionHandler->handle(state, func->function(), target,
                                        arguments))
       return;
