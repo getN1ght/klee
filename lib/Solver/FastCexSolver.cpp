@@ -14,21 +14,15 @@
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprEvaluator.h"
 #include "klee/Expr/ExprRangeEvaluator.h"
-#include "klee/Expr/ExprVisitor.h"
 #include "klee/Solver/IncompleteSolver.h"
 #include "klee/Support/Debug.h"
 #include "klee/Support/ErrorHandling.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APInt.h"
 #include "llvm/Support/raw_ostream.h"
-DISABLE_WARNING_POP
 
 #include <cassert>
 #include <map>
-#include <sstream>
 #include <utility>
 #include <vector>
 

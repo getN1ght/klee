@@ -12,6 +12,7 @@
 #define KLEE_PFOREST_H
 
 #include "PTree.h"
+#include "klee/Support/ErrorHandling.h"
 
 #include <map>
 

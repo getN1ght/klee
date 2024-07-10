@@ -11,7 +11,6 @@
 
 #include "ExecutionState.h"
 
-#include "klee/Config/Version.h"
 #include "klee/Core/TerminationTypes.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
@@ -28,25 +27,19 @@
 #include "MemoryManager.h"
 #include "UserSearcher.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
-DISABLE_WARNING_POP
 
-#include <fstream>
 #include <unistd.h>
 
 using namespace klee;

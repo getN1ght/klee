@@ -10,6 +10,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Config/config.h"
+#include "klee/Solver/SolverStats.h"
+#include "klee/Statistics/TimerStatIncrementer.h"
 
 #ifdef ENABLE_BITWUZLA
 
@@ -23,8 +25,6 @@
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverImpl.h"
-#include "klee/Support/ErrorHandling.h"
-#include "klee/Support/FileHandling.h"
 #include "klee/Support/OptionCategories.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
@@ -52,11 +52,7 @@ llvm::cl::opt<unsigned> BitwuzlaVerbosityLevel(
     llvm::cl::cat(klee::SolvingCat));
 } // namespace
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Support/ErrorHandling.h"
-DISABLE_WARNING_POP
 
 namespace {
 bool interrupted = false;

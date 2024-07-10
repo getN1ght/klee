@@ -9,7 +9,6 @@
 
 #include "klee/Expr/Constraints.h"
 
-#include "klee/Expr/ArrayExprVisitor.h"
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprHashMap.h"
@@ -24,14 +23,8 @@
 #include "klee/Module/KModule.h"
 #include "klee/Support/OptionCategories.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"
-DISABLE_WARNING_POP
-
-#include <map>
 
 using namespace klee;
 

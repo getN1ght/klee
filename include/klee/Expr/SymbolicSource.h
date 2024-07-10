@@ -4,17 +4,12 @@
 #include "klee/ADT/Ref.h"
 
 #include "klee/ADT/SparseStorage.h"
-#include "klee/Support/CompilerWarning.h"
-#include <memory>
 
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Argument.h"
-#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
-DISABLE_WARNING_POP
 
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>

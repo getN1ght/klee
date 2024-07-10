@@ -17,7 +17,6 @@
 #include "klee/Core/TargetedExecutionReporter.h"
 #include "klee/Module/LocationInfo.h"
 #include "klee/Module/SarifReport.h"
-#include "klee/Module/TargetForest.h"
 #include "klee/Solver/SolverCmdLine.h"
 #include "klee/Statistics/Statistics.h"
 #include "klee/Support/Debug.h"
@@ -31,8 +30,6 @@
 #include "klee/Support/CompilerWarning.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Attributes.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APFloat.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/Constants.h"
@@ -46,13 +43,11 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
-DISABLE_WARNING_POP
 
 #include <csignal>
 #include <dirent.h>
@@ -65,7 +60,6 @@ DISABLE_WARNING_POP
 #include <ctime>
 #include <fstream>
 #include <iomanip>
-#include <iterator>
 #include <sstream>
 
 using json = nlohmann::json;

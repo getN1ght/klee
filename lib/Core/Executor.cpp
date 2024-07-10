@@ -50,8 +50,6 @@
 #include "klee/Expr/ExprPPrinter.h"
 #include "klee/Expr/ExprSMTLIBPrinter.h"
 #include "klee/Expr/ExprUtil.h"
-#include "klee/Expr/IndependentConstraintSetUnion.h"
-#include "klee/Expr/IndependentSet.h"
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Expr/Symcrete.h"
 #include "klee/Module/Cell.h"
@@ -78,9 +76,6 @@
 #include "CodeLocation.h"
 #include "EventRecorder.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
@@ -98,31 +93,15 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
-#if LLVM_VERSION_CODE >= LLVM_VERSION(10, 0)
-#include "llvm/Support/TypeSize.h"
-#else
-typedef unsigned TypeSize;
-#endif
 #include "llvm/Support/raw_ostream.h"
-DISABLE_WARNING_POP
 
 #include <algorithm>
 #include <cassert>
-#include <cerrno>
-#include <cstdint>
-#include <cstring>
 #include <cxxabi.h>
-#include <fstream>
-#include <iomanip>
 #include <iosfwd>
 #include <iostream>
-#include <limits>
-#include <memory>
-#include <sstream>
-#include <string>
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <type_traits>

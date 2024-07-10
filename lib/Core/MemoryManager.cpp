@@ -17,24 +17,12 @@
 #include "klee/Expr/SourceBuilder.h"
 #include "klee/Support/ErrorHandling.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
-#include "llvm/IR/GlobalVariable.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MathExtras.h"
-#if LLVM_VERSION_CODE >= LLVM_VERSION(10, 0)
-#include "llvm/Support/Alignment.h"
-#else
-#include "llvm/Support/MathExtras.h"
-#endif
-DISABLE_WARNING_POP
 
 #include <algorithm>
 #include <cinttypes>
-#include <string>
 #include <sys/mman.h>
-#include <tuple>
 
 using namespace klee;
 

@@ -7,7 +7,6 @@
 #include "klee/Core/BranchTypes.h"
 #include "klee/Module/KModule.h"
 
-#include <set>
 #include <vector>
 
 namespace klee {

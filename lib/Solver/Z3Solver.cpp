@@ -8,6 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Config/config.h"
+#include "klee/Solver/SolverStats.h"
+#include "klee/Statistics/TimerStatIncrementer.h"
 
 #ifdef ENABLE_Z3
 
@@ -57,11 +59,7 @@ llvm::cl::opt<unsigned>
                      llvm::cl::cat(klee::SolvingCat));
 } // namespace
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Support/ErrorHandling.h"
-DISABLE_WARNING_POP
 
 namespace klee {
 

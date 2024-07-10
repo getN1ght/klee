@@ -2,20 +2,15 @@
 
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Expr.h"
-#include "klee/Expr/ExprHashMap.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/KType.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
-DISABLE_WARNING_POP
 
 #include <unordered_map>
 #include <unordered_set>

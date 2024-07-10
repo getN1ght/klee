@@ -10,6 +10,8 @@
 #ifndef KLEE_METASMTBUILDER_H
 #define KLEE_METASMTBUILDER_H
 
+#ifdef ENABLE_METASMT
+
 #include "ConstantDivision.h"
 
 #include "klee/Config/config.h"
@@ -17,21 +19,17 @@
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprHashMap.h"
 #include "klee/Expr/ExprPPrinter.h"
-#include <cassert>
-
-#ifdef ENABLE_METASMT
-
 #include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
+
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
-DISABLE_WARNING_POP
 
 #include <metaSMT/frontend/Array.hpp>
 #include <metaSMT/frontend/Logic.hpp>
 #include <metaSMT/frontend/QF_BV.hpp>
+
+#include <cassert>
 
 using namespace metaSMT;
 using namespace metaSMT::logic::QF_BV;

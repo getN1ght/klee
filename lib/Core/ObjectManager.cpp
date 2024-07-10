@@ -5,10 +5,7 @@
 #include "TargetManager.h"
 
 #include "klee/Module/KModule.h"
-#include "klee/Module/Target.h"
-#include "klee/Support/Debug.h"
 
-#include "llvm/Support/CommandLine.h"
 #include <algorithm>
 
 using namespace llvm;

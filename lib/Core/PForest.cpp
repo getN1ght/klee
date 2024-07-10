@@ -13,10 +13,6 @@
 
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprPPrinter.h"
-#include "klee/Support/OptionCategories.h"
-
-#include <bitset>
-#include <vector>
 
 using namespace klee;
 using namespace llvm;

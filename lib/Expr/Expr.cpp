@@ -16,26 +16,19 @@
 #include "klee/Expr/SourceBuilder.h"
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Support/ErrorHandling.h"
-#include "klee/Support/OptionCategories.h"
 #include "klee/Support/RoundingModeUtil.h"
 #include "klee/Utilities/APFloatEval.h"
 
-#include "klee/Support/CompilerWarning.h"
-#include <assert.h>
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Hashing.h"
 #if LLVM_VERSION_CODE >= LLVM_VERSION(13, 0)
 #include "llvm/ADT/StringExtras.h"
 #endif
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
-DISABLE_WARNING_POP
 
+#include <cassert>
 #include <cfenv>
-#include <sstream>
 #include <vector>
 
 using namespace klee;

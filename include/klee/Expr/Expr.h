@@ -13,21 +13,13 @@
 #include "klee/ADT/Bits.h"
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/SymbolicSource.h"
-#include "klee/Support/CompilerWarning.h"
 
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
-DISABLE_WARNING_POP
 
-#include <memory>
 #include <set>
 #include <sstream>
 #include <unordered_set>

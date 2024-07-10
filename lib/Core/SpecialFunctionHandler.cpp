@@ -20,28 +20,21 @@
 #include "TypeManager.h"
 
 #include "klee/Config/config.h"
+#include "klee/Core/Context.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
-#include "klee/Solver/SolverCmdLine.h"
 #include "klee/Support/Casting.h"
-#include "klee/Support/Debug.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/OptionCategories.h"
 #include "klee/klee.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/Format.h"
-DISABLE_WARNING_POP
 
-#include <cerrno>
 #include <sstream>
 
 using namespace llvm;

@@ -27,15 +27,6 @@
 #include "klee/System/Time.h"
 #include "klee/Utilities/Math.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Support/CommandLine.h"
-DISABLE_WARNING_POP
-
 #include <cassert>
 #include <cmath>
 #include <set>

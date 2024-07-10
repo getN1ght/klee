@@ -19,15 +19,11 @@
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
-
-#include "klee/Support/CompilerWarning.h"
 #include "klee/Support/ErrorHandling.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
+
 #include "llvm/ADT/APInt.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
-DISABLE_WARNING_POP
 
 #include <cassert>
 #include <cstdlib>

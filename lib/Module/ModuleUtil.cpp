@@ -9,13 +9,9 @@
 
 #include "klee/Support/ModuleUtil.h"
 
-#include "klee/Config/Version.h"
 #include "klee/Support/Debug.h"
 #include "klee/Support/ErrorHandling.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/BinaryFormat/Magic.h"
@@ -24,8 +20,6 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueSymbolTable.h"
@@ -33,18 +27,9 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Linker/Linker.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/Error.h"
-#include "llvm/Object/ObjectFile.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/Path.h"
 #include "llvm/Support/SourceMgr.h"
-DISABLE_WARNING_POP
 
-#include <algorithm>
-#include <fstream>
-#include <map>
-#include <set>
-#include <sstream>
 #include <string>
 #include <unordered_set>
 

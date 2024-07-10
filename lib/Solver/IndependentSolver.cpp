@@ -16,24 +16,12 @@
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
-#include "klee/Expr/ExprHashMap.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/IndependentConstraintSetUnion.h"
 #include "klee/Expr/IndependentSet.h"
 #include "klee/Solver/SolverImpl.h"
-#include "klee/Support/Debug.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/raw_ostream.h"
-DISABLE_WARNING_POP
-
-#include <list>
-#include <map>
 #include <memory>
-#include <ostream>
 #include <utility>
 #include <vector>
 

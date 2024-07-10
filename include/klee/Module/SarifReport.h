@@ -12,11 +12,7 @@
 
 #include "klee/ADT/Ref.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <llvm/IR/Function.h>
-DISABLE_WARNING_POP
 
 #include "nlohmann/json.hpp"
 
@@ -107,11 +103,11 @@ struct Fingerprints {
   std::string cooddy_uid;
 };
 
-static void to_json(json &j, const Fingerprints &p) {
+[[maybe_unused]] static void to_json(json &j, const Fingerprints &p) {
   j = json{{"cooddy.uid", p.cooddy_uid}};
 }
 
-static void from_json(const json &j, Fingerprints &p) {
+[[maybe_unused]] static void from_json(const json &j, Fingerprints &p) {
   j.at("cooddy.uid").get_to(p.cooddy_uid);
 }
 

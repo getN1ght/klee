@@ -2,28 +2,23 @@
 #include "../Memory.h"
 #include "../TypeManager.h"
 
+#include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
-#include "klee/Expr/ExprHashMap.h"
 
+#include "klee/Core/Context.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/KType.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
-DISABLE_WARNING_POP
 
 #include <algorithm>
 #include <cassert>
 #include <utility>
-
-#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 using namespace klee;

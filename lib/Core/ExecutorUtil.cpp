@@ -11,16 +11,12 @@
 #include "klee/Core/Context.h"
 
 #include "klee/ADT/Either.h"
-#include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Module/KModule.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Support/ErrorHandling.h"
 
-#include "klee/Support/CompilerWarning.h"
-DISABLE_WARNING_PUSH
-DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/IR/Constants.h"
@@ -28,10 +24,7 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/Support/raw_ostream.h"
-DISABLE_WARNING_POP
 
 #include <cassert>
 

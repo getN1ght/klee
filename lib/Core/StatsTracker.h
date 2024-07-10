@@ -14,7 +14,6 @@
 #include "klee/System/Time.h"
 
 #include <memory>
-#include <set>
 #include <sqlite3.h>
 
 namespace llvm {
