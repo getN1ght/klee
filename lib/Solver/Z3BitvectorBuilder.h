@@ -19,7 +19,7 @@
 namespace klee {
 
 class Expr;
-template<typename T> class ref;
+template <typename T> class ref;
 
 class Z3BitvectorBuilder : public Z3Builder {
 private:

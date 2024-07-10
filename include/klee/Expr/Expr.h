@@ -10,9 +10,12 @@
 #ifndef KLEE_EXPR_H
 #define KLEE_EXPR_H
 
-#include "klee/ADT/Bits.h"
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/SymbolicSource.h"
+
+#ifndef NDEBUG
+#include "klee/ADT/Bits.h"
+#endif
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"

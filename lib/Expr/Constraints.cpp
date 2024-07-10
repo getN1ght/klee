@@ -21,6 +21,7 @@
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Expr/Symcrete.h"
 #include "klee/Module/KModule.h"
+#include "klee/Support/CompilerWarning.h"
 #include "klee/Support/OptionCategories.h"
 
 #include "llvm/IR/Function.h"
@@ -145,6 +146,7 @@ public:
       }
       default:
         assert(0 && "unreachable");
+        unreachable();
       }
     } else {
       return source;

@@ -6,7 +6,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include <stack>
 
-
 using namespace klee;
 using namespace llvm;
 

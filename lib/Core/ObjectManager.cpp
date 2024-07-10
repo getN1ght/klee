@@ -6,8 +6,6 @@
 
 #include "klee/Module/KModule.h"
 
-#include <algorithm>
-
 using namespace llvm;
 using namespace klee;
 

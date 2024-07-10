@@ -11,6 +11,9 @@
 #include "klee/ADT/TreeStream.h"
 
 #include "klee/Support/Debug.h"
+#ifdef ENABLE_KLEE_DEBUG
+#include "llvm/Support/raw_ostream.h"
+#endif
 
 #include <cassert>
 #include <fstream>

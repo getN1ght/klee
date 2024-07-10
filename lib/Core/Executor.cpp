@@ -32,6 +32,7 @@
 #include "TimingSolver.h"
 #include "TypeManager.h"
 #include "UserSearcher.h"
+#include "klee/ADT/Bits.h"
 #include "klee/ADT/SparseStorage.h"
 #include "klee/Core/Context.h"
 

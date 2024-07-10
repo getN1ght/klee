@@ -17,6 +17,8 @@
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverImpl.h"
+#include "klee/Solver/SolverStats.h"
+#include "klee/Statistics/TimerStatIncrementer.h"
 #include "klee/Support/ErrorHandling.h"
 
 #include "llvm/Support/ErrorHandling.h"
@@ -50,7 +52,6 @@
 #undef STP
 #undef type_t
 #endif
-DISABLE_WARNING_POP
 
 #include <memory>
 

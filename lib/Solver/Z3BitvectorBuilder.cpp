@@ -19,7 +19,6 @@
 #include "klee/Solver/SolverStats.h"
 
 #include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/StringExtras.h"
 
 using namespace klee;
 

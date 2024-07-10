@@ -28,10 +28,10 @@
 #include "klee/System/Time.h"
 
 #include "klee/Support/CompilerWarning.h"
-#include "llvm/Analysis/CallGraph.h"
-#include "llvm/IR/Attributes.h"
 #include "llvm/ADT/APFloat.h"
+#include "llvm/Analysis/CallGraph.h"
 #include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"

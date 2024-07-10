@@ -16,7 +16,6 @@
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverCmdLine.h"
 
-
 using namespace klee;
 
 namespace {

@@ -10,15 +10,17 @@
 #ifndef KLEE_METASMTBUILDER_H
 #define KLEE_METASMTBUILDER_H
 
+#include "klee/Config/config.h"
+
 #ifdef ENABLE_METASMT
 
 #include "ConstantDivision.h"
 
-#include "klee/Config/config.h"
+#include "klee/ADT/Bits.h"
 #include "klee/Expr/ArrayExprHash.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprHashMap.h"
-#include "klee/Expr/ExprPPrinter.h"
+#include "klee/Solver/SolverStats.h"
 #include "klee/Support/CompilerWarning.h"
 
 #include "llvm/ADT/iterator_range.h"
