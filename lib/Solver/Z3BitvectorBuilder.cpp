@@ -255,7 +255,8 @@ Z3ASTHandle Z3BitvectorBuilder::constructAShrByConstant(Z3ASTHandle expr,
   }
 }
 
-void Z3BitvectorBuilder::FPCastWidthAssert(int *width_out, char const *msg) {
+void Z3BitvectorBuilder::FPCastWidthAssert([[maybe_unused]] int *width_out,
+                                           [[maybe_unused]] char const *msg) {
   assert(&(ConstantExpr::widthToFloatSemantics(*width_out)) !=
              &(llvm::APFloat::Bogus()) &&
          msg);

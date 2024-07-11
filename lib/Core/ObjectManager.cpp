@@ -33,7 +33,7 @@ ExecutionState *ObjectManager::branchState(ExecutionState *state,
   assert(statesUpdated);
   ExecutionState *newState = state->branch();
   addedStates.push_back(newState);
-  processForest->attach(state->ptreeNode, newState, state, reason);
+  processForest->attach(state->ptreeNode, newState, state);
   stats::incBranchStat(reason, 1);
   return newState;
 }

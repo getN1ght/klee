@@ -39,7 +39,7 @@ Function *RaiseAsmPass::getIntrinsic(llvm::Module &M, unsigned IID, Type **Tys,
 
 // FIXME: This should just be implemented as a patch to
 // X86TargetAsmInfo.cpp, then everyone will benefit.
-bool RaiseAsmPass::runOnInstruction(Module &M, Instruction *I) {
+bool RaiseAsmPass::runOnInstruction(Instruction *I) {
   // We can just raise inline assembler using calls
   CallInst *ci = dyn_cast<CallInst>(I);
   if (!ci)
@@ -104,7 +104,7 @@ bool RaiseAsmPass::runOnModule(Module &M) {
       for (BasicBlock::iterator ii = bi->begin(), ie = bi->end(); ii != ie;) {
         Instruction *i = &*ii;
         ++ii;
-        changed |= runOnInstruction(M, i);
+        changed |= runOnInstruction(i);
       }
     }
   }

@@ -711,8 +711,8 @@ Executor::~Executor() {
 
 /***/
 
-ref<Expr> X87FP80ToFPTrunc(ref<Expr> arg, Expr::Width type,
-                           llvm::APFloat::roundingMode rm) {
+ref<Expr> X87FP80ToFPTrunc(ref<Expr> arg, [[maybe_unused]] Expr::Width type,
+                           [[maybe_unused]] llvm::APFloat::roundingMode rm) {
   ref<Expr> result = arg;
 #ifdef ENABLE_FP
   Expr::Width resultType = type;
@@ -981,7 +981,7 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
     errno_addr = reinterpret_cast<int *>(
         cast<ConstantExpr>(errnoObj->getBaseExpr())->getZExtValue());
   } else {
-    errno_addr = getErrnoLocation(state);
+    errno_addr = getErrnoLocation();
     errnoObj =
         addExternalObject(state, (void *)errno_addr,
                           typeSystemManager->getWrappedType(pointerErrnoAddr),
@@ -1370,8 +1370,8 @@ bool Executor::canReachSomeTargetFromBlock(ExecutionState &es, KBlock *block) {
     auto target = p.first;
     if (mustVisitForkBranches(target, es.prevPC))
       return true;
-    auto dist = distanceCalculator->getDistance(
-        es.prevPC, nextInstr, es.stack.callStack(), target->getBlock());
+    auto dist = distanceCalculator->getDistance(nextInstr, es.stack.callStack(),
+                                                target->getBlock());
     if (dist.result != WeightResult::Miss)
       return true;
   }
@@ -2078,9 +2078,6 @@ void Executor::unwindToNextLandingpad(ExecutionState &state) {
 
     if (popFrames) {
       state.popFrame();
-      if (statsTracker != nullptr) {
-        statsTracker->framePopped(state);
-      }
     }
 
     if (InvokeInst *invoke = dyn_cast<InvokeInst>(inst)) {
@@ -2789,9 +2786,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       }
 
       state.popFrame();
-
-      if (statsTracker)
-        statsTracker->framePopped(state);
 
       if (InvokeInst *ii = dyn_cast<InvokeInst>(caller)) {
         transferToBasicBlock(ii->getNormalDest(), caller->getParent(), state);
@@ -5390,7 +5384,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
         e->getWidth() == Context::get().getPointerWidth() &&
         resultType->isPointerTy()) {
       ref<Expr> symExternCallsCanReturnNullExpr =
-          makeMockValue(state, "symExternCallsCanReturnNull", Expr::Bool);
+          makeMockValue("symExternCallsCanReturnNull", Expr::Bool);
       e = SelectExpr::create(
           symExternCallsCanReturnNullExpr,
           PointerExpr::create(Expr::createPointer(0), Expr::createPointer(0)),
@@ -5429,8 +5423,7 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   return res;
 }
 
-ref<Expr> Executor::makeMockValue(ExecutionState &state,
-                                  const std::string &name, Expr::Width width) {
+ref<Expr> Executor::makeMockValue(const std::string &name, Expr::Width width) {
   const Array *array =
       makeArray(Expr::createPointer(Expr::getMinBytesForWidth(width)),
                 SourceBuilder::irreproducible(name));
@@ -5524,7 +5517,7 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
 
       if (checkOutOfMemory && !isLocal) {
         ref<Expr> symCheckOutOfMemoryExpr =
-            makeMockValue(state, "symCheckOutOfMemory", Expr::Bool);
+            makeMockValue("symCheckOutOfMemory", Expr::Bool);
         address = SelectExpr::create(symCheckOutOfMemoryExpr,
                                      Expr::createPointer(0), address);
       }
@@ -5825,7 +5818,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
                                  size_t allocationAlignment, KType *type,
                                  ref<Expr> conditionExpr,
                                  ref<Expr> lazyInitializationSource,
-                                 unsigned timestamp, bool isSymbolic) {
+                                 unsigned timestamp) {
   size = ZExtExpr::create(size, Context::get().getPointerWidth());
 
   /* Try to find existing solution. */
@@ -6001,12 +5994,11 @@ bool Executor::resolveMemoryObjects(
 
     if (!onlyLazyInitialize || !mayLazyInitialize) {
       ResolutionList rl;
-      ResolutionList rlSkipped;
 
       solver->setTimeout(coreSolverTimeout);
-      incomplete = state.addressSpace.resolve(state, solver.get(), basePointer,
-                                              targetType, rl, rlSkipped, 0,
-                                              coreSolverTimeout);
+      incomplete =
+          state.addressSpace.resolve(state, solver.get(), basePointer,
+                                     targetType, rl, 0, coreSolverTimeout);
       solver->setTimeout(time::Span());
 
       for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie;
@@ -6052,8 +6044,8 @@ bool Executor::resolveMemoryObjects(
 }
 
 bool Executor::checkResolvedMemoryObjects(
-    ExecutionState &state, ref<PointerExpr> address, KInstruction *target,
-    unsigned bytes, const ObjectResolutionList &mayBeResolvedMemoryObjects,
+    ExecutionState &state, ref<PointerExpr> address, unsigned bytes,
+    const ObjectResolutionList &mayBeResolvedMemoryObjects,
     bool hasLazyInitialized, ObjectResolutionList &resolvedMemoryObjects,
     std::vector<ref<Expr>> &resolveConditions,
     std::vector<ref<Expr>> &unboundConditions, ref<Expr> &checkOutOfBounds,
@@ -6197,12 +6189,9 @@ bool Executor::checkResolvedMemoryObjects(
 
 bool Executor::makeGuard(ExecutionState &state,
                          const std::vector<ref<Expr>> &resolveConditions,
-                         const std::vector<ref<Expr>> &unboundConditions,
-                         ref<Expr> checkOutOfBounds, bool hasLazyInitialized,
                          ref<Expr> &guard, bool &mayBeInBounds) {
   guard = Expr::createFalse();
 
-  assert(resolveConditions.size() == unboundConditions.size());
   if (resolveConditions.size() > 0) {
     guard = resolveConditions.back();
     for (unsigned int i = 0; i < resolveConditions.size() - 1; ++i) {
@@ -6226,7 +6215,7 @@ bool Executor::makeGuard(ExecutionState &state,
 }
 
 void Executor::collectReads(ExecutionState &state, ref<PointerExpr> address,
-                            KType *targetType, Expr::Width type, unsigned bytes,
+                            Expr::Width type,
                             const ObjectResolutionList &resolvedMemoryObjects,
                             std::vector<ref<Expr>> &results) {
   for (unsigned int i = 0; i < resolvedMemoryObjects.size(); ++i) {
@@ -6458,7 +6447,7 @@ void Executor::executeMemoryOperation(
   ObjectResolutionList resolvedMemoryObjects;
 
   if (!checkResolvedMemoryObjects(
-          *state, address, target, bytes, mayBeResolvedMemoryObjects,
+          *state, address, bytes, mayBeResolvedMemoryObjects,
           hasLazyInitialized, resolvedMemoryObjects, resolveConditions,
           unboundConditions, checkOutOfBounds, mayBeOutOfBound)) {
     terminateStateOnSolverError(*state,
@@ -6471,9 +6460,8 @@ void Executor::executeMemoryOperation(
     ref<Expr> guard;
     bool mayBeInBounds;
 
-    if (!makeGuard(*state, resolveConditions, unboundConditions,
-                   checkOutOfBounds, hasLazyInitialized, guard,
-                   mayBeInBounds)) {
+    assert(resolveConditions.size() == unboundConditions.size());
+    if (!makeGuard(*state, resolveConditions, guard, mayBeInBounds)) {
       terminateStateOnSolverError(*state, "Query timed out (resolve)");
       return;
     }
@@ -6495,8 +6483,7 @@ void Executor::executeMemoryOperation(
 
     if (state) {
       std::vector<ref<Expr>> results;
-      collectReads(*state, address, targetType, type, bytes,
-                   resolvedMemoryObjects, results);
+      collectReads(*state, address, type, resolvedMemoryObjects, results);
 
       if (isWrite) {
         for (unsigned int i = 0; i < resolvedMemoryObjects.size(); ++i) {
@@ -6724,7 +6711,7 @@ ref<const MemoryObject> Executor::lazyInitializeObject(
       allocate(state, sizeExpr, isLocal,
                /*isGlobal=*/false, CodeLocation::create(target, "", 0, {}),
                /*allocationAlignment=*/8, targetType, conditionExpr,
-               addressExpr, timestamp, isSymbolic);
+               addressExpr, timestamp);
 
   return mo;
 }
@@ -7142,7 +7129,7 @@ void Executor::prepareSymbolicValue(ExecutionState &state, StackFrame &frame,
 void Executor::prepareMockValue(ExecutionState &state, StackFrame &frame,
                                 const std::string &name, Expr::Width width,
                                 KInstruction *target) {
-  ref<Expr> result = makeMockValue(state, name, width);
+  ref<Expr> result = makeMockValue(name, width);
   bindLocal(target, frame, result);
   if (isa<AllocaInst>(target->inst())) {
     lazyInitializeLocalObject(state, frame, result, target);
@@ -7798,7 +7785,7 @@ void Executor::prepareForEarlyExit() {
 }
 
 /// Returns the errno location in memory
-int *Executor::getErrnoLocation(const ExecutionState &state) const {
+int *Executor::getErrnoLocation() const {
 #if !defined(__APPLE__) && !defined(__FreeBSD__)
   /* From /usr/include/errno.h: it [errno] is a per-thread variable. */
   return __errno_location();

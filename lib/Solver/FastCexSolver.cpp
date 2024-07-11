@@ -226,25 +226,25 @@ public:
         bits64::maxValueOfNBits(maxBit - lowBit));
   }
 
-  ValueRange add(const ValueRange &b, unsigned width) const {
+  ValueRange add(const ValueRange &, unsigned width) const {
     return ValueRange(0, bits64::maxValueOfNBits(width));
   }
-  ValueRange sub(const ValueRange &b, unsigned width) const {
+  ValueRange sub(const ValueRange &, unsigned width) const {
     return ValueRange(0, bits64::maxValueOfNBits(width));
   }
-  ValueRange mul(const ValueRange &b, unsigned width) const {
+  ValueRange mul(const ValueRange &, unsigned width) const {
     return ValueRange(0, bits64::maxValueOfNBits(width));
   }
-  ValueRange udiv(const ValueRange &b, unsigned width) const {
+  ValueRange udiv(const ValueRange &, unsigned width) const {
     return ValueRange(0, bits64::maxValueOfNBits(width));
   }
-  ValueRange sdiv(const ValueRange &b, unsigned width) const {
+  ValueRange sdiv(const ValueRange &, unsigned width) const {
     return ValueRange(0, bits64::maxValueOfNBits(width));
   }
-  ValueRange urem(const ValueRange &b, unsigned width) const {
+  ValueRange urem(const ValueRange &, unsigned width) const {
     return ValueRange(0, bits64::maxValueOfNBits(width));
   }
-  ValueRange srem(const ValueRange &b, unsigned width) const {
+  ValueRange srem(const ValueRange &, unsigned width) const {
     return ValueRange(0, bits64::maxValueOfNBits(width));
   }
 

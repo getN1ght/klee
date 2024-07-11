@@ -155,12 +155,12 @@ inline vce_type_iterator vce_type_end(const llvm::ConstantExpr *CE) {
 
 template <typename ItTy>
 inline generic_gep_type_iterator<ItTy> gep_type_begin(llvm::Type *Op0, ItTy I,
-                                                      ItTy E) {
+                                                      ItTy) {
   return generic_gep_type_iterator<ItTy>::begin(Op0, I);
 }
 
 template <typename ItTy>
-inline generic_gep_type_iterator<ItTy> gep_type_end(llvm::Type *Op0, ItTy I,
+inline generic_gep_type_iterator<ItTy> gep_type_end(llvm::Type *, ItTy,
                                                     ItTy E) {
   return generic_gep_type_iterator<ItTy>::end(E);
 }

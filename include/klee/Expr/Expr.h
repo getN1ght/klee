@@ -419,7 +419,7 @@ public:
   struct CreateArg;
   static ref<Expr> createFromKind(Kind k, std::vector<CreateArg> args);
 
-  static bool isValidKidWidth(unsigned kid, Width w) { return true; }
+  static bool isValidKidWidth(unsigned, Width) { return true; }
   static bool needsResultType() { return false; }
 
   static bool classof(const Expr *) { return true; }
@@ -575,7 +575,7 @@ public:
   Kind getKind() const { return NotOptimized; }
 
   unsigned getNumKids() const { return 1; }
-  ref<Expr> getKid(unsigned i) const { return src; }
+  ref<Expr> getKid(unsigned) const { return src; }
 
   virtual ref<Expr> rebuild(ref<Expr> kids[]) const { return create(kids[0]); }
 
@@ -583,7 +583,7 @@ private:
   NotOptimizedExpr(const ref<Expr> &_src) : src(_src) {}
 
 protected:
-  virtual int compareContents(const Expr &b) const {
+  virtual int compareContents(const Expr &) const {
     // No attributes to compare.
     return 0;
   }
@@ -846,7 +846,7 @@ public:
   static bool classof(const SelectExpr *) { return true; }
 
 protected:
-  virtual int compareContents(const Expr &b) const {
+  virtual int compareContents(const Expr &) const {
     // No attributes to compare.
     return 0;
   }
@@ -950,7 +950,7 @@ public:
   Kind getKind() const { return Extract; }
 
   unsigned getNumKids() const { return numKids; }
-  ref<Expr> getKid(unsigned i) const { return expr; }
+  ref<Expr> getKid(unsigned) const { return expr; }
 
   int compareContents(const Expr &b) const {
     const ExtractExpr &eb = static_cast<const ExtractExpr &>(b);
@@ -1000,7 +1000,7 @@ public:
   Kind getKind() const { return Not; }
 
   unsigned getNumKids() const { return numKids; }
-  ref<Expr> getKid(unsigned i) const { return expr; }
+  ref<Expr> getKid(unsigned) const { return expr; }
 
   virtual ref<Expr> rebuild(ref<Expr> kids[]) const { return create(kids[0]); }
 
@@ -1014,7 +1014,7 @@ private:
   NotExpr(const ref<Expr> &e) : expr(e) {}
 
 protected:
-  virtual int compareContents(const Expr &b) const {
+  virtual int compareContents(const Expr &) const {
     // No attributes to compare.
     return 0;
   }
@@ -1167,7 +1167,7 @@ FP_CAST_EXPR_CLASS(SIToFP)
     }                                                                          \
                                                                                \
   protected:                                                                   \
-    virtual int compareContents(const Expr &b) const {                         \
+    virtual int compareContents(const Expr &) const {                          \
       /* No attributes to compare.*/                                           \
       return 0;                                                                \
     }                                                                          \
@@ -1271,7 +1271,7 @@ FLOAT_ARITHMETIC_EXPR_CLASS(FMin)
     static bool classof(const _class_kind##Expr *) { return true; }            \
                                                                                \
   protected:                                                                   \
-    virtual int compareContents(const Expr &b) const {                         \
+    virtual int compareContents(const Expr &) const {                          \
       /* No attributes to compare. */                                          \
       return 0;                                                                \
     }                                                                          \
@@ -1312,9 +1312,9 @@ COMPARISON_EXPR_CLASS(FOGe)
     Kind getKind() const { return Expr::_class_kind; }                         \
                                                                                \
     unsigned getNumKids() const { return numKids; }                            \
-    ref<Expr> getKid(unsigned i) const { return expr; }                        \
+    ref<Expr> getKid(unsigned) const { return expr; }                          \
                                                                                \
-    int compareContents(const Expr &b) const {                                 \
+    int compareContents(const Expr &) const {                                  \
       /* No attributes to compare. */                                          \
       return 0;                                                                \
     }                                                                          \
@@ -1359,7 +1359,7 @@ FP_PRED_EXPR_CLASS(IsSubnormal)
     Kind getKind() const { return Expr::_class_kind; }                         \
                                                                                \
     unsigned getNumKids() const { return numKids; }                            \
-    ref<Expr> getKid(unsigned i) const { return expr; }                        \
+    ref<Expr> getKid(unsigned) const { return expr; }                          \
                                                                                \
     int compareContents(const Expr &b) const {                                 \
       const _class_kind##Expr &eb = static_cast<const _class_kind##Expr &>(b); \
@@ -1405,9 +1405,9 @@ public:
   Kind getKind() const { return Expr::FAbs; }
 
   unsigned getNumKids() const { return numKids; }
-  ref<Expr> getKid(unsigned i) const { return expr; }
+  ref<Expr> getKid(unsigned) const { return expr; }
 
-  int compareContents(const Expr &b) const {
+  int compareContents(const Expr &) const {
     // No attributes
     return 0;
   }
@@ -1438,9 +1438,9 @@ public:
   Kind getKind() const { return Expr::FNeg; }
 
   unsigned getNumKids() const { return numKids; }
-  ref<Expr> getKid(unsigned i) const { return expr; }
+  ref<Expr> getKid(unsigned) const { return expr; }
 
-  int compareContents(const Expr &b) const {
+  int compareContents(const Expr &) const {
     // No attributes
     return 0;
   }
@@ -1479,7 +1479,7 @@ public:
   Kind getKind() const { return Constant; }
 
   unsigned getNumKids() const { return 0; }
-  ref<Expr> getKid(unsigned i) const { return 0; }
+  ref<Expr> getKid(unsigned) const { return 0; }
 
   /// getAPValue - Return the arbitrary precision value directly.
   ///
@@ -1502,7 +1502,7 @@ public:
   /// useful bits.
   ///
   /// Example: unit8_t byte= (unit8_t) constant->getZExtValue(8);
-  uint64_t getZExtValue(unsigned bits = 64) const {
+  uint64_t getZExtValue([[maybe_unused]] unsigned bits = 64) const {
     assert(getWidth() <= bits && "Value may be out of range!");
     return value.getZExtValue();
   }
@@ -1527,7 +1527,7 @@ public:
     return value.ult(cb.value) ? -1 : 1;
   }
 
-  virtual ref<Expr> rebuild(ref<Expr> kids[]) const {
+  virtual ref<Expr> rebuild(ref<Expr>[]) const {
     assert(0 && "rebuild() on ConstantExpr");
     return const_cast<ConstantExpr *>(this);
   }
@@ -1705,7 +1705,7 @@ public:
     return 0;
   }
 
-  int compareContents(const Expr &b) const { return 0; }
+  int compareContents(const Expr &) const { return 0; }
   virtual ref<Expr> rebuild(ref<Expr> kids[]) const {
     return create(kids[0], kids[1]);
   }

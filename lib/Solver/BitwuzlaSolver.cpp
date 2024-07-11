@@ -57,7 +57,7 @@ llvm::cl::opt<unsigned> BitwuzlaVerbosityLevel(
 namespace {
 bool interrupted = false;
 
-void signal_handler(int signum) { interrupted = true; }
+void signal_handler(int) { interrupted = true; }
 } // namespace
 
 namespace klee {
@@ -676,8 +676,8 @@ public:
   BitwuzlaNonIncSolverImpl() = default;
 
   /// implementation of BitwuzlaSolverImpl interface
-  Bitwuzla &initNativeBitwuzla(const ConstraintQuery &query,
-                               BitwuzlaASTIncSet &assertions) override {
+  Bitwuzla &initNativeBitwuzla(const ConstraintQuery &,
+                               BitwuzlaASTIncSet &) override {
     theSolver.emplace(solverParameters);
     return theSolver.value();
   }
@@ -686,7 +686,7 @@ public:
     deleteNativeBitwuzla(theSolver);
   }
 
-  void push(Bitwuzla &s) override {}
+  void push(Bitwuzla &) override {}
 
   /// implementation of the SolverImpl interface
   bool computeTruth(const Query &query, bool &isValid) override {
@@ -719,7 +719,7 @@ public:
     return BitwuzlaSolverImpl::computeValidityCore(
         ConstraintQuery(query, false), env, validityCore, isValid);
   }
-  void notifyStateTermination(std::uint32_t id) override {}
+  void notifyStateTermination(std::uint32_t) override {}
 };
 
 BitwuzlaSolver::BitwuzlaSolver()
@@ -863,11 +863,11 @@ public:
   BitwuzlaTreeSolverImpl(size_t maxSolvers) : maxSolvers(maxSolvers){};
 
   /// implementation of BitwuzlaSolverImpl interface
-  Bitwuzla &initNativeBitwuzla(const ConstraintQuery &query,
-                               BitwuzlaASTIncSet &assertions) override {
+  Bitwuzla &initNativeBitwuzla(const ConstraintQuery &,
+                               BitwuzlaASTIncSet &) override {
     return currentSolver->getOrInit();
   }
-  void deinitNativeBitwuzla(Bitwuzla &theSolver) override {
+  void deinitNativeBitwuzla(Bitwuzla &) override {
     assert(currentSolver->isConsistent());
     solvers.push_back(std::move(currentSolver));
   }

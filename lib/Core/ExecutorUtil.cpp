@@ -32,8 +32,8 @@ using namespace llvm;
 
 namespace klee {
 extern llvm::cl::opt<unsigned> X86FPAsX87FP80;
-ref<Expr> X87FP80ToFPTrunc(ref<Expr> arg, Expr::Width type,
-                           llvm::APFloat::roundingMode rm) {
+ref<Expr> X87FP80ToFPTrunc(ref<Expr> arg, [[maybe_unused]] Expr::Width type,
+                           [[maybe_unused]] llvm::APFloat::roundingMode rm) {
   ref<Expr> result = arg;
 #ifdef ENABLE_FP
   Expr::Width resultType = type;

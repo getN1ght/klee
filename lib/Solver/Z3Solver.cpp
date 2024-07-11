@@ -906,7 +906,7 @@ public:
   void deinitNativeZ3(Z3_solver theSolver) override {
     deleteNativeZ3(builder->ctx, theSolver);
   }
-  void push(Z3_context c, Z3_solver s) override {}
+  void push(Z3_context, Z3_solver) override {}
 
   /// implementation of the SolverImpl interface
   bool computeTruth(const Query &query, bool &isValid) override {
@@ -938,7 +938,7 @@ public:
     return Z3SolverImpl::computeValidityCore(ConstraintQuery(query, false), env,
                                              validityCore, isValid);
   }
-  void notifyStateTermination(std::uint32_t id) override {}
+  void notifyStateTermination(std::uint32_t) override {}
 };
 
 Z3Solver::Z3Solver(Z3BuilderType type)
@@ -1092,11 +1092,10 @@ public:
       : Z3SolverImpl(type), maxSolvers(maxSolvers){};
 
   /// implementation of Z3SolverImpl interface
-  Z3_solver initNativeZ3(const ConstraintQuery &query,
-                         Z3ASTIncSet &assertions) override {
+  Z3_solver initNativeZ3(const ConstraintQuery &, Z3ASTIncSet &) override {
     return currentSolver->getOrInit();
   }
-  void deinitNativeZ3(Z3_solver theSolver) override {
+  void deinitNativeZ3(Z3_solver) override {
     assert(currentSolver->isConsistent());
     solvers.push_back(std::move(currentSolver));
   }

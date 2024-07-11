@@ -41,7 +41,7 @@ static sigjmp_buf escapeCallJmpBuf;
 
 extern "C" {
 
-static void sigsegv_handler(int signal, siginfo_t *info, void *context) {
+static void sigsegv_handler(int, siginfo_t *, void *) {
   siglongjmp(escapeCallJmpBuf, 1);
 }
 }

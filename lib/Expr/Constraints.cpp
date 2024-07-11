@@ -181,7 +181,7 @@ public:
     return UpdateList(root, updates[0]);
   }
 
-  Action visitRead(const ReadExpr &re) override { return Action::doChildren(); }
+  Action visitRead(const ReadExpr &) override { return Action::doChildren(); }
 
 public:
   ExprHashSet replacementDependency;

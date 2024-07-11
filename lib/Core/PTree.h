@@ -55,7 +55,7 @@ public:
   ~PTree() = default;
 
   void attach(PTreeNode *node, ExecutionState *leftState,
-              ExecutionState *rightState, BranchType reason);
+              ExecutionState *rightState);
   void remove(PTreeNode *node);
   void dump(llvm::raw_ostream &os);
   std::uint32_t getID() const { return id; };

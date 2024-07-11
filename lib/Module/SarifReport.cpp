@@ -233,7 +233,7 @@ class NumericTraceId : public TraceId {
 
 public:
   std::string toString() const override { return std::to_string(id); }
-  void getNextId(const klee::ResultJson &resultJson) override { id++; }
+  void getNextId(const klee::ResultJson &) override { id++; }
 };
 
 TraceId *createTraceId(const std::string &toolName,

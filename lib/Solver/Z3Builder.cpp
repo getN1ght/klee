@@ -142,7 +142,7 @@ Z3ASTHandle Z3Builder::buildArray(const char *name, unsigned indexWidth,
   return Z3ASTHandle(Z3_mk_const(ctx, s, t), ctx);
 }
 
-Z3ASTHandle Z3Builder::buildConstantArray(const char *name, unsigned indexWidth,
+Z3ASTHandle Z3Builder::buildConstantArray(const char *, unsigned indexWidth,
                                           unsigned valueWidth, unsigned value) {
   Z3SortHandle domainSort = getBvSort(indexWidth);
   Z3ASTHandle defaultValue = bvZExtConst(valueWidth, value);

@@ -93,7 +93,7 @@ public:
 
   char *getConstraintLog(const Query &);
   void setCoreSolverTimeout(time::Span timeout) { _timeout = timeout; }
-  void notifyStateTermination(std::uint32_t id) {}
+  void notifyStateTermination(std::uint32_t) {}
 
   bool computeTruth(const Query &, bool &isValid);
   bool computeValue(const Query &, ref<Expr> &result);
@@ -279,7 +279,7 @@ SolverImpl::SolverRunStatus MetaSMTSolverImpl<SolverContext>::runAndGetCex(
   }
 }
 
-static void metaSMTTimeoutHandler(int x) { _exit(52); }
+static void metaSMTTimeoutHandler(int) { _exit(52); }
 
 template <typename SolverContext>
 SolverImpl::SolverRunStatus

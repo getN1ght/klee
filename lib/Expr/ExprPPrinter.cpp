@@ -271,7 +271,7 @@ private:
     printUpdateList(re->updates, PC);
   }
 
-  void printExtract(const ExtractExpr *ee, PrintContext &PC, unsigned indent) {
+  void printExtract(const ExtractExpr *ee, PrintContext &PC) {
     PC << ee->offset << ' ';
     print(ee->expr, PC);
   }
@@ -462,7 +462,7 @@ public:
         if (const ReadExpr *re = dyn_cast<ReadExpr>(e)) {
           printRead(re, PC, indent);
         } else if (const ExtractExpr *ee = dyn_cast<ExtractExpr>(e)) {
-          printExtract(ee, PC, indent);
+          printExtract(ee, PC);
         } else if (e->getKind() == Expr::Concat || e->getKind() == Expr::SExt)
           printExpr(e.get(), PC, indent, true);
         else

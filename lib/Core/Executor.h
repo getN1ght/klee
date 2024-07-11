@@ -341,7 +341,7 @@ private:
                          size_t allocationAlignment, KType *type,
                          ref<Expr> conditionExpr = Expr::createTrue(),
                          ref<Expr> lazyInitializationSource = ref<Expr>(),
-                         unsigned timestamp = 0, bool isSymbolic = false);
+                         unsigned timestamp = 0);
 
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.
@@ -399,8 +399,8 @@ private:
                             bool &incomplete, bool onlyLazyInitialize = false);
 
   bool checkResolvedMemoryObjects(
-      ExecutionState &state, ref<PointerExpr> address, KInstruction *target,
-      unsigned bytes, const ObjectResolutionList &mayBeResolvedMemoryObjects,
+      ExecutionState &state, ref<PointerExpr> address, unsigned bytes,
+      const ObjectResolutionList &mayBeResolvedMemoryObjects,
       bool hasLazyInitialized, ObjectResolutionList &resolvedMemoryObjects,
       std::vector<ref<Expr>> &resolveConditions,
       std::vector<ref<Expr>> &unboundConditions, ref<Expr> &checkOutOfBounds,
@@ -408,12 +408,10 @@ private:
 
   bool makeGuard(ExecutionState &state,
                  const std::vector<ref<Expr>> &resolveConditions,
-                 const std::vector<ref<Expr>> &unboundConditions,
-                 ref<Expr> checkOutOfBounds, bool hasLazyInitialized,
                  ref<Expr> &guard, bool &mayBeInBounds);
 
   void collectReads(ExecutionState &state, ref<PointerExpr> address,
-                    KType *targetType, Expr::Width type, unsigned bytes,
+                    Expr::Width type,
                     const ObjectResolutionList &resolvedMemoryObjects,
                     std::vector<ref<Expr>> &results);
 
@@ -474,8 +472,7 @@ private:
   // Used for testing.
   ref<Expr> replaceReadWithSymbolic(ExecutionState &state, ref<Expr> e);
 
-  ref<Expr> makeMockValue(ExecutionState &state, const std::string &name,
-                          Expr::Width width);
+  ref<Expr> makeMockValue(const std::string &name, Expr::Width width);
 
   const Cell &eval(const KInstruction *ki, unsigned index,
                    ExecutionState &state, StackFrame &sf,
@@ -859,7 +856,7 @@ public:
   size_t getAllocationAlignment(const llvm::Value *allocSite) const;
 
   /// Returns the errno location in memory of the state
-  int *getErrnoLocation(const ExecutionState &state) const;
+  int *getErrnoLocation() const;
 };
 
 } // namespace klee

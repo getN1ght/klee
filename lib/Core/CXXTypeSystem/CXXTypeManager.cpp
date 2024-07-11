@@ -217,9 +217,7 @@ cxxtypes::KCXXType::KCXXType(llvm::Type *type, TypeManager *parent)
   typeKind = DEFAULT;
 }
 
-bool cxxtypes::KCXXType::isAccessableFrom(KCXXType *accessingType) const {
-  return true;
-}
+bool cxxtypes::KCXXType::isAccessableFrom(KCXXType *) const { return true; }
 
 bool cxxtypes::KCXXType::isAccessableFrom(KType *accessingType) const {
   KCXXType *accessingCXXType = dyn_cast_or_null<KCXXType>(accessingType);

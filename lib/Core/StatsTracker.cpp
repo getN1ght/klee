@@ -456,11 +456,6 @@ void StatsTracker::framePushed(ExecutionState &es,
   }
 }
 
-/* Should be called _after_ the es->popFrame() */
-void StatsTracker::framePopped(ExecutionState &es) {
-  // XXX remove me?
-}
-
 void StatsTracker::markBranchVisited(ExecutionState *visitedTrue,
                                      ExecutionState *visitedFalse) {
   if (OutputIStats) {

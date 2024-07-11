@@ -42,7 +42,7 @@ class RaiseAsmPass : public llvm::ModulePass {
     return getIntrinsic(M, IID, &Ty0, 1);
   }
 
-  bool runOnInstruction(llvm::Module &M, llvm::Instruction *I);
+  bool runOnInstruction(llvm::Instruction *I);
 
 public:
   RaiseAsmPass() : llvm::ModulePass(ID), TLI(0) {}

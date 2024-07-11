@@ -17,13 +17,13 @@ KType::KType(llvm::Type *type, TypeManager *parent)
   innerTypes[this].insert(0);
 }
 
-bool KType::isAccessableFrom(KType *accessingType) const { return true; }
+bool KType::isAccessableFrom(KType *) const { return true; }
 
 llvm::Type *KType::getRawType() const { return type; }
 
 TypeSystemKind KType::getTypeSystemKind() const { return typeSystemKind; }
 
-void KType::handleMemoryAccess(KType *, ref<Expr>, ref<Expr>, bool isWrite) {}
+void KType::handleMemoryAccess(KType *, ref<Expr>, ref<Expr>, bool) {}
 
 size_t KType::getSize() const { return typeStoreSize; }
 

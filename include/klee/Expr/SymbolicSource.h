@@ -285,7 +285,7 @@ public:
     return S->getKind() == Kind::Argument;
   }
 
-  static bool classof(const ArgumentSource *S) { return true; }
+  static bool classof(const ArgumentSource *) { return true; }
 
   const llvm::Value &value() const override { return allocSite; }
 
@@ -308,7 +308,7 @@ public:
     return S->getKind() == Kind::Instruction;
   }
 
-  static bool classof(const InstructionSource *S) { return true; }
+  static bool classof(const InstructionSource *) { return true; }
 
   const llvm::Value &value() const override { return allocSite; }
 

@@ -102,7 +102,7 @@ public:
   void setCoreSolverTimeout(time::Span timeout) override {
     this->timeout = timeout;
   }
-  void notifyStateTermination(std::uint32_t id) override {}
+  void notifyStateTermination(std::uint32_t) override {}
 
   bool computeTruth(const Query &, bool &isValid) override;
   bool computeValue(const Query &, ref<Expr> &result) override;
@@ -284,7 +284,7 @@ runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
   return SolverImpl::SOLVER_RUN_STATUS_SUCCESS_SOLVABLE;
 }
 
-static void stpTimeoutHandler(int x) { _exit(52); }
+static void stpTimeoutHandler(int) { _exit(52); }
 
 static SolverImpl::SolverRunStatus
 runAndGetCexForked(::VC vc, STPBuilder *builder, ::VCExpr q,

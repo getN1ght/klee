@@ -767,7 +767,7 @@ bool shouldTryNativex87Eval(const ConstantExpr *lhs, const ConstantExpr *rhs) {
 // Workaround this by evaulating natively if possible.
 ref<ConstantExpr> TryNativeX87FP80EvalCmp(const ConstantExpr *lhs,
                                           const ConstantExpr *rhs,
-                                          Expr::Kind op) {
+                                          [[maybe_unused]] Expr::Kind op) {
   if (!shouldTryNativex87Eval(lhs, rhs))
     return nullptr;
 
@@ -804,10 +804,10 @@ ref<ConstantExpr> TryNativeX87FP80EvalCmp(const ConstantExpr *lhs,
 #endif
 }
 
-ref<ConstantExpr> TryNativeX87FP80EvalArith(const ConstantExpr *lhs,
-                                            const ConstantExpr *rhs,
-                                            Expr::Kind op,
-                                            llvm::APFloat::roundingMode rm) {
+ref<ConstantExpr>
+TryNativeX87FP80EvalArith(const ConstantExpr *lhs, const ConstantExpr *rhs,
+                          [[maybe_unused]] Expr::Kind op,
+                          [[maybe_unused]] llvm::APFloat::roundingMode rm) {
   if (!shouldTryNativex87Eval(lhs, rhs))
     return NULL;
 #ifdef __x86_64__
@@ -874,9 +874,11 @@ ref<ConstantExpr> TryNativeX87FP80EvalArith(const ConstantExpr *lhs,
 #endif
 }
 
-ref<ConstantExpr> TryNativeX87FP80EvalCast(const ConstantExpr *ce,
-                                           Expr::Width outWidth, Expr::Kind op,
-                                           llvm::APFloat::roundingMode rm) {
+ref<ConstantExpr>
+TryNativeX87FP80EvalCast(const ConstantExpr *ce,
+                         [[maybe_unused]] Expr::Width outWidth,
+                         [[maybe_unused]] Expr::Kind op,
+                         [[maybe_unused]] llvm::APFloat::roundingMode rm) {
   if (!shouldTryNativex87Eval(ce, ce))
     return NULL;
 #ifdef __x86_64__
