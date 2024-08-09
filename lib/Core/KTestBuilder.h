@@ -7,7 +7,7 @@
 
 #include <klee/ADT/KTest.h>
 
-#include <unordered_map>
+#include <map>
 
 namespace klee {
 
@@ -37,7 +37,7 @@ private:
   std::vector<Symbolic> symbolics;
   ConstantAddressSpace constantAddressSpace_;
   ConstantPointerGraph constantPointerGraph_;
-  std::unordered_map<const MemoryObject *, std::size_t> order_;
+  std::map<ObjectPair, std::size_t> order_;
 
   // Constructing object
   KTest ktest_;

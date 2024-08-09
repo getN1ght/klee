@@ -21,11 +21,10 @@ llvm::cl::opt<bool> OnlyOutputMakeSymbolicArrays(
         "Only output test data with klee_make_symbolic source (default=false)"),
     llvm::cl::cat(TestGenCat));
 
-static std::unordered_map<const MemoryObject *, std::size_t>
+static std::map<ObjectPair, std::size_t>
 enumerateObjects(const std::vector<Symbolic> &symbolics,
                  const ConstantPointerGraph &pointerGraph) {
-  std::unordered_map<const MemoryObject *, std::size_t> enumeration;
-  enumeration.reserve(pointerGraph.size());
+  std::map<ObjectPair, std::size_t> enumeration;
 
   // Add all symbolics to enumeration and remember which memory objects
   // are not counted as symbolics
@@ -36,7 +35,9 @@ enumerateObjects(const std::vector<Symbolic> &symbolics,
   for (const auto &singleSymbolic : symbolics) {
     auto singleObjectOfSymbolic = singleSymbolic.memoryObject.get();
     objectsOfSymbolics.insert(singleObjectOfSymbolic);
-    enumeration.emplace(singleObjectOfSymbolic, symbolicNumCounter);
+    enumeration.emplace(
+        ObjectPair{singleObjectOfSymbolic, singleSymbolic.objectState.get()},
+        symbolicNumCounter);
     ++symbolicNumCounter;
   }
 
@@ -44,7 +45,7 @@ enumerateObjects(const std::vector<Symbolic> &symbolics,
   std::size_t constantNumCounter = symbolics.size();
   for (const auto &[objectPair, resolution] : pointerGraph) {
     if (objectsOfSymbolics.count(objectPair.first) == 0) {
-      enumeration.emplace(objectPair.first, constantNumCounter);
+      enumeration.emplace(objectPair, constantNumCounter);
       ++constantNumCounter;
     }
   }
@@ -62,18 +63,15 @@ KTestBuilder::KTestBuilder(const ExecutionState &state, const Assignment &model)
 }
 
 void KTestBuilder::initialize(const ExecutionState &state) {
-  for (auto &[object, symbolic] : state.symbolics) {
-    if (OnlyOutputMakeSymbolicArrays ? symbolic.isMakeSymbolic()
-                                     : symbolic.isReproducible()) {
-      assert(object == symbolic.memoryObject.get());
-      if (state.addressSpace.findObject(object).first != nullptr) {
-        assert(state.addressSpace.findObject(object).second ==
-               symbolic.objectState.get());
+  for (auto &[object, symbolicsSet] : state.symbolics) {
+    for (auto &symbolic : symbolicsSet) {
+      if (OnlyOutputMakeSymbolicArrays ? symbolic.isMakeSymbolic()
+                                       : symbolic.isReproducible()) {
+        assert(object == symbolic.memoryObject.get());
+        constantPointerGraph_.addSource(ObjectPair{symbolic.memoryObject.get(),
+                                                   symbolic.objectState.get()});
+        symbolics.push_back(symbolic);
       }
-
-      constantPointerGraph_.addSource(
-          ObjectPair{symbolic.memoryObject.get(), symbolic.objectState.get()});
-      symbolics.push_back(symbolic);
     }
   }
 
@@ -100,7 +98,7 @@ std::size_t KTestBuilder::countObjectsFromOrder(
       resolution.begin(), resolution.end(), [this](const auto &entry) {
         const auto &singleResolution = entry.second;
         const auto &resolvedObjectPair = singleResolution.objectPair;
-        return order_.count(resolvedObjectPair.first) != 0;
+        return order_.count(resolvedObjectPair) != 0;
       });
 }
 
@@ -118,7 +116,7 @@ KTestBuilder &KTestBuilder::fillArgcArgv(unsigned argc, char **argv,
 KTestBuilder &KTestBuilder::fillFinalPointers() {
   for (const auto &[objectPair, resolution] : constantPointerGraph_) {
     // Select KTestObject for the object
-    const auto objectNum = order_.at(objectPair.first);
+    const auto objectNum = order_.at(objectPair);
     auto &ktestObject = ktest_.objects[objectNum];
 
     ktestObject.address = constantAddressSpace_.addressOf(*objectPair.first);
@@ -137,11 +135,11 @@ KTestBuilder &KTestBuilder::fillFinalPointers() {
     for (const auto &[offset, singleResolution] : resolution) {
       auto [writtenAddress, resolvedObjectPair] = singleResolution;
 
-      if (order_.count(resolvedObjectPair.first) == 0) {
+      if (order_.count(resolvedObjectPair) == 0) {
         continue;
       }
 
-      auto referencesToObjectNum = order_.at(resolvedObjectPair.first);
+      auto referencesToObjectNum = order_.at(resolvedObjectPair);
       auto addressOfReferencedObject =
           constantAddressSpace_.addressOf(*resolvedObjectPair.first);
 
@@ -161,7 +159,8 @@ KTestBuilder &KTestBuilder::fillInitialPointers() {
   // Required only for symbolics
   for (const auto &symbolic : symbolics) {
     auto object = symbolic.memoryObject.get();
-    auto &ktestObject = ktest_.objects[order_.at(object)];
+    auto &ktestObject =
+        ktest_.objects[order_.at({object, symbolic.objectState.get()})];
 
     // TODO: symbolic objects might have been freed and not contained in
     // the address space anymore.
@@ -188,13 +187,13 @@ KTestBuilder &KTestBuilder::fillInitialPointers() {
     for (const auto &[offset, singleResolution] : resolution) {
       auto [writtenAddress, resolvedObjectPair] = singleResolution;
 
-      if (order_.count(resolvedObjectPair.first) == 0) {
+      if (order_.count(resolvedObjectPair) == 0) {
         // This object is not in address space anymore.
         // TODO: it could be a symbolic
         continue;
       }
 
-      auto referencesToObjectNum = order_.at(resolvedObjectPair.first);
+      auto referencesToObjectNum = order_.at(resolvedObjectPair);
       auto addressOfReferencedObject =
           constantAddressSpace_.addressOf(*resolvedObjectPair.first);
 
@@ -213,7 +212,8 @@ KTestBuilder &KTestBuilder::fillInitialContent() {
   // Required only for symbolics
   for (const auto &symbolic : symbolics) {
     auto object = symbolic.memoryObject.get();
-    auto &ktestObject = ktest_.objects[order_.at(object)];
+    auto &ktestObject =
+        ktest_.objects[order_.at({object, symbolic.objectState.get()})];
 
     auto array = symbolic.array();
     const auto &modelForArray = model_.bindings.at(array);
@@ -236,7 +236,7 @@ KTestBuilder &KTestBuilder::fillFinalContent() {
   for (auto &[objectPair, resolutionList] : constantPointerGraph_) {
     auto [object, state] = objectPair;
 
-    auto &ktestObject = ktest_.objects[order_.at(object)];
+    auto &ktestObject = ktest_.objects[order_.at(objectPair)];
 
     auto objectSize = constantAddressSpace_.sizeOf(*object);
     ktestObject.content.numBytes = objectSize;
