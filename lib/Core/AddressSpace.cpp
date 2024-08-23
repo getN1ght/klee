@@ -20,6 +20,7 @@
 #include "klee/Statistics/TimerStatIncrementer.h"
 
 #include "CoreStats.h"
+#include <algorithm>
 
 namespace klee {
 llvm::cl::OptionCategory
@@ -128,6 +129,7 @@ bool AddressSpace::resolveOne(ref<ConstantPointerExpr> address, KType *,
         if ((moSize == 0 && addressConst == moAddress) ||
             (addressConst - moAddress < moSize)) {
           result = findObject(mo);
+          cache.cacheResolution(address, ResolutionList{result});
           return true;
         }
       }
@@ -161,6 +163,7 @@ bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
         return false;
       }
       if (success) {
+        cache.cacheResolution(address, ResolutionList{result});
         result = findObject(mo);
       }
     }
@@ -231,6 +234,12 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                               ref<PointerExpr> address, KType *objectType,
                               ObjectPair &result, bool &success,
                               const std::atomic_bool &haltExecution) const {
+  if (cache.contains(address)) {
+    result = cache.get(address).front();
+    success = true;
+    return true;
+  }
+
   ResolvePredicate predicate(state, address, objectType, complete);
   ref<Expr> addressExpr = address->getValue();
   if (ref<ConstantPointerExpr> CP = dyn_cast<ConstantPointerExpr>(address)) {
@@ -279,6 +288,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     }
   }
 
+  cache.cacheResolution(address, ResolutionList{result});
   success = false;
   return true;
 }
@@ -322,6 +332,11 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
                            ref<PointerExpr> p, KType *objectType,
                            ResolutionList &rl, unsigned maxResolutions,
                            time::Span timeout) const {
+  if (cache.contains(p)) {
+    rl = cache.get(p);
+    return false;
+  }
+
   ResolvePredicate predicate(state, p, objectType, complete);
   if (ref<ConstantPointerExpr> CP = dyn_cast<ConstantPointerExpr>(p)) {
     ObjectPair res;
@@ -486,4 +501,64 @@ bool MemoryObjectLT::operator()(const MemoryObject *a,
     return false;
   }
   return a->getBaseExpr() < b->getBaseExpr();
+}
+
+bool ResolutionCache::cacheResolution(ref<PointerExpr> address,
+                                      const ResolutionList &resolution) {
+  if (contains(address)) {
+    return false;
+  }
+  std::vector<const MemoryObject *> objectsResolution;
+  objectsResolution.reserve(resolution.size());
+  for (const auto &it : resolution) {
+    objectsResolution.push_back(it.first);
+  }
+  cache_ = cache_.insert({address, objectsResolution});
+  return true;
+}
+
+ResolutionList ResolutionCache::reset(ref<PointerExpr> address) {
+  if (!contains(address)) {
+    return {};
+  }
+  ResolutionList result = get(address);
+  cache_ = cache_.remove(address);
+
+  return result;
+}
+
+void ResolutionCache::reset() { cache_ = ResolutionCacheContainer(); }
+
+ResolutionList ResolutionCache::get(ref<PointerExpr> address) const {
+  assert(contains(address));
+  const auto &objectsResolution = cache_.at(address);
+
+  ResolutionList result;
+  result.reserve(objectsResolution.size());
+
+  for (auto object : cache_.at(address)) {
+    result.push_back(owner_.findObject(object));
+  }
+
+  return result;
+}
+
+bool ResolutionCache::contains(ref<PointerExpr> address) const {
+  return cache_.count(address) != 0;
+}
+
+void ResolutionCache::invalidate(const ObjectPair &objectPair) {
+  // TODO: optimize
+
+  std::vector<ref<PointerExpr>> invalidated;
+  for (auto &[address, resolution] : cache_) {
+    if (std::find(resolution.begin(), resolution.end(), objectPair.first) !=
+        resolution.end()) {
+      invalidated.push_back(address);
+    }
+  }
+
+  for (auto invalidatedAddress : invalidated) {
+    cache_ = cache_.remove(invalidatedAddress);
+  }
 }

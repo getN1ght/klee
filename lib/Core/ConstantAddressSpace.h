@@ -102,6 +102,8 @@ public:
   ConstantAddressSpace(const AddressSpace &addressSpace,
                        const Assignment &model);
 
+  void insert(const ObjectPair &objectPair);
+
   /*
    * Resolves the address to the corresponding object.
    */
@@ -134,7 +136,6 @@ public:
   std::size_t size() const { return objects.size(); }
 
 private:
-  void insert(const ObjectPair &objectPair);
   bool isResolution(ref<ConstantPointerExpr> address,
                     const MemoryObject &object) const;
 

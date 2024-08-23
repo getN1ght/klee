@@ -492,9 +492,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(nullptr),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
-      pathWriter(0), symPathWriter(0),
-      specialFunctionHandler(0), timers{time::Span(TimerInterval)},
-      guidanceKind(opts.Guidance), codeGraphInfo(new CodeGraphInfo()),
+      pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
+      timers{time::Span(TimerInterval)}, guidanceKind(opts.Guidance),
+      codeGraphInfo(new CodeGraphInfo()),
       distanceCalculator(new DistanceCalculator(*codeGraphInfo)),
       targetCalculator(new TargetCalculator(*codeGraphInfo)),
       targetManager(new TargetManager(guidanceKind, *distanceCalculator,
@@ -2727,13 +2727,13 @@ void Executor::checkNullCheckAfterDeref(ref<Expr> cond, ExecutionState &state) {
       llvm::errs();
     }
     if (eqPointerCheck && eqPointerCheck->left->isZero() &&
-        state.resolvedPointers.count(
+        state.addressSpace.cache.contains(
             makePointer(eqPointerCheck->right)->getBase())) {
       break;
     }
   }
   if (eqPointerCheck && eqPointerCheck->left->isZero() &&
-      state.resolvedPointers.count(
+      state.addressSpace.cache.contains(
           makePointer(eqPointerCheck->right)->getBase())) {
     reportStateOnTargetError(state,
                              ReachWithError::NullCheckAfterDerefException);
@@ -5536,6 +5536,8 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
           state.replaceMemoryObjectFromSymbolics(*reallocFrom->getObject(), *mo,
                                                  *reallocFrom, *os);
         }
+        state.addressSpace.cache.invalidate(
+            ObjectPair{reallocFrom->getObject(), reallocFrom});
         state.removePointerResolutions(reallocFrom->getObject());
         state.addressSpace.unbindObject(reallocFrom->getObject());
       }
@@ -5590,6 +5592,8 @@ void Executor::executeFree(ExecutionState &state, ref<PointerExpr> address,
                            "free of global"),
             getAddressInfo(*it->second, address));
       } else {
+        it->second->addressSpace.cache.invalidate(
+            {it->second->addressSpace.findObject(mo)});
         it->second->removePointerResolutions(mo);
         it->second->addressSpace.unbindObject(mo);
         if (target)
@@ -5960,69 +5964,54 @@ bool Executor::resolveMemoryObjects(
   base = Simplificator::simplifyExpr(state.constraints.cs(), base).simplified;
   ref<PointerExpr> basePointer = PointerExpr::create(base, base);
 
-  auto mso = MemorySubobject(address, bytes);
-  if (state.resolvedSubobjects.count(mso)) {
-    for (auto resolution : state.resolvedSubobjects.at(mso)) {
-      mayBeResolvedMemoryObjects.push_back(resolution);
-    }
-    mayBeOutOfBound = false;
-  } else if (state.resolvedPointers.count(base)) {
-    for (auto resolution : state.resolvedPointers.at(base)) {
-      mayBeResolvedMemoryObjects.push_back(resolution);
-    }
-  } else {
-    // we are on an error path (no resolution, multiple resolution, one
-    // resolution with out of bounds)
+  // we are on an error path (no resolution, multiple resolution, one
+  // resolution with out of bounds)
 
-    base = optimizer.optimizeExpr(base, true);
-    ref<Expr> checkOutOfBounds = Expr::createTrue();
+  base = optimizer.optimizeExpr(base, true);
+  ref<Expr> checkOutOfBounds = Expr::createTrue();
 
-    ref<ReadExpr> readBase = base->hasOrderedReads();
-    bool checkAddress = readBase && readBase->updates.getSize() == 0 &&
-                        readBase->updates.root->isSymbolicArray();
-    if (!checkAddress && isa<SelectExpr>(base)) {
-      std::vector<ref<Expr>> alternatives;
-      ArrayExprHelper::collectAlternatives(*cast<SelectExpr>(base),
-                                           alternatives);
-      checkAddress = std::find_if(alternatives.begin(), alternatives.end(),
-                                  [](ref<Expr> expr) {
-                                    return !isa<ConstantExpr>(expr);
-                                  }) != alternatives.end();
+  ref<ReadExpr> readBase = base->hasOrderedReads();
+  bool checkAddress = readBase && readBase->updates.getSize() == 0 &&
+                      readBase->updates.root->isSymbolicArray();
+  if (!checkAddress && isa<SelectExpr>(base)) {
+    std::vector<ref<Expr>> alternatives;
+    ArrayExprHelper::collectAlternatives(*cast<SelectExpr>(base), alternatives);
+    checkAddress = std::find_if(alternatives.begin(), alternatives.end(),
+                                [](ref<Expr> expr) {
+                                  return !isa<ConstantExpr>(expr);
+                                }) != alternatives.end();
 
-      if (checkAddress) {
-        for (auto alt : alternatives) {
-          if (isa<ConstantExpr>(alt)) {
-            continue;
-          }
-          readBase = alt->hasOrderedReads();
-          checkAddress &= readBase && readBase->updates.getSize() == 0 &&
-                          readBase->updates.root->isSymbolicArray();
+    if (checkAddress) {
+      for (auto alt : alternatives) {
+        if (isa<ConstantExpr>(alt)) {
+          continue;
         }
+        readBase = alt->hasOrderedReads();
+        checkAddress &= readBase && readBase->updates.getSize() == 0 &&
+                        readBase->updates.root->isSymbolicArray();
       }
     }
+  }
 
-    mayLazyInitialize =
-        LazyInitialization != LazyInitializationPolicy::None && checkAddress;
+  mayLazyInitialize =
+      LazyInitialization != LazyInitializationPolicy::None && checkAddress;
 
-    if (!onlyLazyInitialize || !mayLazyInitialize) {
-      ResolutionList rl;
+  if (!onlyLazyInitialize || !mayLazyInitialize) {
+    ResolutionList rl;
 
-      solver->setTimeout(coreSolverTimeout);
-      incomplete =
-          state.addressSpace.resolve(state, solver.get(), basePointer,
-                                     targetType, rl, 0, coreSolverTimeout);
-      solver->setTimeout(time::Span());
+    solver->setTimeout(coreSolverTimeout);
+    incomplete = state.addressSpace.resolve(
+        state, solver.get(), basePointer, targetType, rl, 0, coreSolverTimeout);
+    solver->setTimeout(time::Span());
 
-      for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie;
-           ++i) {
-        const MemoryObject *mo = i->first;
-        ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
-        ref<Expr> notInBounds = Expr::createIsZero(inBounds);
-        ref<Expr> addressNotInBounds =
-            Expr::createIsZero(mo->getBoundsCheckAddress(address->getValue()));
-        mayBeResolvedMemoryObjects.push_back(mo);
-        checkOutOfBounds = AndExpr::create(checkOutOfBounds, notInBounds);
-      }
+    for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
+      const MemoryObject *mo = i->first;
+      ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
+      ref<Expr> notInBounds = Expr::createIsZero(inBounds);
+      ref<Expr> addressNotInBounds =
+          Expr::createIsZero(mo->getBoundsCheckAddress(address->getValue()));
+      mayBeResolvedMemoryObjects.push_back(mo);
+      checkOutOfBounds = AndExpr::create(checkOutOfBounds, notInBounds);
     }
 
     if (mayLazyInitialize) {
@@ -6079,7 +6068,7 @@ bool Executor::checkResolvedMemoryObjects(
 
   checkOutOfBounds = Expr::createTrue();
   if (mayBeResolvedMemoryObjects.size() == 1) {
-    const MemoryObject *mo = mayBeResolvedMemoryObjects.begin()->get();
+    const MemoryObject *mo = mayBeResolvedMemoryObjects.back().get();
 
     state.addPointerResolution(address, mo);
 
@@ -6329,27 +6318,20 @@ void Executor::executeMemoryOperation(
   ref<const MemoryObject> idFastResult;
   bool success = false;
 
-  if (state->resolvedPointers.count(base) &&
-      state->resolvedPointers.at(base).size() == 1) {
-    success = true;
-    idFastResult = *state->resolvedPointers[base].begin();
-  } else {
-    ObjectPair idFastOp;
-    solver->setTimeout(coreSolverTimeout);
+  ObjectPair idFastOp;
+  solver->setTimeout(coreSolverTimeout);
 
-    if (!state->addressSpace.resolveOne(*state, solver.get(), address,
-                                        targetType, idFastOp, success,
-                                        haltExecution)) {
-      address = toConstantPointer(*state, address, "resolveOne failure");
-      success = state->addressSpace.resolveOne(
-          cast<ConstantPointerExpr>(address), targetType, idFastOp);
-    }
+  if (!state->addressSpace.resolveOne(*state, solver.get(), address, targetType,
+                                      idFastOp, success, haltExecution)) {
+    address = toConstantPointer(*state, address, "resolveOne failure");
+    success = state->addressSpace.resolveOne(cast<ConstantPointerExpr>(address),
+                                             targetType, idFastOp);
+  }
 
-    solver->setTimeout(time::Span());
+  solver->setTimeout(time::Span());
 
-    if (success) {
-      idFastResult = idFastOp.first;
-    }
+  if (success) {
+    idFastResult = idFastOp.first;
   }
 
   if (success) {
@@ -6580,8 +6562,9 @@ void Executor::executeMemoryOperation(
       const ObjectState *os = op.second.get();
 
       if (hasLazyInitialized && i + 1 != resolvedMemoryObjects.size()) {
-        const MemoryObject *liMO =
-            resolvedMemoryObjects.at(resolvedMemoryObjects.size() - 1).get();
+        const MemoryObject *liMO = resolvedMemoryObjects.back().get();
+        bound->addressSpace.cache.invalidate(
+            {bound->addressSpace.findObject(liMO)});
         bound->removePointerResolutions(liMO);
         bound->addressSpace.unbindObject(liMO);
         bound->symbolics = bound->symbolics.remove(liMO);
@@ -6655,17 +6638,17 @@ void Executor::executeMemoryOperation(
     ref<const MemoryObject> idFastResult;
     bool uniqueBaseResolved = false;
 
-    if (unbound->resolvedPointers.count(base) &&
-        unbound->resolvedPointers.at(base).size() == 1) {
+    if (unbound->addressSpace.cache.contains(address) &&
+        unbound->addressSpace.cache.get(address).size() == 1) {
       uniqueBaseResolved = true;
-      idFastResult = *unbound->resolvedPointers[base].begin();
+      idFastResult = unbound->addressSpace.cache.get(address).front().first;
     } else if (auto constBasePointer =
                    dyn_cast<ConstantPointerExpr>(basePointer)) {
-      ObjectPair contantResult;
+      ObjectPair constantResult;
       uniqueBaseResolved = unbound->addressSpace.resolveOne(
-          constBasePointer, baseTargetType, contantResult);
+          constBasePointer, baseTargetType, constantResult);
       if (uniqueBaseResolved) {
-        idFastResult = contantResult.first;
+        idFastResult = constantResult.first;
       }
     }
 

@@ -355,16 +355,6 @@ void ExecutionState::removePointerResolutions(const MemoryObject *mo) {
       ++resolution;
     }
   }
-
-  for (auto resolution = begin(resolvedSubobjects);
-       resolution != end(resolvedSubobjects);) {
-    resolution->second.erase(mo);
-    if (resolution->second.size() == 0) {
-      resolution = resolvedSubobjects.erase(resolution);
-    } else {
-      ++resolution;
-    }
-  }
 }
 
 void ExecutionState::removePointerResolutions(ref<PointerExpr> address,
@@ -372,7 +362,7 @@ void ExecutionState::removePointerResolutions(ref<PointerExpr> address,
   ref<Expr> base = address->getBase();
   if (!isa<ConstantExpr>(base)) {
     resolvedPointers[base].clear();
-    resolvedSubobjects[MemorySubobject(address, size)].clear();
+    addressSpace.cache.reset(address);
   }
 }
 
@@ -383,7 +373,9 @@ void ExecutionState::addPointerResolution(ref<PointerExpr> address,
   ref<Expr> base = address->getBase();
   if (!isa<ConstantExpr>(base)) {
     resolvedPointers[base].insert(mo);
-    resolvedSubobjects[MemorySubobject(address, size)].insert(mo);
+    auto resolution = addressSpace.cache.reset(address);
+    resolution.push_back(addressSpace.findObject(mo));
+    addressSpace.cache.cacheResolution(address, resolution);
   }
 }
 
@@ -394,7 +386,10 @@ void ExecutionState::addUniquePointerResolution(ref<PointerExpr> address,
   if (!isa<ConstantExpr>(base)) {
     removePointerResolutions(address, size);
     resolvedPointers[base].insert(mo);
-    resolvedSubobjects[MemorySubobject(address, size)].insert(mo);
+
+    addressSpace.cache.reset(address);
+    addressSpace.cache.cacheResolution(
+        address, ResolutionList{addressSpace.findObject(mo)});
   }
 }
 

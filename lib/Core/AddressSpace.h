@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <klee/ADT/ImmutableSet.h>
 
 namespace klee {
 class ExecutionState;
@@ -44,6 +45,37 @@ typedef ImmutableMap<const MemoryObject *, ref<ObjectState>, MemoryObjectLT>
     MemoryMap;
 typedef ImmutableMap<IDType, const MemoryObject *> IDMap;
 
+class AddressSpace;
+
+class ResolutionCache {
+  struct InnerRefLess {
+    bool operator()(const ref<PointerExpr> &a,
+                    const ref<PointerExpr> &b) const {
+      return a.get() < b.get();
+    }
+  };
+
+  typedef ImmutableMap<ref<PointerExpr>, std::vector<const MemoryObject *>,
+                       InnerRefLess>
+      ResolutionCacheContainer;
+
+public:
+  ResolutionCache(const AddressSpace &owner) : owner_(owner) {}
+  bool cacheResolution(ref<PointerExpr> address,
+                       const ResolutionList &resolution);
+  ResolutionList reset(ref<PointerExpr> address);
+  ResolutionList get(ref<PointerExpr> address) const;
+  void reset();
+
+  void invalidate(const ObjectPair &objectPair);
+
+  bool contains(ref<PointerExpr> address) const;
+
+private:
+  const AddressSpace &owner_;
+  ResolutionCacheContainer cache_;
+};
+
 class AddressSpace {
 private:
   /// Epoch counter used to control ownership of objects.
@@ -64,6 +96,7 @@ private:
                            ResolutionList &rl, unsigned maxResolutions) const;
 
 public:
+  mutable ResolutionCache cache;
   /// The MemoryObject -> ObjectState map that constitutes the
   /// address space.
   ///
@@ -80,9 +113,10 @@ public:
 
   mutable bool complete = false;
 
-  AddressSpace() : cowKey(1) {}
+  AddressSpace() : cowKey(1), cache(*this) {}
   AddressSpace(const AddressSpace &b)
-      : cowKey(++b.cowKey), objects(b.objects), complete(b.complete) {}
+      : cowKey(++b.cowKey), cache(b.cache), objects(b.objects),
+        complete(b.complete) {}
   ~AddressSpace() {}
 
   /// Resolve address to an ObjectPair in result.

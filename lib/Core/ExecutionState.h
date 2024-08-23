@@ -283,25 +283,6 @@ struct Symbolic {
   bool operator<(const Symbolic &rhs) const { return num < rhs.num; }
 };
 
-struct MemorySubobject {
-  ref<Expr> address;
-  unsigned size;
-  explicit MemorySubobject(ref<Expr> address, unsigned size)
-      : address(address), size(size) {}
-};
-
-struct MemorySubobjectHash {
-  bool operator()(const MemorySubobject &a) const {
-    return a.size * Expr::MAGIC_HASH_CONSTANT + a.address->hash();
-  }
-};
-
-struct MemorySubobjectCompare {
-  bool operator()(MemorySubobject a, MemorySubobject b) const {
-    return a.address == b.address && a.size == b.size;
-  }
-};
-
 typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;
 
 /// @brief ExecutionState representing a path under exploration
@@ -390,9 +371,6 @@ public:
 
   /// @brief map from memory accesses to accessed objects and access offsets.
   ExprHashMap<std::set<ref<const MemoryObject>>> resolvedPointers;
-  std::unordered_map<MemorySubobject, std::set<ref<const MemoryObject>>,
-                     MemorySubobjectHash, MemorySubobjectCompare>
-      resolvedSubobjects;
 
   /// @brief A set of boolean expressions
   /// the user has requested be true of a counterexample.

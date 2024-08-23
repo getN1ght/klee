@@ -1,10 +1,11 @@
 #include "KTestBuilder.h"
 #include "ConstantAddressSpace.h"
 
-#include <algorithm>
 #include <klee/Expr/Expr.h>
 #include <klee/Support/OptionCategories.h>
 #include <llvm/Support/CommandLine.h>
+
+#include <algorithm>
 
 using namespace klee;
 
