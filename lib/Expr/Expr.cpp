@@ -1770,7 +1770,7 @@ ref<Expr> Expr::getValue() const {
 }
 
 ref<Expr> convolution(const ref<Expr> &l, const ref<Expr> &r) {
-  ref<Expr> null = ConstantExpr::create(0, l->getWidth());
+  static ref<Expr> null = ConstantExpr::create(0, l->getWidth());
   return SelectExpr::create(EqExpr::create(l, r), l, null);
 }
 

@@ -137,7 +137,7 @@ public:
   void updateTimestamp() const { this->timestamp = time++; }
 
   bool hasSymbolicSize() const { return !isa<ConstantExpr>(getSizeExpr()); }
-  ref<Expr> getBaseExpr() const { return addressExpr; }
+  ref<PointerExpr> getBaseExpr() const { return addressExpr; }
   ref<Expr> getSizeExpr() const { return sizeExpr; }
   ref<Expr> getConditionExpr() const { return conditionExpr; }
   ref<Expr> getOffsetExpr(ref<Expr> pointer) const {
@@ -288,6 +288,13 @@ private:
   ref<const MemoryObject> object;
 
   ObjectStage valueOS;
+
+  /*
+   * Stores information whether record under current byte a pointer.
+   * That information represents either an ID of referenced
+   * memory object (if ID > 0) or tells that current byte is not a part
+   * of any pointer (if ID == 0).
+   */
   ObjectStage baseOS;
 
   ref<UpdateNode> lastUpdate;

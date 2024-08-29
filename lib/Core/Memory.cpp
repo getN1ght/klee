@@ -103,7 +103,6 @@ ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
       baseOS(ObjectStage(array->size, Expr::createPointer(0), false,
                          Context::get().getPointerWidth())),
       lastUpdate(nullptr), size(array->size), dynamicType(dt), readOnly(false) {
-  baseOS.initializeToZero();
 }
 
 ObjectState::ObjectState(const MemoryObject *mo, KType *dt)
@@ -112,9 +111,7 @@ ObjectState::ObjectState(const MemoryObject *mo, KType *dt)
       baseOS(ObjectStage(mo->getSizeExpr(), Expr::createPointer(0), false,
                          Context::get().getPointerWidth())),
       lastUpdate(nullptr), size(mo->getSizeExpr()), dynamicType(dt),
-      readOnly(false) {
-  baseOS.initializeToZero();
-}
+      readOnly(false) {}
 
 ObjectState::ObjectState(const ObjectState &os)
     : copyOnWriteOwner(0), object(os.object), valueOS(os.valueOS),

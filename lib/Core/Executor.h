@@ -390,8 +390,6 @@ private:
   void executeCall(ExecutionState &state, KInstruction *ki, llvm::Function *f,
                    std::vector<ref<Expr>> &arguments);
 
-  typedef std::vector<ref<const MemoryObject>> ObjectResolutionList;
-
   bool resolveMemoryObjects(ExecutionState &state, ref<PointerExpr> address,
                             KType *targetType, KInstruction *target,
                             unsigned bytes,

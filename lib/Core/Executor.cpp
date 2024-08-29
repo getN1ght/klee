@@ -492,9 +492,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(nullptr),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
-      pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
-      timers{time::Span(TimerInterval)}, guidanceKind(opts.Guidance),
-      codeGraphInfo(new CodeGraphInfo()),
+      pathWriter(0), symPathWriter(0),
+      specialFunctionHandler(0), timers{time::Span(TimerInterval)},
+      guidanceKind(opts.Guidance), codeGraphInfo(new CodeGraphInfo()),
       distanceCalculator(new DistanceCalculator(*codeGraphInfo)),
       targetCalculator(new TargetCalculator(*codeGraphInfo)),
       targetManager(new TargetManager(guidanceKind, *distanceCalculator,
@@ -820,11 +820,11 @@ ObjectPair Executor::addExternalObject(ExecutionState &state, const void *addr,
   auto mo = memory->allocateFixed(reinterpret_cast<std::uint64_t>(addr), size,
                                   nullptr, type);
   ObjectState *os = bindObjectInState(state, mo, type, false);
-  ref<ConstantExpr> seg =
-      Expr::createPointer(reinterpret_cast<std::uint64_t>(addr));
+  ref<ConstantExpr> baseObject =
+      ConstantExpr::create(mo->id, Context::get().getPointerWidth());
   for (unsigned i = 0; i < size; i++) {
     ref<Expr> byte = ConstantExpr::create(((uint8_t *)addr)[i], Expr::Int8);
-    os->write(i, PointerExpr::create(seg, byte));
+    os->write(i, PointerExpr::create(baseObject, byte));
   }
   if (isReadOnly)
     os->setReadOnly(true);
@@ -878,8 +878,9 @@ decltype(auto) Executor::addCTypeFixedObject(ExecutionState &state,
   state.addressSpace
       .getWriteable(ctypePointerObj.first, ctypePointerObj.second)
       ->write(0,
-              ConstantPointerExpr::create(
-                  ctypeObj.first->getBaseExpr(),
+              PointerExpr::create(
+                  ConstantExpr::create(ctypePointerObj.first->id,
+                                       Context::get().getPointerWidth()),
                   AddExpr::create(ctypeObj.first->getBaseExpr(),
                                   Expr::createPointer(kCTypeMemOffset *
                                                       sizeof(underlying_t)))));
@@ -915,13 +916,14 @@ decltype(auto) Executor::addCTypeModelledObject(ExecutionState &state,
                                                      sizeof(underlying_t))));
 
   // Write content from actiual ctype into modelled memory
-  ref<ConstantExpr> seg = cast<ConstantExpr>(ctypeObj.first->getBaseExpr());
+  ref<ConstantExpr> baseObject = ConstantExpr::create(
+      ctypeObj.first->id, Context::get().getPointerWidth());
   auto addr =
       reinterpret_cast<const uint8_t *>(*objectProvider() - kCTypeMemOffset);
   for (unsigned i = 0; i < kCTypeMemSize * sizeof(underlying_t); i++) {
     ref<Expr> byte = ConstantExpr::create(addr[i], Expr::Int8);
     state.addressSpace.getWriteable(ctypeObj.first, ctypeObj.second)
-        ->write(i, PointerExpr::create(seg, byte));
+        ->write(i, PointerExpr::create(baseObject, byte));
   }
 
   // Return address to pointer
@@ -961,9 +963,10 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
 
       auto mo = allocate(state, Expr::createPointer(8), false, true,
                          fCodeLocation, 8, typeSystemManager->getUnknownType());
-      auto baseExpr = cast<ConstantExpr>(mo->getBaseExpr());
-      addr = ConstantPointerExpr::create(baseExpr, baseExpr);
-      legalFunctions.emplace(baseExpr->getZExtValue(), &f);
+      auto base =
+          ConstantExpr::create(mo->id, Context::get().getPointerWidth());
+      addr = ConstantPointerExpr::create(base, mo->getBaseExpr());
+      legalFunctions.emplace(addr->getConstantValue()->getZExtValue(), &f);
     }
 
     globalAddresses.emplace(&f, addr);
@@ -1090,8 +1093,10 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
       klee_error("out of memory");
 
     globalObjects.emplace(&v, mo);
-    globalAddresses.emplace(
-        &v, PointerExpr::create(mo->getBaseExpr(), mo->getBaseExpr()));
+    auto baseObject =
+        ConstantExpr::create(mo->id, Context::get().getPointerWidth());
+    globalAddresses.emplace(&v,
+                            PointerExpr::create(baseObject, mo->getBaseExpr()));
   }
 }
 
@@ -1926,6 +1931,8 @@ static inline const llvm::fltSemantics *fpWidthToSemantics(unsigned width) {
 MemoryObject *Executor::serializeLandingpad(ExecutionState &state,
                                             const llvm::LandingPadInst &lpi,
                                             bool &stateTerminated) {
+  // FIXME: NOT CHANGED TO WORK WITH NEW BASES
+
   stateTerminated = false;
 
   std::vector<unsigned char> serialized;
@@ -2124,8 +2131,10 @@ void Executor::unwindToNextLandingpad(ExecutionState &state) {
         bindArgument(kf, 0, state, sui->exceptionObject);
         bindArgument(kf, 1, state, clauses_mo->getSizeExpr());
         bindArgument(kf, 2, state,
-                     PointerExpr::create(clauses_mo->getBaseExpr(),
-                                         clauses_mo->getBaseExpr()));
+                     PointerExpr::create(
+                         ConstantExpr::create(clauses_mo->id,
+                                              Context::get().getPointerWidth()),
+                         clauses_mo->getBaseExpr()));
 
         if (statsTracker) {
           statsTracker->framePushed(
@@ -2432,11 +2441,14 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       // size. This happens to work for x86-32 and x86-64, however.
       Expr::Width WordSize = Context::get().getPointerWidth();
       if (WordSize == Expr::Int32) {
-        executeMemoryOperation(state, true, typeSystemManager->getUnknownType(),
-                               makePointer(arguments[0]),
-                               PointerExpr::create(sf.varargs->getBaseExpr(),
-                                                   sf.varargs->getBaseExpr()),
-                               0);
+        executeMemoryOperation(
+            state, true, typeSystemManager->getUnknownType(),
+            makePointer(arguments[0]),
+            PointerExpr::create(
+                ConstantExpr::create(sf.varargs->id,
+                                     Context::get().getPointerWidth()),
+                sf.varargs->getBaseExpr()),
+            0);
       } else {
         assert(WordSize == Expr::Int64 && "Unknown word size!");
 
@@ -2451,12 +2463,15 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
                                AddExpr::create(makePointer(arguments[0]),
                                                ConstantExpr::create(4, 64)),
                                ConstantExpr::create(304, 32), 0); // fp_offset
-        executeMemoryOperation(state, true, typeSystemManager->getUnknownType(),
-                               AddExpr::create(makePointer(arguments[0]),
-                                               ConstantExpr::create(8, 64)),
-                               PointerExpr::create(sf.varargs->getBaseExpr(),
-                                                   sf.varargs->getBaseExpr()),
-                               0); // overflow_arg_area
+        executeMemoryOperation(
+            state, true, typeSystemManager->getUnknownType(),
+            AddExpr::create(makePointer(arguments[0]),
+                            ConstantExpr::create(8, 64)),
+            PointerExpr::create(
+                ConstantExpr::create(sf.varargs->id,
+                                     Context::get().getPointerWidth()),
+                sf.varargs->getBaseExpr()),
+            0); // overflow_arg_area
         executeMemoryOperation(state, true, typeSystemManager->getUnknownType(),
                                AddExpr::create(makePointer(arguments[0]),
                                                ConstantExpr::create(16, 64)),
@@ -2809,7 +2824,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
                       "search phase unwinding");
 
         // unbind the MO we used to pass the serialized landingpad
-        state.removePointerResolutions(sui->serializedLandingpad);
         state.addressSpace.unbindObject(sui->serializedLandingpad);
         sui->serializedLandingpad = nullptr;
 
@@ -5527,8 +5541,11 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
                                      Expr::createPointer(0), address);
       }
 
-      state.addPointerResolution(PointerExpr::create(address, address), mo);
-      bindLocal(target, state, PointerExpr::create(address, address));
+      auto objectAddress = PointerExpr::create(
+          ConstantExpr::create(mo->id, Context::get().getPointerWidth()),
+          address);
+      state.addPointerResolution(objectAddress, mo);
+      bindLocal(target, state, objectAddress);
 
       if (reallocFrom) {
         os->write(reallocFrom);
@@ -5536,9 +5553,6 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
           state.replaceMemoryObjectFromSymbolics(*reallocFrom->getObject(), *mo,
                                                  *reallocFrom, *os);
         }
-        state.addressSpace.cache.invalidate(
-            ObjectPair{reallocFrom->getObject(), reallocFrom});
-        state.removePointerResolutions(reallocFrom->getObject());
         state.addressSpace.unbindObject(reallocFrom->getObject());
       }
     }
@@ -5592,9 +5606,6 @@ void Executor::executeFree(ExecutionState &state, ref<PointerExpr> address,
                            "free of global"),
             getAddressInfo(*it->second, address));
       } else {
-        it->second->addressSpace.cache.invalidate(
-            {it->second->addressSpace.findObject(mo)});
-        it->second->removePointerResolutions(mo);
         it->second->addressSpace.unbindObject(mo);
         if (target)
           bindLocal(target, *it->second,
@@ -5614,7 +5625,6 @@ bool Executor::resolveExact(ExecutionState &estate, ref<Expr> address,
   address = pointer->getValue();
   ref<Expr> base = pointer->getBase();
   ref<PointerExpr> basePointer = PointerExpr::create(base, base);
-  ref<Expr> zeroPointer = PointerExpr::create(Expr::createPointer(0));
 
   if (SimplifySymIndices) {
     if (!isa<ConstantExpr>(address))
@@ -5933,7 +5943,9 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   }
 
   if (lazyInitializationSource.isNull()) {
-    state.addPointerResolution(PointerExpr::create(addressExpr, addressExpr),
+    auto baseObjectExpr =
+        ConstantExpr::create(Context::get().getPointerWidth(), mo->id);
+    state.addPointerResolution(PointerExpr::create(baseObjectExpr, addressExpr),
                                mo);
   }
 
@@ -6008,8 +6020,6 @@ bool Executor::resolveMemoryObjects(
       const MemoryObject *mo = i->first;
       ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
       ref<Expr> notInBounds = Expr::createIsZero(inBounds);
-      ref<Expr> addressNotInBounds =
-          Expr::createIsZero(mo->getBoundsCheckAddress(address->getValue()));
       mayBeResolvedMemoryObjects.push_back(mo);
       checkOutOfBounds = AndExpr::create(checkOutOfBounds, notInBounds);
     }
@@ -6280,7 +6290,6 @@ void Executor::executeMemoryOperation(
 
   ref<Expr> base = address->getBase();
   ref<PointerExpr> basePointer = PointerExpr::create(base, base);
-  ref<Expr> zeroPointer = PointerExpr::create(Expr::createPointer(0));
   unsigned size = bytes;
   KType *baseTargetType = targetType;
 
@@ -6563,9 +6572,6 @@ void Executor::executeMemoryOperation(
 
       if (hasLazyInitialized && i + 1 != resolvedMemoryObjects.size()) {
         const MemoryObject *liMO = resolvedMemoryObjects.back().get();
-        bound->addressSpace.cache.invalidate(
-            {bound->addressSpace.findObject(liMO)});
-        bound->removePointerResolutions(liMO);
         bound->addressSpace.unbindObject(liMO);
         bound->symbolics = bound->symbolics.remove(liMO);
       }
@@ -6641,7 +6647,7 @@ void Executor::executeMemoryOperation(
     if (unbound->addressSpace.cache.contains(address) &&
         unbound->addressSpace.cache.get(address).size() == 1) {
       uniqueBaseResolved = true;
-      idFastResult = unbound->addressSpace.cache.get(address).front().first;
+      idFastResult = unbound->addressSpace.cache.get(address).front();
     } else if (auto constBasePointer =
                    dyn_cast<ConstantPointerExpr>(basePointer)) {
       ObjectPair constantResult;
@@ -6750,20 +6756,22 @@ void Executor::lazyInitializeLocalObject(ExecutionState &state, StackFrame &sf,
     }
   }
   ref<Expr> conditionExpr = Expr::createTrue();
-  ref<PointerExpr> pointer = PointerExpr::create(address, address);
-  ref<const MemoryObject> id = lazyInitializeObject(
-      state, pointer, target, typeSystemManager->getWrappedType(ai->getType()),
+  ref<const MemoryObject> mo = lazyInitializeObject(
+      state, address, target, typeSystemManager->getWrappedType(ai->getType()),
       elementSize, size, true, conditionExpr, UseSymbolicSizeLazyInit);
-  state.addPointerResolution(pointer, id.get());
-  state.addConstraint(EqExpr::create(address, id->getBaseExpr()));
+  ref<PointerExpr> pointer = PointerExpr::create(
+      ConstantExpr::create(Context::get().getPointerWidth(), mo->id), address);
+
+  state.addPointerResolution(pointer, mo.get());
+  state.addConstraint(EqExpr::create(address, mo->getBaseExpr()));
   state.addConstraint(
       Expr::createIsZero(EqExpr::create(address, Expr::createPointer(0))));
   if (isa<ConstantExpr>(size)) {
-    addConstraint(state, EqExpr::create(size, id->getSizeExpr()));
+    addConstraint(state, EqExpr::create(size, mo->getSizeExpr()));
   }
-  RefObjectPair op = state.addressSpace.findOrLazyInitializeObject(id.get());
+  RefObjectPair op = state.addressSpace.findOrLazyInitializeObject(mo.get());
   auto wos = state.addressSpace.getWriteable(op.first, op.second.get());
-  if (op.first == id.get()) {
+  if (op.first == mo.get()) {
     state.addSymbolic(*op.first, *wos);
   } else {
     state.replaceSymbolic(*op.first, *op.second, *wos);
@@ -6937,16 +6945,19 @@ ExecutionState *Executor::formState(Function *f, int argc, char **argv,
           /*allocSite=*/parameterLocation, /*alignment=*/8,
           typeSystemManager->getWrappedType(argvType));
 
+      auto argvObject =
+          ConstantExpr::create(argvMO->id, Context::get().getPointerWidth());
+
       if (!argvMO)
         klee_error("Could not allocate memory for function arguments");
 
       arguments.push_back(
-          PointerExpr::create(argvMO->getBaseExpr(), argvMO->getBaseExpr()));
+          PointerExpr::create(argvObject, argvMO->getBaseExpr()));
 
       if (++ai != ae) {
         uint64_t envp_start = (argc + 1) * NumPtrBytes;
         arguments.push_back(AddExpr::create(
-            PointerExpr::create(argvMO->getBaseExpr(), argvMO->getBaseExpr()),
+            PointerExpr::create(argvObject, argvMO->getBaseExpr()),
             Expr::createPointer(envp_start)));
 
         if (++ai != ae)

@@ -69,6 +69,7 @@ void AddressSpace::bindObject(const MemoryObject *mo, ObjectState *os) {
 }
 
 void AddressSpace::unbindObject(const MemoryObject *mo) {
+  cache.invalidate(mo);
   objects = objects.remove(mo);
 }
 
@@ -129,7 +130,7 @@ bool AddressSpace::resolveOne(ref<ConstantPointerExpr> address, KType *,
         if ((moSize == 0 && addressConst == moAddress) ||
             (addressConst - moAddress < moSize)) {
           result = findObject(mo);
-          cache.cacheResolution(address, ResolutionList{result});
+          cache.cacheResolution(address, ObjectResolutionList{mo});
           return true;
         }
       }
@@ -163,7 +164,7 @@ bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
         return false;
       }
       if (success) {
-        cache.cacheResolution(address, ResolutionList{result});
+        cache.cacheResolution(address, ObjectResolutionList{mo});
         result = findObject(mo);
       }
     }
@@ -235,7 +236,8 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                               ObjectPair &result, bool &success,
                               const std::atomic_bool &haltExecution) const {
   if (cache.contains(address)) {
-    result = cache.get(address).front();
+    assert(findObject(cache.get(address).front().get()).first != nullptr);
+    result = findObject(cache.get(address).front().get());
     success = true;
     return true;
   }
@@ -288,7 +290,6 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     }
   }
 
-  cache.cacheResolution(address, ResolutionList{result});
   success = false;
   return true;
 }
@@ -333,7 +334,12 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
                            ResolutionList &rl, unsigned maxResolutions,
                            time::Span timeout) const {
   if (cache.contains(p)) {
-    rl = cache.get(p);
+    auto orl = cache.get(p);
+    for (auto object : orl) {
+      rl.reserve(rl.size() + orl.size());
+      assert(findObject(object.get()).first != nullptr);
+      rl.push_back(findObject(object.get()));
+    }
     return false;
   }
 
@@ -504,24 +510,21 @@ bool MemoryObjectLT::operator()(const MemoryObject *a,
 }
 
 bool ResolutionCache::cacheResolution(ref<PointerExpr> address,
-                                      const ResolutionList &resolution) {
+                                      const ObjectResolutionList &resolution) {
   if (contains(address)) {
     return false;
   }
-  std::vector<const MemoryObject *> objectsResolution;
-  objectsResolution.reserve(resolution.size());
-  for (const auto &it : resolution) {
-    objectsResolution.push_back(it.first);
-  }
-  cache_ = cache_.insert({address, objectsResolution});
+  llvm::errs() << "Cached " << *address << "\n";
+
+  cache_ = cache_.insert({address, resolution});
   return true;
 }
 
-ResolutionList ResolutionCache::reset(ref<PointerExpr> address) {
+ObjectResolutionList ResolutionCache::reset(ref<PointerExpr> address) {
   if (!contains(address)) {
     return {};
   }
-  ResolutionList result = get(address);
+  auto result = get(address);
   cache_ = cache_.remove(address);
 
   return result;
@@ -529,30 +532,21 @@ ResolutionList ResolutionCache::reset(ref<PointerExpr> address) {
 
 void ResolutionCache::reset() { cache_ = ResolutionCacheContainer(); }
 
-ResolutionList ResolutionCache::get(ref<PointerExpr> address) const {
+ObjectResolutionList ResolutionCache::get(ref<PointerExpr> address) const {
   assert(contains(address));
-  const auto &objectsResolution = cache_.at(address);
-
-  ResolutionList result;
-  result.reserve(objectsResolution.size());
-
-  for (auto object : cache_.at(address)) {
-    result.push_back(owner_.findObject(object));
-  }
-
-  return result;
+  return cache_.at(address);
 }
 
 bool ResolutionCache::contains(ref<PointerExpr> address) const {
   return cache_.count(address) != 0;
 }
 
-void ResolutionCache::invalidate(const ObjectPair &objectPair) {
+void ResolutionCache::invalidate(ref<const MemoryObject> object) {
   // TODO: optimize
 
   std::vector<ref<PointerExpr>> invalidated;
   for (auto &[address, resolution] : cache_) {
-    if (std::find(resolution.begin(), resolution.end(), objectPair.first) !=
+    if (std::find(resolution.begin(), resolution.end(), object) !=
         resolution.end()) {
       invalidated.push_back(address);
     }

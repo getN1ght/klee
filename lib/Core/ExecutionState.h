@@ -45,7 +45,6 @@
 #include <memory>
 #include <optional>
 #include <set>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -471,7 +470,6 @@ public:
   bool getBase(ref<Expr> expr,
                std::pair<ref<const MemoryObject>, ref<Expr>> &resolution) const;
 
-  void removePointerResolutions(const MemoryObject *mo);
   void removePointerResolutions(ref<PointerExpr> address, unsigned size);
   void addPointerResolution(ref<PointerExpr> address, const MemoryObject *mo,
                             unsigned size = 0);

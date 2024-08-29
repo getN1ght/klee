@@ -234,7 +234,6 @@ void ExecutionState::popFrame() {
   const StackFrame &sf = stack.valueStack().back();
   for (auto &memoryObject : sf.allocas) {
     assert(memoryObject);
-    removePointerResolutions(memoryObject.get());
     addressSpace.unbindObject(memoryObject.get());
   }
   stack.popFrame();
@@ -345,18 +344,6 @@ bool ExecutionState::getBase(
   return true;
 }
 
-void ExecutionState::removePointerResolutions(const MemoryObject *mo) {
-  for (auto resolution = begin(resolvedPointers);
-       resolution != end(resolvedPointers);) {
-    resolution->second.erase(mo);
-    if (resolution->second.size() == 0) {
-      resolution = resolvedPointers.erase(resolution);
-    } else {
-      ++resolution;
-    }
-  }
-}
-
 void ExecutionState::removePointerResolutions(ref<PointerExpr> address,
                                               unsigned size) {
   ref<Expr> base = address->getBase();
@@ -374,7 +361,7 @@ void ExecutionState::addPointerResolution(ref<PointerExpr> address,
   if (!isa<ConstantExpr>(base)) {
     resolvedPointers[base].insert(mo);
     auto resolution = addressSpace.cache.reset(address);
-    resolution.push_back(addressSpace.findObject(mo));
+    resolution.push_back(mo);
     addressSpace.cache.cacheResolution(address, resolution);
   }
 }
@@ -388,8 +375,7 @@ void ExecutionState::addUniquePointerResolution(ref<PointerExpr> address,
     resolvedPointers[base].insert(mo);
 
     addressSpace.cache.reset(address);
-    addressSpace.cache.cacheResolution(
-        address, ResolutionList{addressSpace.findObject(mo)});
+    addressSpace.cache.cacheResolution(address, ObjectResolutionList{mo});
   }
 }
 

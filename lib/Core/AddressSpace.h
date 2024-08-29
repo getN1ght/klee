@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <functional>
 #include <klee/ADT/ImmutableSet.h>
+#include <klee/Expr/ExprHashMap.h>
 
 namespace klee {
 class ExecutionState;
@@ -32,7 +33,9 @@ template <class T> class ref;
 
 typedef std::pair<const MemoryObject *, const ObjectState *> ObjectPair;
 typedef std::pair<const MemoryObject *, ref<const ObjectState>> RefObjectPair;
+
 typedef std::vector<ObjectPair> ResolutionList;
+typedef std::vector<ref<const MemoryObject>> ObjectResolutionList;
 
 typedef std::function<bool(const MemoryObject *)> MOPredicate;
 
@@ -48,31 +51,20 @@ typedef ImmutableMap<IDType, const MemoryObject *> IDMap;
 class AddressSpace;
 
 class ResolutionCache {
-  struct InnerRefLess {
-    bool operator()(const ref<PointerExpr> &a,
-                    const ref<PointerExpr> &b) const {
-      return a.get() < b.get();
-    }
-  };
-
-  typedef ImmutableMap<ref<PointerExpr>, std::vector<const MemoryObject *>,
-                       InnerRefLess>
+  typedef ImmutableMap<ref<PointerExpr>, ObjectResolutionList, util::ExprLess>
       ResolutionCacheContainer;
 
 public:
-  ResolutionCache(const AddressSpace &owner) : owner_(owner) {}
   bool cacheResolution(ref<PointerExpr> address,
-                       const ResolutionList &resolution);
-  ResolutionList reset(ref<PointerExpr> address);
-  ResolutionList get(ref<PointerExpr> address) const;
-  void reset();
-
-  void invalidate(const ObjectPair &objectPair);
-
+                       const ObjectResolutionList &resolution);
+  ObjectResolutionList get(ref<PointerExpr> address) const;
   bool contains(ref<PointerExpr> address) const;
 
+  ObjectResolutionList reset(ref<PointerExpr> address);
+  void reset();
+  void invalidate(ref<const MemoryObject>);
+
 private:
-  const AddressSpace &owner_;
   ResolutionCacheContainer cache_;
 };
 
@@ -113,7 +105,7 @@ public:
 
   mutable bool complete = false;
 
-  AddressSpace() : cowKey(1), cache(*this) {}
+  AddressSpace() : cowKey(1) {}
   AddressSpace(const AddressSpace &b)
       : cowKey(++b.cowKey), cache(b.cache), objects(b.objects),
         complete(b.complete) {}
