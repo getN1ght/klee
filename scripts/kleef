@@ -108,7 +108,7 @@ def klee_options(
             "--mem-trigger-cof", # Start on the fly tests generation after approaching memory cup
             "--use-alpha-equivalence=true",
             # "--optimize-aggressive=false",
-            "--track-coverage=all", # Only branches and only instructions are wrong in real life. E.g., ternary operators are sometimes counted as different branches, while we stick to look at them as a single instruction from a single branch
+            "--track-coverage=branches", # Only branches and only instructions are wrong in real life. E.g., ternary operators are sometimes counted as different branches, while we stick to look at them as a single instruction from a single branch
             "--use-iterative-deepening-search=max-cycles",
             f"--max-solver-time={MAX_SOLVER_TIME}s",
             "--max-cycles-before-stuck=15",
@@ -280,8 +280,8 @@ class KLEEF(object):
 
     def instrument(self, cmd: list) -> Path:
         assert(self.property_file is not None)
-        
-        return_value = src_tooling_runner.run(cmd, ["-32" if self.is32 else "-64", f"--goal={self.property_file}", str(self.source)])
+
+        return_value = src_tooling_runner.run(cmd, ["-32" if self.is32 else "-64", f"--goal={self.property_file}", str(self.source)], Path.cwd())
         assert(return_value is not None)
         return return_value
 

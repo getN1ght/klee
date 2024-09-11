@@ -346,9 +346,9 @@ void KModule::optimiseAndPrepare(
   pm3.run(*module);
 
   {
-    // llvm::legacy::PassManager pm;
-    // pm.add(new DbgIntrinsicUnwrapperPass(std::move(addedWrappers)));
-    // pm.run(*module);
+    llvm::legacy::PassManager pm;
+    pm.add(new DbgIntrinsicUnwrapperPass(std::move(addedWrappers)));
+    pm.run(*module);
   }
 }
 
