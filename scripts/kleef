@@ -281,7 +281,7 @@ class KLEEF(object):
     def instrument(self, cmd: list) -> Path:
         assert(self.property_file is not None)
 
-        return_value = src_tooling_runner.run(cmd, ["-32" if self.is32 else "-64", f"--goal={self.property_file}", str(self.source)], Path.cwd())
+        return_value = src_tooling_runner.run(cmd, ["-32" if self.is32 else "-64", f"--goal={self.property_file}", str(self.source)], Path.cwd() / (str(self.source.name) + "_" + ("coverage" if self.f_cov else "error")))
         assert(return_value is not None)
         return return_value
 
