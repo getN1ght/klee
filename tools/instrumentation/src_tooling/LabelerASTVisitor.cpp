@@ -59,8 +59,7 @@ SourceLocation LabelerASTVisitor::GetTrueEndLocation(Stmt *fromStatement) {
     // ^ this is returned
     Optional<Token> nextToken = getNextToken(fromStatement->getEndLoc());
     // assert(nextToken->is(tok::r_brace));
-    return nextToken->is(tok::r_brace) ? nextToken->getLocation()
-                                       : fromStatement->getEndLoc();
+    return nextToken->getLocation();
   }
   Optional<Token> nextToken = getNextToken(fromStatement->getEndLoc());
   if (nextToken->is(tok::semi)) {
