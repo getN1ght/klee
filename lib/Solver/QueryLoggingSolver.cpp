@@ -211,7 +211,22 @@ bool QueryLoggingSolver::computeInitialValues(
                "Array of symbolic size had not receive value for size!");
 
         for (unsigned j = 0; j < arrayConstantSize->getZExtValue(); j++) {
-          logBuffer << (int)data.load(j);
+          uint64_t value = 0;
+          switch (array->getRange()) {
+          case Expr::Int8: {
+            value = data.load(j);
+            break;
+          }
+          case Expr::Int64: {
+            value = data.SparseStorage<unsigned char>::load<uint64_t>(j);
+            break;
+          }
+          default: {
+            assert(false);
+            unreachable();
+          }
+          }
+          logBuffer << value;
 
           if (j + 1 < arrayConstantSize->getZExtValue()) {
             logBuffer << ",";

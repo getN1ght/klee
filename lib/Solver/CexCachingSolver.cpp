@@ -303,8 +303,14 @@ bool CexCachingSolver::computeValidity(const Query &query,
   TimerStatIncrementer t(stats::cexCacheTime);
   ref<SolverResponse> a;
   ref<Expr> q;
-  if (!computeValue(query, q))
+  if (!computeValue(query, q)) {
     return false;
+  }
+
+  if (!isa<ConstantExpr>(q)) {
+    q->dump();
+    assert(isa<ConstantExpr>(q));
+  }
 
   if (cast<ConstantExpr>(q)->isTrue()) {
     bool success = getResponse(query, a);
@@ -361,7 +367,7 @@ bool CexCachingSolver::computeValue(const Query &query, ref<Expr> &result) {
   ref<SolverResponse> a;
   if (!query.constraints.cs().empty()) {
     if (!getResponse(query.withFalse(), a))
-      return false;
+    return false;
   } else {
     a = new InvalidResponse();
   }

@@ -27,6 +27,13 @@ void ArrayExprHelper::collectAlternatives(
   }
 }
 
+std::vector<ref<Expr>>
+ArrayExprHelper::collectAlternatives(const SelectExpr &se) {
+  std::vector<ref<Expr>> result;
+  collectAlternatives(se, result);
+  return result;
+}
+
 //--------------------------- INDEX-BASED OPTIMIZATION-----------------------//
 ExprVisitor::Action
 ConstantArrayExprVisitor::visitConcat(const ConcatExpr &ce) {

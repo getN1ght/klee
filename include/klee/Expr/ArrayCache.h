@@ -12,9 +12,7 @@
 
 #include "klee/Expr/ArrayExprHash.h" // For klee::ArrayHashFn
 
-#include <string>
 #include <unordered_set>
-#include <vector>
 
 namespace klee {
 class Array;
@@ -26,7 +24,10 @@ struct EquivArrayCmpFn {
   bool operator()(const Array *array1, const Array *array2) const {
     if (array1 == NULL || array2 == NULL)
       return false;
-    return (array1->size == array2->size) && (array1->source == array2->source);
+    return (array1->size == array2->size) &&
+           (array1->source == array2->source) &&
+           (array1->getDomain() == array2->getDomain()) &&
+           (array1->getRange() == array2->getRange());
   }
 };
 

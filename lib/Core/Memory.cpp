@@ -33,6 +33,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <klee/Expr/SourceBuilder.h>
+#include <klee/Expr/SymbolicSource.h>
 
 namespace klee {
 llvm::cl::opt<MemoryType> MemoryBackend(
@@ -100,15 +102,22 @@ std::string MemoryObject::getAllocInfo() const {
 
 ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
     : copyOnWriteOwner(0), object(mo), valueOS(ObjectStage(array, nullptr)),
-      baseOS(ObjectStage(array->size, Expr::createPointer(0), false,
-                         Context::get().getPointerWidth())),
+      baseOS(ObjectStage(
+          Array::create(array->size, SourceBuilder::irreproducible("base"),
+                        Expr::Int32, Context::get().getPointerWidth()),
+          nullptr, false, Context::get().getPointerWidth())),
       lastUpdate(nullptr), size(array->size), dynamicType(dt), readOnly(false) {
+  if (array->source && (isa<ConstantSource>(array->source) ||
+                        isa<UninitializedSource>(array->source))) {
+    baseOS.initializeWith(
+        ConstantExpr::create(-1, Context::get().getPointerWidth()));
+  }
 }
 
 ObjectState::ObjectState(const MemoryObject *mo, KType *dt)
     : copyOnWriteOwner(0), object(mo),
       valueOS(ObjectStage(mo->getSizeExpr(), nullptr)),
-      baseOS(ObjectStage(mo->getSizeExpr(), Expr::createPointer(0), false,
+      baseOS(ObjectStage(mo->getSizeExpr(), nullptr, false,
                          Context::get().getPointerWidth())),
       lastUpdate(nullptr), size(mo->getSizeExpr()), dynamicType(dt),
       readOnly(false) {}
@@ -123,16 +132,19 @@ ObjectState::ObjectState(const ObjectState &os)
 
 void ObjectState::initializeToZero() {
   valueOS.initializeToZero();
-  baseOS.initializeToZero();
+  baseOS.initializeWith(
+      ConstantExpr::create(-1, Context::get().getPointerWidth()));
 }
 
 ref<Expr> ObjectState::read8(unsigned offset) const {
   ref<Expr> val = valueOS.readWidth(offset);
   ref<Expr> base = baseOS.readWidth(offset);
-  if (base->isZero()) {
+
+  ref<PointerExpr> result = PointerExpr::create(base, val);
+  if (result->isKnownInvalid()) {
     return val;
   } else {
-    return PointerExpr::create(base, val);
+    return result;
   }
 }
 
@@ -145,6 +157,9 @@ ref<Expr> ObjectState::readBase8(unsigned offset) const {
 }
 
 ref<Expr> ObjectState::read8(ref<Expr> offset) const {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   assert(!isa<ConstantExpr>(offset) &&
          "constant offset passed to symbolic read8");
 
@@ -166,14 +181,19 @@ ref<Expr> ObjectState::read8(ref<Expr> offset) const {
   }
   ref<Expr> val = valueOS.readWidth(offset);
   ref<Expr> base = baseOS.readWidth(offset);
-  if (base->isZero()) {
+
+  ref<PointerExpr> result = PointerExpr::create(base, val);
+  if (result->isKnownInvalid()) {
     return val;
   } else {
-    return PointerExpr::create(base, val);
+    return result;
   }
 }
 
 ref<Expr> ObjectState::readValue8(ref<Expr> offset) const {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   assert(!isa<ConstantExpr>(offset) &&
          "constant offset passed to symbolic read8");
 
@@ -197,6 +217,9 @@ ref<Expr> ObjectState::readValue8(ref<Expr> offset) const {
 }
 
 ref<Expr> ObjectState::readBase8(ref<Expr> offset) const {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   assert(!isa<ConstantExpr>(offset) &&
          "constant offset passed to symbolic read8");
 
@@ -222,7 +245,7 @@ ref<Expr> ObjectState::readBase8(ref<Expr> offset) const {
 void ObjectState::write8(unsigned offset, uint8_t value) {
   valueOS.writeWidth(offset, value);
   baseOS.writeWidth(offset,
-                    ConstantExpr::create(0, Context::get().getPointerWidth()));
+                    ConstantExpr::create(-1, Context::get().getPointerWidth()));
 }
 
 void ObjectState::write8(unsigned offset, ref<Expr> value) {
@@ -233,11 +256,14 @@ void ObjectState::write8(unsigned offset, ref<Expr> value) {
   } else {
     valueOS.writeWidth(offset, value);
     baseOS.writeWidth(
-        offset, ConstantExpr::create(0, Context::get().getPointerWidth()));
+        offset, ConstantExpr::create(-1, Context::get().getPointerWidth()));
   }
 }
 
 void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   wasWritten = true;
 
   assert(!isa<ConstantExpr>(offset) &&
@@ -264,7 +290,7 @@ void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
   } else {
     valueOS.writeWidth(offset, value);
     baseOS.writeWidth(
-        offset, ConstantExpr::create(0, Context::get().getPointerWidth()));
+        offset, ConstantExpr::create(-1, Context::get().getPointerWidth()));
   }
 }
 
@@ -278,30 +304,41 @@ void ObjectState::write(ref<const ObjectState> os) {
 /***/
 
 ref<Expr> ObjectState::read(ref<Expr> offset, Expr::Width width) const {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   if (lastUpdate && lastUpdate->index == offset &&
       lastUpdate->value->getWidth() == width)
     return lastUpdate->value;
 
   ref<Expr> val = readValue(offset, width);
   ref<Expr> base = readBase(offset, width);
-  if (base->isZero()) {
+
+  ref<PointerExpr> result = PointerExpr::create(base, val);
+  if (result->isKnownInvalid()) {
     return val;
   } else {
-    return PointerExpr::create(base, val);
+    return result;
   }
 }
 
 ref<Expr> ObjectState::read(unsigned offset, Expr::Width width) const {
   ref<Expr> val = readValue(offset, width);
   ref<Expr> base = readBase(offset, width);
-  if (base->isZero()) {
+
+  ref<PointerExpr> result = PointerExpr::create(base, val);
+  if (result->isKnownInvalid()) {
     return val;
   } else {
-    return PointerExpr::create(base, val);
+    return result;
   }
 }
 
 ref<Expr> ObjectState::readValue(ref<Expr> offset, Expr::Width width) const {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
+
   // Truncate offset to 32-bits.
   offset = ZExtExpr::create(offset, Expr::Int32);
 
@@ -346,6 +383,9 @@ ref<Expr> ObjectState::readValue(unsigned offset, Expr::Width width) const {
 }
 
 ref<Expr> ObjectState::readBase(ref<Expr> offset, Expr::Width width) const {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   // Truncate offset to 32-bits.
   offset = ZExtExpr::create(offset, Expr::Int32);
 
@@ -357,28 +397,22 @@ ref<Expr> ObjectState::readBase(ref<Expr> offset, Expr::Width width) const {
   if (width == Expr::Bool)
     return ExtractExpr::create(readBase8(offset), 0, Expr::Bool);
 
-  // Treat bool specially, it is the only non-byte sized write we allow.
-  if (width == Expr::Bool)
-    return ExtractExpr::create(readBase8(offset), 0, Expr::Bool);
-
   // Otherwise, follow the slow general case.
   unsigned NumBytes = width / 8;
   assert(width == NumBytes * 8 && "Invalid read size!");
-  ref<Expr> Res(0);
-  ref<Expr> null = Expr::createPointer(0);
-  for (unsigned i = 0; i != NumBytes; ++i) {
-    unsigned idx = Context::get().isLittleEndian() ? i : (NumBytes - i - 1);
-    ref<Expr> Byte = readBase8(
-        AddExpr::create(offset, ConstantExpr::create(idx, Expr::Int32)));
-    if (i) {
-      ref<Expr> eqBytes = EqExpr::create(Byte, Res);
-      Res = SelectExpr::create(eqBytes, Byte, null);
-    } else {
-      Res = Byte;
-    }
+
+  ref<Expr> areAllBasesEqual = Expr::createTrue();
+  ref<Expr> res = readBase8(offset);
+
+  for (unsigned i = 1; i < NumBytes; ++i) {
+    ref<Expr> base = readBase8(
+        AddExpr::create(offset, ConstantExpr::create(i, Expr::Int32)));
+    areAllBasesEqual =
+        AndExpr::create(areAllBasesEqual, EqExpr::create(res, base));
   }
 
-  return Res;
+  return SelectExpr::create(areAllBasesEqual, res,
+                            ConstantExpr::create(-1, res->getWidth()));
 }
 
 ref<Expr> ObjectState::readBase(unsigned offset, Expr::Width width) const {
@@ -389,23 +423,25 @@ ref<Expr> ObjectState::readBase(unsigned offset, Expr::Width width) const {
   // Otherwise, follow the slow general case.
   unsigned NumBytes = width / 8;
   assert(width == NumBytes * 8 && "Invalid width for read size!");
-  ref<Expr> Res(0);
-  ref<Expr> null = Expr::createPointer(0);
-  for (unsigned i = 0; i != NumBytes; ++i) {
-    unsigned idx = Context::get().isLittleEndian() ? i : (NumBytes - i - 1);
-    ref<Expr> Byte = readBase8(offset + idx);
-    if (i) {
-      ref<Expr> eqBytes = EqExpr::create(Byte, Res);
-      Res = SelectExpr::create(eqBytes, Byte, null);
-    } else {
-      Res = Byte;
-    }
+
+  ref<Expr> areAllBasesEqual = Expr::createTrue();
+  ref<Expr> res = readBase8(offset);
+
+  for (unsigned i = 1; i < NumBytes; ++i) {
+    ref<Expr> base = readBase8(offset + i);
+    areAllBasesEqual =
+        AndExpr::create(areAllBasesEqual, EqExpr::create(res, base));
   }
 
-  return Res;
+  return SelectExpr::create(areAllBasesEqual, res,
+                            ConstantExpr::create(-1, res->getWidth()));
 }
 
 void ObjectState::write(ref<Expr> offset, ref<Expr> value) {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
+
   // Truncate offset to 32-bits.
   offset = ZExtExpr::create(offset, Expr::Int32);
 
@@ -435,6 +471,9 @@ void ObjectState::write(ref<Expr> offset, ref<Expr> value) {
 
 ref<Expr> ObjectState::readInitialValue(ref<Expr> offset,
                                         Expr::Width width) const {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   // FIXME: I hate copy-paste here.
   // We need to move common for all reads in function that accepts
   // object like "Reader".
@@ -488,6 +527,9 @@ ref<Expr> ObjectState::readInitialValue8(unsigned offset) const {
 }
 
 ref<Expr> ObjectState::readInitialValue8(ref<Expr> offset) const {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   return valueOS.readInitialWidth(offset);
 }
 
@@ -637,15 +679,18 @@ const UpdateList &ObjectStage::getUpdates() const {
   return updates;
 }
 
-void ObjectStage::initializeToZero() {
-  auto array = Array::create(
-      size,
-      SourceBuilder::constant(constructStorage(
-          size, ConstantExpr::create(0, width), MaxFixedSizeStructureSize)),
-      Expr::Int32, width);
+void ObjectStage::initializeWith(ref<ConstantExpr> value) {
+  auto array = Array::create(size,
+                             SourceBuilder::constant(constructStorage(
+                                 size, value, MaxFixedSizeStructureSize)),
+                             Expr::Int32, width);
   updates = UpdateList(array, nullptr);
   knownSymbolics->reset();
   unflushedMask->reset();
+}
+
+void ObjectStage::initializeToZero() {
+  initializeWith(ConstantExpr::create(0, width));
 }
 
 void ObjectStage::flushForRead() const {
@@ -678,6 +723,9 @@ ref<Expr> ObjectStage::readWidth(unsigned offset) const {
 }
 
 ref<Expr> ObjectStage::readWidth(ref<Expr> offset) const {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   assert(!isa<ConstantExpr>(offset) &&
          "constant offset passed to symbolic read8");
   flushForRead();
@@ -696,6 +744,9 @@ ref<Expr> ObjectStage::readInitialWidth(unsigned offset) const {
 }
 
 ref<Expr> ObjectStage::readInitialWidth(ref<Expr> offset) const {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   // TODO: same as above
   assert(!isa<ConstantExpr>(offset) &&
          "constant offset passed to symbolic read8");
@@ -732,6 +783,9 @@ void ObjectStage::writeWidth(unsigned offset, ref<Expr> value) {
 }
 
 void ObjectStage::writeWidth(ref<Expr> offset, ref<Expr> value) {
+  if (auto pointerOffset = dyn_cast<PointerExpr>(offset)) {
+    offset = pointerOffset->getValue();
+  }
   assert(!isa<ConstantExpr>(offset) &&
          "constant offset passed to symbolic write8");
 

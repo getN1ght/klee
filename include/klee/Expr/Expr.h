@@ -254,6 +254,7 @@ public:
 
     // Compare
     Eq,
+    PointerEq,
     Ne, ///< Not used in canonical form
     Ult,
     Ule,
@@ -1293,6 +1294,37 @@ COMPARISON_EXPR_CLASS(FOLe)
 COMPARISON_EXPR_CLASS(FOGt)
 COMPARISON_EXPR_CLASS(FOGe)
 
+class PointerEqExpr : public CmpExpr {
+public:
+  static const Kind kind = PointerEq;
+  static const unsigned numKids = 2;
+
+public:
+  PointerEqExpr(const ref<Expr> &l, const ref<Expr> &r) : CmpExpr(l, r) {}
+  static ref<Expr> alloc(const ref<Expr> &l, const ref<Expr> &r) {
+    ref<Expr> res(new PointerEqExpr(l, r));
+    res->computeHash();
+    res->computeHeight();
+    return createCachedExpr(res);
+  }
+  static ref<Expr> create(const ref<Expr> &l, const ref<Expr> &r);
+  Kind getKind() const { return PointerEq; }
+  virtual ref<Expr> rebuild(ref<Expr> kids[]) const {
+    return create(kids[0], kids[1]);
+  }
+
+  ref<Expr> sideInvariant() const;
+
+  static bool classof(const Expr *E) { return E->getKind() == Expr::PointerEq; }
+  static bool classof(const PointerEqExpr *) { return true; }
+
+protected:
+  virtual int compareContents(const Expr &) const {
+    /* No attributes to compare. */
+    return 0;
+  }
+};
+
 // Floating point predicates
 #define FP_PRED_EXPR_CLASS(_class_kind)                                        \
   class _class_kind##Expr : public NonConstantExpr {                           \
@@ -1680,21 +1712,30 @@ public:
     r->computeHeight();
     return r;
   }
+
   static ref<Expr> create(const ref<Expr> &b, const ref<Expr> &o);
-  static ref<Expr> create(const ref<Expr> &v);
-  static ref<Expr> createSymbolic(const ref<Expr> &expr,
-                                  const ref<ReadExpr> &pointer,
-                                  const ref<Expr> &off);
+
+  static ref<PointerExpr> createSymbolic(const ref<Expr> &v);
+  static ref<PointerExpr> createMarkedInvalid(ref<Expr> v);
+  static ref<PointerExpr> createNull();
+
+  bool isKnownInvalid() const {
+    return EqExpr::create(getBase(),
+                          ConstantExpr::create(-1, getBase()->getWidth()))
+        ->isTrue();
+  }
+
+  bool isKnownValid() const {
+    return NotExpr::create(
+               EqExpr::create(getBase(),
+                              ConstantExpr::create(-1, getBase()->getWidth())))
+        ->isTrue();
+  }
 
   Width getWidth() const { return value->getWidth(); }
   Kind getKind() const { return Expr::Pointer; }
   ref<Expr> getBase() const { return base; }
   ref<Expr> getValue() const { return value; }
-  ref<Expr> getOffset() const {
-    assert(value->getWidth() == base->getWidth() &&
-           "Invalid getOffset() call!");
-    return SubExpr::create(value, base);
-  }
 
   unsigned getNumKids() const { return numKids; }
   ref<Expr> getKid(unsigned i) const {
@@ -1714,8 +1755,6 @@ public:
            E->getKind() == Expr::ConstantPointer;
   }
   static bool classof(const PointerExpr *) { return true; }
-
-  bool isKnownValue() const { return getBase()->isZero(); }
 
   ref<Expr> Add(const ref<PointerExpr> &RHS);
   ref<Expr> Sub(const ref<PointerExpr> &RHS);
@@ -1764,9 +1803,6 @@ public:
 
   Kind getKind() const { return Expr::ConstantPointer; }
   ref<ConstantExpr> getConstantBase() const { return cast<ConstantExpr>(base); }
-  ref<ConstantExpr> getConstantOffset() const {
-    return getConstantValue()->Sub(getConstantBase());
-  }
   ref<ConstantExpr> getConstantValue() const {
     return cast<ConstantExpr>(value);
   }

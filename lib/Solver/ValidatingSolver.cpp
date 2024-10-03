@@ -115,7 +115,21 @@ bool ValidatingSolver::computeInitialValues(
              "Array of symbolic size had not receive value for size!");
 
       for (unsigned j = 0; j < arrayConstantSize->getZExtValue(); j++) {
-        unsigned char value = values[i].load(j);
+        uint64_t value = 0;
+        switch (array->getRange()) {
+        case Expr::Int8: {
+          value = values[i].load(j);
+          break;
+        }
+        case Expr::Int64: {
+          value = values[i].SparseStorage<unsigned char>::load<uint64_t>(j);
+          break;
+        }
+        default: {
+          assert(false);
+          unreachable();
+        }
+        }
         bindings.addConstraint(EqExpr::create(
             ReadExpr::create(UpdateList(array, 0),
                              ConstantExpr::alloc(j, array->getDomain())),

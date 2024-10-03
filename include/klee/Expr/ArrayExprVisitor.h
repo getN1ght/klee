@@ -22,6 +22,7 @@ class ArrayExprHelper {
 public:
   static void collectAlternatives(const SelectExpr &se,
                                   std::vector<ref<Expr>> &alternatives);
+  static std::vector<ref<Expr>> collectAlternatives(const SelectExpr &se);
 };
 
 //--------------------------- INDEX-BASED OPTIMIZATION-----------------------//

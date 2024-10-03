@@ -21,6 +21,7 @@
 
 #include "CoreStats.h"
 #include <algorithm>
+#include <llvm-14/llvm/Support/Casting.h>
 
 namespace klee {
 llvm::cl::OptionCategory
@@ -65,11 +66,13 @@ using namespace klee;
 void AddressSpace::bindObject(const MemoryObject *mo, ObjectState *os) {
   assert(os->copyOnWriteOwner == 0 && "object already has owner");
   os->copyOnWriteOwner = cowKey;
+  idsToObjects = idsToObjects.replace({mo->id, mo});
   objects = objects.replace(std::make_pair(mo, os));
 }
 
 void AddressSpace::unbindObject(const MemoryObject *mo) {
   cache.invalidate(mo);
+  idsToObjects = idsToObjects.remove(mo->id);
   objects = objects.remove(mo);
 }
 
@@ -110,68 +113,157 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
 
 ///
 
-bool AddressSpace::resolveOne(ref<ConstantPointerExpr> address, KType *,
-                              ObjectPair &result) const {
-  uint64_t baseConst = address->getConstantBase()->getZExtValue();
-  uint64_t addressConst = address->getConstantValue()->getZExtValue();
-  MemoryObject hack(baseConst);
-
-  if (const auto res = objects.lookup_previous(&hack)) {
-    const auto &mo = res->first;
-    if (ref<ConstantExpr> arrayConstantAddress =
-            dyn_cast<ConstantExpr>(mo->getBaseExpr())) {
-      if (ref<ConstantExpr> arrayConstantSize =
-              dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
-        // Check if the provided address is between start and end of the object
-        // [mo->address, mo->address + mo->size) or the object is a 0-sized
-        // object.
-        uint64_t moSize = arrayConstantSize->getZExtValue();
-        uint64_t moAddress = arrayConstantAddress->getZExtValue();
-        if ((moSize == 0 && addressConst == moAddress) ||
-            (addressConst - moAddress < moSize)) {
-          result = findObject(mo);
-          cache.cacheResolution(address, ObjectResolutionList{mo});
-          return true;
-        }
-      }
+ResolveResult
+AddressSpace::resolveOneByBase(ref<ConstantPointerExpr> pointer) const {
+  auto base = pointer->getConstantBase()->getZExtValue();
+  auto address = pointer->getConstantValue()->getZExtValue();
+  // FIXME: do a O(log n) or O(1) search
+  for (const auto &[object, state] : objects) {
+    if (object->id != base) {
+      continue;
     }
-  }
 
-  return false;
+    ObjectPair objectPair = {object, state.get()};
+
+    // Get constant value of size
+    auto objectConstantSizeExpr = dyn_cast<ConstantExpr>(object->getSizeExpr());
+    if (objectConstantSizeExpr == nullptr) {
+      return ResolveResult::createUnknown(objectPair);
+    }
+    auto objectConstantSizeValue = objectConstantSizeExpr->getZExtValue();
+
+    // Get constant value of address
+    auto objectConstantAddressExpr =
+        dyn_cast<ConstantExpr>(object->getBaseExpr()->getValue());
+    if (objectConstantAddressExpr == nullptr) {
+      return ResolveResult::createUnknown(objectPair);
+    }
+    uint64_t objectConstantAddressValue =
+        objectConstantAddressExpr->getZExtValue();
+
+    // Check if the provided address is between start and end of the object
+    // [mo->address, mo->address + mo->size) or the object is a 0 - sized
+    // object.
+    if ((objectConstantSizeValue == 0 &&
+         address == objectConstantAddressValue) ||
+        address - objectConstantAddressValue < objectConstantSizeValue) {
+      return ResolveResult::createOk({object, state.get()});
+    }
+    return ResolveResult::createNone();
+  }
+  return ResolveResult::createNone();
 }
 
-bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
-                                      TimingSolver *solver,
-                                      ref<PointerExpr> address, KType *,
-                                      ObjectPair &result, bool &success) const {
-  ref<Expr> base = address->getBase();
-  ref<Expr> uniqueAddress = base;
-  if (!isa<ConstantExpr>(uniqueAddress) &&
-      !solver->tryGetUnique(state.constraints.cs(), base, uniqueAddress,
-                            state.queryMetaData)) {
-    return false;
-  }
+// ResolveResult
+// AddressSpace::resolveOneByValue(ref<ConstantPointerExpr> pointer) const {
+//   auto address = pointer->getConstantValue()->getZExtValue();
+//   for (const auto &[object, state] : objects) {
+//     auto objectConstantSizeExpr =
+//     dyn_cast<ConstantExpr>(object->getSizeExpr()); if (objectConstantSizeExpr
+//     == nullptr) {
+//       continue;
+//     }
+//     auto objectConstantSizeValue = objectConstantSizeExpr->getZExtValue();
 
-  success = false;
-  if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(uniqueAddress)) {
-    MemoryObject hack(CE->getZExtValue());
-    if (const auto *res = objects.lookup_previous(&hack)) {
-      const MemoryObject *mo = res->first;
-      ref<Expr> inBounds = mo->getBoundsCheckPointer(address);
+//     auto objectConstantAddressExpr =
+//         dyn_cast<ConstantExpr>(object->getBaseExpr()->getValue());
+//     if (objectConstantAddressExpr == nullptr) {
+//       continue;
+//     }
 
-      if (!solver->mayBeTrue(state.constraints.cs(), inBounds, success,
-                             state.queryMetaData)) {
-        return false;
-      }
-      if (success) {
-        cache.cacheResolution(address, ObjectResolutionList{mo});
-        result = findObject(mo);
-      }
-    }
-  }
+//     uint64_t objectConstantAddressValue =
+//         objectConstantAddressExpr->getZExtValue();
 
-  return true;
+//     if ((objectConstantSizeValue == 0 &&
+//          address == objectConstantAddressValue) ||
+//         address - objectConstantAddressValue < objectConstantSizeValue) {
+
+//       // TODO: remember resolution?
+//       // But all maps using pointer as a key will break.
+//       // And probably it is not a responsibility of resolving function, IDK.
+
+//       // pointer->base = Expr::createPointer(object->id);
+//       // pointer->computeHash();
+//       // pointer->computeHeight();
+
+//       return ResolveResult::createOk({object, state.get()});
+//     }
+//   }
+//   return ResolveResult::createNone();
+// }
+
+ResolveResult AddressSpace::resolveOne(ref<ConstantPointerExpr> pointer,
+                                       KType *) const {
+  return resolveOneByBase(pointer);
+  // return pointer->base.isNull() ? resolveOneByValue(pointer)
+  //                               : resolveOneByBase(pointer);
 }
+
+// bool AddressSpace::resolveOne(ref<ConstantPointerExpr> address, KType *,
+//                               ObjectPair &result) const {
+//   // uint64_t baseConst = address->getConstantBase()->getZExtValue();
+//   uint64_t addressConst = address->getConstantValue()->getZExtValue();
+//   MemoryObject hack(addressConst);
+
+//   if (const auto res = objects.lookup_previous(&hack)) {
+//     const auto &mo = res->first;
+//     if (ref<ConstantPointerExpr> arrayConstantAddress =
+//             dyn_cast<ConstantPointerExpr>(mo->getBaseExpr())) {
+//       if (ref<ConstantExpr> arrayConstantSize =
+//               dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
+//         // Check if the provided address is between start and end of the
+//         object
+//         // [mo->address, mo->address + mo->size) or the object is a 0-sized
+//         // object.
+//         uint64_t moSize = arrayConstantSize->getZExtValue();
+//         uint64_t moAddress =
+//             arrayConstantAddress->getConstantValue()->getZExtValue();
+//         if ((moSize == 0 && addressConst == moAddress) ||
+//             (addressConst - moAddress < moSize)) {
+//           result = findObject(mo);
+//           cache.cacheResolution(address, ObjectResolutionList{mo});
+//           return true;
+//         }
+//       }
+//     }
+//   }
+
+//   return false;
+// }
+
+// bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
+//                                       TimingSolver *solver,
+//                                       ref<PointerExpr> address, KType *,
+//                                       ObjectPair &result, bool &success)
+//                                       const {
+//   ref<Expr> base = address->getBase();
+//   ref<Expr> uniqueAddress = base;
+//   if (!isa<ConstantExpr>(uniqueAddress) &&
+//       !solver->tryGetUnique(state.constraints.cs(), base, uniqueAddress,
+//                             state.queryMetaData)) {
+//     return false;
+//   }
+
+//   success = false;
+//   if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(uniqueAddress)) {
+//     MemoryObject hack(CE->getZExtValue());
+//     if (const auto *res = objects.lookup_previous(&hack)) {
+//       const MemoryObject *mo = res->first;
+//       ref<Expr> inBounds = mo->getBoundsCheckPointer(address);
+
+//       if (!solver->mayBeTrue(state.constraints.cs(), inBounds, success,
+//                              state.queryMetaData)) {
+//         return false;
+//       }
+//       if (success) {
+//         // cache.cacheResolution(address, ObjectResolutionList{mo});
+//         result = findObject(mo);
+//       }
+//     }
+//   }
+
+//   return true;
+// }
 
 class ResolvePredicate {
   bool useTimestamps;
@@ -183,6 +275,7 @@ class ResolvePredicate {
   ExecutionState *state;
   KType *objectType;
   bool complete;
+  bool allowAll = false;
 
 public:
   explicit ResolvePredicate(ExecutionState &state, ref<PointerExpr> address,
@@ -193,20 +286,26 @@ public:
         skipGlobal(SkipGlobal), timestamp(UINT_MAX), state(&state),
         objectType(objectType), complete(complete) {
     ref<Expr> base = address->getBase();
-    if (!isa<ConstantExpr>(base)) {
-      std::pair<ref<const MemoryObject>, ref<Expr>> moBasePair;
-      if (state.getBase(base, moBasePair)) {
-        timestamp = moBasePair.first->timestamp;
-      }
+    // TODO: skip
+    if (isa<ConstantExpr>(base)) {
+      allowAll = true;
+      return;
     }
+    // if (!isa<ConstantExpr>(base)) {
+    //   std::pair<ref<const MemoryObject>, ref<Expr>> moBasePair;
+    //   if (state.getBase(base, moBasePair)) {
+    //     timestamp = moBasePair.first->timestamp;
+    //   }
+    // }
+
     // This is hack to deal with the poineters, which are represented as
     // select expressions from constant pointers with symbolic condition.
     // in such case we allow to resolve in all objects in the address space,
     // but should forbid lazy initilization.
     if (isa<SelectExpr>(base)) {
-      std::vector<ref<Expr>> alternatives;
-      ArrayExprHelper::collectAlternatives(cast<SelectExpr>(*base),
-                                           alternatives);
+      auto alternatives =
+          ArrayExprHelper::collectAlternatives(cast<SelectExpr>(*base));
+
       if (std::find_if_not(alternatives.begin(), alternatives.end(),
                            [](ref<Expr> expr) {
                              return isa<ConstantExpr>(expr);
@@ -220,6 +319,10 @@ public:
   }
 
   bool operator()(const MemoryObject *mo, const ObjectState *os) const {
+    if (allowAll) {
+      return true;
+    }
+
     bool result = !useTimestamps || mo->timestamp <= timestamp;
     result = result && (!skipNotSymbolicObjects || state->inSymbolics(*mo));
     result = result && (!skipNotLazyInitialized || mo->isLazyInitialized);
@@ -231,23 +334,21 @@ public:
   }
 };
 
-bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
-                              ref<PointerExpr> address, KType *objectType,
-                              ObjectPair &result, bool &success,
-                              const std::atomic_bool &haltExecution) const {
-  if (cache.contains(address)) {
-    assert(findObject(cache.get(address).front().get()).first != nullptr);
-    result = findObject(cache.get(address).front().get());
-    success = true;
-    return true;
-  }
+ResolveResult
+AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
+                         ref<PointerExpr> address, KType *objectType,
+                         const std::atomic_bool &haltExecution) const {
+  // if (cache.contains(address)) {
+  //   assert(findObject(cache.get(address).front().get()).first != nullptr);
+  //   result = findObject(cache.get(address).front().get());
+  //   success = true;
+  //   return true;
+  // }
 
   ResolvePredicate predicate(state, address, objectType, complete);
-  ref<Expr> addressExpr = address->getValue();
   if (ref<ConstantPointerExpr> CP = dyn_cast<ConstantPointerExpr>(address)) {
-    if (resolveOne(CP, objectType, result)) {
-      success = true;
-      return true;
+    if (auto resolveResult = resolveOne(CP, objectType)) {
+      return resolveResult;
     }
   }
 
@@ -257,18 +358,19 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
 
   ref<ConstantPointerExpr> addressCex;
   if (!solver->getValue(state.constraints.cs(), address, addressCex,
-                        state.queryMetaData))
-    return false;
+                        state.queryMetaData)) {
+    return ResolveResult::createNone();
+  }
 
-  if (resolveOne(addressCex, objectType, result)) {
-    success = true;
-    return true;
+  if (auto resolveResult = resolveOne(addressCex, objectType)) {
+    return resolveResult;
   }
 
   // didn't work, now we have to search
 
   for (MemoryMap::iterator oi = objects.begin(), oe = objects.end(); oi != oe;
        ++oi) {
+    ObjectPair objectPair(oi->first, oi->second.get());
     const auto &mo = oi->first;
     if (!predicate(mo, oi->second.get())) {
       continue;
@@ -281,17 +383,16 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     bool mayBeTrue;
     if (!solver->mayBeTrue(state.constraints.cs(),
                            mo->getBoundsCheckPointer(address), mayBeTrue,
-                           state.queryMetaData))
-      return false;
+                           state.queryMetaData)) {
+      return ResolveResult::createUnknown(objectPair);
+    }
+
     if (mayBeTrue) {
-      result = {oi->first, oi->second.get()};
-      success = true;
-      return true;
+      return ResolveResult::createOk(objectPair);
     }
   }
 
-  success = false;
-  return true;
+  return ResolveResult::createNone();
 }
 
 int AddressSpace::checkPointerInObject(ExecutionState &state,
@@ -333,36 +434,39 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
                            ref<PointerExpr> p, KType *objectType,
                            ResolutionList &rl, unsigned maxResolutions,
                            time::Span timeout) const {
-  if (cache.contains(p)) {
-    auto orl = cache.get(p);
-    for (auto object : orl) {
-      rl.reserve(rl.size() + orl.size());
-      assert(findObject(object.get()).first != nullptr);
-      rl.push_back(findObject(object.get()));
-    }
-    return false;
-  }
+  // if (cache.contains(p)) {
+  //   auto orl = cache.get(p);
+  //   for (auto object : orl) {
+  //     rl.reserve(rl.size() + orl.size());
+  //     assert(findObject(object.get()).first != nullptr);
+  //     rl.push_back(findObject(object.get()));
+  //   }
+  //   return false;
+  // }
 
   ResolvePredicate predicate(state, p, objectType, complete);
   if (ref<ConstantPointerExpr> CP = dyn_cast<ConstantPointerExpr>(p)) {
-    ObjectPair res;
-    if (resolveOne(CP, objectType, res)) {
-      rl.push_back(res);
+    if (auto resolveResult = resolveOne(CP, objectType)) {
+      rl.push_back(resolveResult.get());
       return false;
     }
   }
   TimerStatIncrementer timer(stats::resolveTime);
 
-  ObjectPair fastPathObjectID;
-  bool fastPathSuccess;
-  if (!resolveOneIfUnique(state, solver, p, objectType, fastPathObjectID,
-                          fastPathSuccess)) {
-    return true;
-  }
-  if (fastPathSuccess) {
-    rl.push_back(fastPathObjectID);
-    return false;
-  }
+  // TODO: return
+
+  // ObjectPair fastPathObjectID;
+  // bool fastPathSuccess;
+  // if (!resolveOneIfUnique(state, solver, p, objectType, fastPathObjectID,
+  //                         fastPathSuccess)) {
+  //   return true;
+  // }
+  // if (fastPathSuccess) {
+  //   rl.push_back(fastPathObjectID);
+  //   return false;
+  // }
+
+  ////////////////////////////////////////////////////////////////
 
   // XXX in general this isn't exactly what we want... for
   // a multiple resolution case (or for example, a \in {b,c,0})
@@ -430,10 +534,10 @@ ref<ConstantExpr> toConstantExpr(ref<Expr> expr) {
 void AddressSpace::copyOutConcrete(const MemoryObject *mo,
                                    const ObjectState *os,
                                    const Assignment &assignment) const {
-  if (ref<ConstantExpr> addressExpr =
-          dyn_cast<ConstantExpr>(mo->getBaseExpr())) {
-    auto address =
-        reinterpret_cast<std::uint8_t *>(addressExpr->getZExtValue());
+  if (ref<ConstantPointerExpr> addressExpr =
+          dyn_cast<ConstantPointerExpr>(mo->getBaseExpr())) {
+    auto address = reinterpret_cast<std::uint8_t *>(
+        addressExpr->getConstantValue()->getZExtValue());
     AssignmentEvaluator evaluator(assignment, false);
     if (ref<ConstantExpr> sizeExpr =
             dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
@@ -455,10 +559,12 @@ bool AddressSpace::copyInConcretes(ExecutionState &state,
 
     if (!mo->isUserSpecified) {
       const auto &os = obj.second;
-      if (ref<ConstantExpr> arrayConstantAddress =
-              dyn_cast<ConstantExpr>(mo->getBaseExpr())) {
-        if (!copyInConcrete(state, mo, os.get(),
-                            arrayConstantAddress->getZExtValue(), assignment))
+      if (ref<ConstantPointerExpr> arrayConstantAddress =
+              dyn_cast<ConstantPointerExpr>(mo->getBaseExpr())) {
+        if (!copyInConcrete(
+                state, mo, os.get(),
+                arrayConstantAddress->getConstantValue()->getZExtValue(),
+                assignment))
           return false;
       }
     }
@@ -514,7 +620,7 @@ bool ResolutionCache::cacheResolution(ref<PointerExpr> address,
   if (contains(address)) {
     return false;
   }
-  llvm::errs() << "Cached " << *address << "\n";
+  // llvm::errs() << "Cached " << *address << "\n";
 
   cache_ = cache_.insert({address, resolution});
   return true;

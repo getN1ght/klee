@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <klee/Core/Context.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -101,7 +102,9 @@ public:
         address(_address), sizeExpr(Expr::createPointer(0)),
         conditionExpr(Expr::createTrue()), alignment(0), isFixed(true),
         isLazyInitialized(false), parent(nullptr), type(nullptr),
-        content(nullptr), allocSite(nullptr) {}
+        content(nullptr), allocSite(nullptr) {
+    assert(!isa<PointerExpr>(addressExpr));
+  }
 
   MemoryObject(
       ref<Expr> _address, ref<Expr> _size, uint64_t alignment, bool _isLocal,
@@ -117,6 +120,8 @@ public:
         isFixed(_isFixed), isLazyInitialized(_isLazyInitialized),
         isUserSpecified(false), parent(_parent), type(_type), content(_content),
         allocSite(_allocSite) {
+    assert(!isa<PointerExpr>(addressExpr));
+
     if (isLazyInitialized) {
       timestamp = _timestamp;
     } else {
@@ -136,54 +141,27 @@ public:
 
   void updateTimestamp() const { this->timestamp = time++; }
 
-  bool hasSymbolicSize() const { return !isa<ConstantExpr>(getSizeExpr()); }
-  ref<PointerExpr> getBaseExpr() const { return addressExpr; }
+  ref<PointerExpr> getBaseExpr() const {
+    return PointerExpr::create(
+        ConstantExpr::create(id, Context::get().getPointerWidth()),
+        addressExpr);
+  }
+
   ref<Expr> getSizeExpr() const { return sizeExpr; }
   ref<Expr> getConditionExpr() const { return conditionExpr; }
-  ref<Expr> getOffsetExpr(ref<Expr> pointer) const {
-    return SubExpr::create(pointer, getBaseExpr());
-  }
   ref<Expr> getOffsetExpr(ref<PointerExpr> pointer) const {
-    return SubExpr::create(pointer->getValue(), getBaseExpr());
-  }
-
-  ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
-    ref<Expr> isZeroSizeExpr =
-        EqExpr::create(Expr::createPointer(0), getSizeExpr());
-    ref<Expr> isZeroOffsetExpr = EqExpr::create(Expr::createPointer(0), offset);
-    return SelectExpr::create(isZeroSizeExpr, isZeroOffsetExpr,
-                              UltExpr::create(offset, getSizeExpr()));
-  }
-
-  ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
-    ref<Expr> offsetSizeCheck =
-        UleExpr::create(Expr::createPointer(bytes), getSizeExpr());
-    ref<Expr> trueExpr = UltExpr::create(
-        offset, AddExpr::create(
-                    SubExpr::create(getSizeExpr(), Expr::createPointer(bytes)),
-                    Expr::createPointer(1)));
-    return SelectExpr::create(offsetSizeCheck, trueExpr, Expr::createFalse());
-  }
-
-  ref<Expr> getBoundsCheckAddress(ref<Expr> address) const {
-    return getBoundsCheckOffset(getOffsetExpr(address));
-  }
-  ref<Expr> getBoundsCheckAddress(ref<Expr> address, unsigned bytes) const {
-    return getBoundsCheckOffset(getOffsetExpr(address), bytes);
-  }
-  ref<Expr> getBaseCheck(ref<Expr> base) const {
-    return EqExpr::create(base, getBaseExpr());
+    return SubExpr::create(pointer, getBaseExpr());
   }
 
   ref<Expr> getBoundsCheckPointer(ref<PointerExpr> pointer) const {
-    ref<Expr> condition = getBaseCheck(pointer->getBase());
+    ref<Expr> condition = getBaseCheck(pointer);
     condition =
         AndExpr::create(condition, getBoundsCheckAddress(pointer->getValue()));
     return condition;
   }
   ref<Expr> getBoundsCheckPointer(ref<PointerExpr> pointer,
                                   unsigned bytes) const {
-    ref<Expr> condition = getBaseCheck(pointer->getBase());
+    ref<Expr> condition = getBaseCheck(pointer);
     condition = AndExpr::create(
         condition, getBoundsCheckAddress(pointer->getValue(), bytes));
     return condition;
@@ -211,6 +189,36 @@ public:
   }
 
   bool equals(const MemoryObject &b) const { return compare(b) == 0; }
+
+private:
+  ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
+    ref<Expr> isZeroSizeExpr =
+        EqExpr::create(Expr::createPointer(0), getSizeExpr());
+    ref<Expr> isZeroOffsetExpr = EqExpr::create(Expr::createPointer(0), offset);
+    return SelectExpr::create(isZeroSizeExpr, isZeroOffsetExpr,
+                              UltExpr::create(offset, getSizeExpr()));
+  }
+
+  ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
+    ref<Expr> offsetSizeCheck =
+        UleExpr::create(Expr::createPointer(bytes), getSizeExpr());
+    ref<Expr> trueExpr = UltExpr::create(
+        offset, AddExpr::create(
+                    SubExpr::create(getSizeExpr(), Expr::createPointer(bytes)),
+                    Expr::createPointer(1)));
+    return SelectExpr::create(offsetSizeCheck, trueExpr, Expr::createFalse());
+  }
+
+  ref<Expr> getBoundsCheckAddress(ref<Expr> address) const {
+    return getBoundsCheckOffset(SubExpr::create(address, this->addressExpr));
+  }
+  ref<Expr> getBoundsCheckAddress(ref<Expr> address, unsigned bytes) const {
+    return getBoundsCheckOffset(SubExpr::create(address, this->addressExpr),
+                                bytes);
+  }
+  ref<Expr> getBaseCheck(ref<PointerExpr> pointer) const {
+    return EqExpr::create(pointer->getBase(), Expr::createPointer(id));
+  }
 };
 
 class ObjectStage {
@@ -263,6 +271,7 @@ public:
     return knownSymbolics->storage().size() + unflushedMask->storage().size();
   }
   void initializeToZero();
+  void initializeWith(ref<ConstantExpr> value);
 
 private:
   const UpdateList &getUpdates() const;

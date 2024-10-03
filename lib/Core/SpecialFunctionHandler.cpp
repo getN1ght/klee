@@ -290,7 +290,6 @@ bool SpecialFunctionHandler::handle(ExecutionState &state, Function *f,
 std::string
 SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
                                             ref<PointerExpr> pointer) {
-  ObjectPair idStringAddress;
   ref<PointerExpr> uniquePointer = executor.toUnique(state, pointer);
   if (!isa<ConstantPointerExpr>(uniquePointer)) {
     executor.terminateStateOnUserError(
@@ -299,19 +298,19 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
   }
   ref<ConstantPointerExpr> pointerConst =
       cast<ConstantPointerExpr>(uniquePointer);
-  if (!state.addressSpace.resolveOne(
-          pointerConst, executor.typeSystemManager->getUnknownType(),
-          idStringAddress)) {
+  auto resolveResult = state.addressSpace.resolveOne(
+      pointerConst, executor.typeSystemManager->getUnknownType());
+  if (!resolveResult.isOk()) {
     executor.terminateStateOnUserError(
         state, "Invalid string pointer passed to one of the klee_ functions");
     return "";
   }
-  ObjectPair op = idStringAddress;
-  const MemoryObject *mo = op.first;
-  const ObjectState *os = op.second;
+  const auto [mo, os] = resolveResult.get();
 
   // the relativeOffset must be concrete as the address is concrete
-  size_t offset = pointerConst->getConstantOffset()->getZExtValue();
+  auto offsetExpr = mo->getOffsetExpr(pointerConst);
+  assert(isa<ConstantExpr>(offsetExpr));
+  auto offset = cast<ConstantExpr>(offsetExpr)->getZExtValue();
 
   std::ostringstream buf;
   char c = 0;
@@ -368,24 +367,28 @@ void SpecialFunctionHandler::handleSilentExit(
 void SpecialFunctionHandler::handleAssert(ExecutionState &state, KInstruction *,
                                           std::vector<ref<Expr>> &arguments) {
   assert(arguments.size() == 3 && "invalid number of arguments to _assert");
+  assert(isa<PointerExpr>(arguments[0]));
+
   executor.terminateStateOnProgramError(
       state,
       new ErrorEvent(
           executor.locationOf(state), StateTerminationType::Assert,
           "ASSERTION FAIL: " +
-              readStringAtAddress(state, executor.makePointer(arguments[0]))));
+              readStringAtAddress(state, cast<PointerExpr>(arguments[0]))));
 }
 
 void SpecialFunctionHandler::handleAssertFail(
     ExecutionState &state, KInstruction *, std::vector<ref<Expr>> &arguments) {
   assert(arguments.size() == 4 &&
          "invalid number of arguments to __assert_fail");
+  assert(isa<PointerExpr>(arguments[0]));
+
   executor.terminateStateOnProgramError(
       state,
       new ErrorEvent(
           executor.locationOf(state), StateTerminationType::Assert,
           "ASSERTION FAIL: " +
-              readStringAtAddress(state, executor.makePointer(arguments[0]))));
+              readStringAtAddress(state, cast<PointerExpr>(arguments[0]))));
 }
 
 void SpecialFunctionHandler::handleReportError(
@@ -393,14 +396,16 @@ void SpecialFunctionHandler::handleReportError(
   assert(arguments.size() == 4 &&
          "invalid number of arguments to klee_report_error");
 
+  assert(isa<PointerExpr>(arguments[2]));
+  assert(isa<PointerExpr>(arguments[3]));
+
   // arguments[0,1,2,3] are file, line, message, suffix
   executor.terminateStateOnProgramError(
       state,
       new ErrorEvent(
           executor.locationOf(state), StateTerminationType::ReportError,
-          readStringAtAddress(state, executor.makePointer(arguments[2]))),
-      "",
-      readStringAtAddress(state, executor.makePointer(arguments[3])).c_str());
+          readStringAtAddress(state, cast<PointerExpr>(arguments[2]))),
+      "", readStringAtAddress(state, cast<PointerExpr>(arguments[3])).c_str());
 }
 
 void SpecialFunctionHandler::handleNew(ExecutionState &state,
@@ -421,7 +426,8 @@ void SpecialFunctionHandler::handleDelete(ExecutionState &state,
 
   // XXX should type check args
   assert(arguments.size() == 1 && "invalid number of arguments to delete");
-  executor.executeFree(state, executor.makePointer(arguments[0]), target);
+  assert(isa<PointerExpr>(arguments[0]));
+  executor.executeFree(state, cast<PointerExpr>(arguments[0]), target);
 }
 
 void SpecialFunctionHandler::handleNewArray(ExecutionState &state,
@@ -451,7 +457,8 @@ void SpecialFunctionHandler::handleDeleteArray(
     std::vector<ref<Expr>> &arguments) {
   // XXX should type check args
   assert(arguments.size() == 1 && "invalid number of arguments to delete[]");
-  executor.executeFree(state, executor.makePointer(arguments[0]), target);
+  assert(isa<PointerExpr>(arguments[0]));
+  executor.executeFree(state, cast<PointerExpr>(arguments[0]), target);
 }
 
 void SpecialFunctionHandler::handleMalloc(ExecutionState &state,
@@ -506,7 +513,7 @@ void SpecialFunctionHandler::handleEhUnwindRaiseExceptionImpl(
          "invalid number of arguments to _klee_eh_Unwind_RaiseException_impl");
 
   ref<ConstantPointerExpr> exceptionObject =
-      dyn_cast<ConstantPointerExpr>(executor.makePointer(arguments[0]));
+      dyn_cast<ConstantPointerExpr>(arguments[0]);
   if (!exceptionObject.get()) {
     executor.terminateStateOnExecError(
         state, "Internal error: Symbolic exception pointer");
@@ -603,8 +610,9 @@ void SpecialFunctionHandler::handlePrintExpr(
   assert(arguments.size() == 2 &&
          "invalid number of arguments to klee_print_expr");
 
+  assert(isa<PointerExpr>(arguments[0]));
   std::string msg_str =
-      readStringAtAddress(state, executor.makePointer(arguments[0]));
+      readStringAtAddress(state, cast<PointerExpr>(arguments[0]));
   llvm::errs() << msg_str << ":" << arguments[1] << "\n";
 }
 
@@ -634,8 +642,9 @@ void SpecialFunctionHandler::handleWarning(ExecutionState &state,
   assert(arguments.size() == 1 &&
          "invalid number of arguments to klee_warning");
 
+  assert(isa<PointerExpr>(arguments[0]));
   std::string msg_str =
-      readStringAtAddress(state, executor.makePointer(arguments[0]));
+      readStringAtAddress(state, cast<PointerExpr>(arguments[0]));
   klee_warning("%s: %s",
                state.stack.callStack().back().kf->function()->getName().data(),
                msg_str.c_str());
@@ -646,8 +655,9 @@ void SpecialFunctionHandler::handleWarningOnce(
   assert(arguments.size() == 1 &&
          "invalid number of arguments to klee_warning_once");
 
+  assert(isa<PointerExpr>(arguments[0]));
   std::string msg_str =
-      readStringAtAddress(state, executor.makePointer(arguments[0]));
+      readStringAtAddress(state, cast<PointerExpr>(arguments[0]));
   klee_warning_once(
       0, "%s: %s",
       state.stack.callStack().back().kf->function()->getName().data(),
@@ -668,8 +678,9 @@ void SpecialFunctionHandler::handlePrintRange(
   assert(arguments.size() == 2 &&
          "invalid number of arguments to klee_print_range");
 
+  assert(isa<PointerExpr>(arguments[0]));
   std::string msg_str =
-      readStringAtAddress(state, executor.makePointer(arguments[0]));
+      readStringAtAddress(state, cast<PointerExpr>(arguments[0]));
   llvm::errs() << msg_str << ":" << arguments[1];
   if (!isa<ConstantExpr>(arguments[1])) {
     // FIXME: Pull into a unique value method?
@@ -706,7 +717,8 @@ void SpecialFunctionHandler::handleGetObjSize(
   unsigned bytes = Expr::getMinBytesForWidth(
       executor.getWidthForLLVMType(type->getPointerElementType()));
 
-  executor.resolveExact(state, arguments[0],
+  assert(isa<PointerExpr>(arguments[0]));
+  executor.resolveExact(state, cast<PointerExpr>(arguments[0]),
                         executor.typeSystemManager->getUnknownType(), bytes, rl,
                         "klee_get_obj_size");
   for (Executor::ExactResolutionList::iterator it = rl.begin(), ie = rl.end();
@@ -722,28 +734,21 @@ void SpecialFunctionHandler::handleGetErrno(
   // XXX should type check args
   assert(arguments.size() == 0 &&
          "invalid number of arguments to klee_get_errno");
-#ifndef WINDOWS
-  int *errno_addr = executor.getErrnoLocation();
-#else
-  int *errno_addr = nullptr;
-#endif
+
+  auto errno_addr = executor.errno_addr;
 
   // Retrieve the memory object of the errno variable
-  ObjectPair idErrnoObject;
   llvm::Type *pointerErrnoAddr = llvm::PointerType::get(
       llvm::IntegerType::get(executor.kmodule->module->getContext(),
                              sizeof(*errno_addr) * CHAR_BIT),
       executor.kmodule->targetData->getAllocaAddrSpace());
 
-  bool resolved = state.addressSpace.resolveOne(
-      ConstantPointerExpr::create(Expr::createPointer((uint64_t)errno_addr),
-                                  Expr::createPointer((uint64_t)errno_addr)),
-      executor.typeSystemManager->getWrappedType(pointerErrnoAddr),
-      idErrnoObject);
-  if (!resolved)
+  auto resolveResult = state.addressSpace.resolveOne(
+      errno_addr, executor.typeSystemManager->getWrappedType(pointerErrnoAddr));
+  if (!resolveResult.isOk())
     executor.terminateStateOnUserError(state,
                                        "Could not resolve address for errno");
-  const ObjectState *os = idErrnoObject.second;
+  const ObjectState *os = resolveResult.get().second;
   executor.bindLocal(target, state, os->read(0, Expr::Int32));
 }
 
@@ -756,16 +761,12 @@ void SpecialFunctionHandler::handleErrnoLocation(
 
 #ifndef WINDOWS
   // int *errno_addr = executor.getErrnoLocation(state);
-  int *errno_addr = executor.errno_addr;
+  // int *errno_addr = executor.errno_addr;
 #else
   int *errno_addr = nullptr;
 #endif
 
-  ref<ConstantExpr> errnoExpr = ConstantExpr::create(
-      (uint64_t)errno_addr, executor.kmodule->targetData->getTypeSizeInBits(
-                                target->inst()->getType()));
-
-  executor.bindLocal(target, state, PointerExpr::create(errnoExpr, errnoExpr));
+  executor.bindLocal(target, state, executor.errno_addr);
 }
 void SpecialFunctionHandler::handleCalloc(ExecutionState &state,
                                           KInstruction *target,
@@ -786,7 +787,9 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
   assert(arguments.size() == 2 && "invalid number of arguments to realloc");
   ref<Expr> address = arguments[0];
   ref<Expr> size = arguments[1];
-  ref<PointerExpr> addressPointer = executor.makePointer(address);
+
+  ref<PointerExpr> addressPointer = dyn_cast<PointerExpr>(address);
+  assert(addressPointer);
 
   auto type = target->inst()->getOperand(0)->getType();
   unsigned baseBytes = Expr::getMinBytesForWidth(
@@ -796,10 +799,7 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
       state, Expr::createIsZero(size), BranchType::Realloc);
 
   if (zeroSize.first) { // size == 0
-    executor.executeFree(*zeroSize.first,
-                         PointerExpr::create(addressPointer->getValue(),
-                                             addressPointer->getValue()),
-                         target);
+    executor.executeFree(*zeroSize.first, addressPointer, target);
   }
   if (zeroSize.second) { // size != 0
     Executor::StatePair zeroPointer = executor.forkInternal(
@@ -813,7 +813,8 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
     }
     if (zeroPointer.second) { // address != 0
       Executor::ExactResolutionList rl;
-      executor.resolveExact(*zeroPointer.second, address,
+      assert(isa<PointerExpr>(address));
+      executor.resolveExact(*zeroPointer.second, cast<PointerExpr>(address),
                             executor.typeSystemManager->getUnknownType(),
                             baseBytes, rl, "realloc");
 
@@ -837,7 +838,10 @@ void SpecialFunctionHandler::handleFree(ExecutionState &state,
                                         std::vector<ref<Expr>> &arguments) {
   // XXX should type check args
   assert(arguments.size() == 1 && "invalid number of arguments to free");
-  executor.executeFree(state, executor.makePointer(arguments[0]), target);
+  ref<PointerExpr> pointer = dyn_cast<PointerExpr>(arguments[0]);
+  assert(pointer);
+
+  executor.executeFree(state, pointer, target);
 }
 
 void SpecialFunctionHandler::handleCheckMemoryAccess(
@@ -845,25 +849,32 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(
   assert(arguments.size() == 2 &&
          "invalid number of arguments to klee_check_memory_access");
 
-  ref<PointerExpr> pointer = executor.makePointer(arguments[0]);
+  ref<PointerExpr> pointer = dyn_cast<PointerExpr>(arguments[0]);
+  if (pointer.isNull()) {
+    executor.terminateStateOnUserError(state,
+                                       "klee_check_memory_access expected "
+                                       "first argument to be a pointer");
+    return;
+  }
+
   ref<Expr> size = executor.toUnique(state, arguments[1]->getValue());
   ref<PointerExpr> uniquePointer = executor.toUnique(state, pointer);
   if (!isa<ConstantPointerExpr>(uniquePointer) || !isa<ConstantExpr>(size)) {
     executor.terminateStateOnUserError(
         state, "check_memory_access requires constant args");
   } else {
-    ObjectPair idObject;
+    auto resolveResult = state.addressSpace.resolveOne(
+        cast<ConstantPointerExpr>(uniquePointer),
+        executor.typeSystemManager->getUnknownType());
 
-    if (!state.addressSpace.resolveOne(
-            cast<ConstantPointerExpr>(uniquePointer),
-            executor.typeSystemManager->getUnknownType(), idObject)) {
+    if (!resolveResult.isOk()) {
       executor.terminateStateOnProgramError(
           state,
           new ErrorEvent(executor.locationOf(state), StateTerminationType::Ptr,
                          "check_memory_access: memory error"),
           executor.getAddressInfo(state, pointer));
     } else {
-      const MemoryObject *mo = idObject.first;
+      const MemoryObject *mo = resolveResult.get().first;
       ref<Expr> chk = mo->getBoundsCheckPointer(
           pointer, cast<ConstantExpr>(size)->getZExtValue());
       if (!chk->isTrue()) {
@@ -911,8 +922,7 @@ void SpecialFunctionHandler::handleDefineFixedObject(
       state, mo, executor.typeSystemManager->getUnknownType(), false);
   mo->isUserSpecified = true; // XXX hack;
 
-  executor.bindLocal(target, state,
-                     PointerExpr::create(mo->getBaseExpr(), mo->getBaseExpr()));
+  executor.bindLocal(target, state, mo->getBaseExpr());
 }
 
 void SpecialFunctionHandler::handleMakeSymbolic(
@@ -927,10 +937,10 @@ void SpecialFunctionHandler::handleMakeSymbolic(
     return;
   }
 
-  ref<PointerExpr> pointer = PointerExpr::create(arguments[2]);
-  name = pointer->getBase()->isZero() && pointer->getValue()->isZero()
+  assert(isa<PointerExpr>(arguments[2]));
+  name = EqExpr::create(arguments[2], PointerExpr::createNull())->isTrue()
              ? ""
-             : readStringAtAddress(state, executor.makePointer(arguments[2]));
+             : readStringAtAddress(state, cast<PointerExpr>(arguments[2]));
 
   if (name.length() == 0) {
     name = "unnamed";
@@ -942,12 +952,12 @@ void SpecialFunctionHandler::handleMakeSymbolic(
       executor.getWidthForLLVMType(type->getPointerElementType()));
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0],
+  assert(isa<PointerExpr>(arguments[0]));
+  executor.resolveExact(state, cast<PointerExpr>(arguments[0]),
                         executor.typeSystemManager->getUnknownType(), baseBytes,
                         rl, "make_symbolic");
 
-  for (Executor::ExactResolutionList::iterator it = rl.begin(), ie = rl.end();
-       it != ie; ++it) {
+  for (auto it = rl.begin(), ie = rl.end(); it != ie; ++it) {
     RefObjectPair op =
         it->second->addressSpace.findOrLazyInitializeObject(it->first);
     const MemoryObject *mo = op.first;
@@ -998,9 +1008,10 @@ void SpecialFunctionHandler::handleMakeMock(ExecutionState &state,
     return;
   }
 
+  assert(isa<PointerExpr>(arguments[2]));
   name = arguments[2]->isZero()
              ? ""
-             : readStringAtAddress(state, executor.makePointer(arguments[2]));
+             : readStringAtAddress(state, cast<PointerExpr>(arguments[2]));
 
   if (name.empty()) {
     executor.terminateStateOnUserError(
@@ -1011,7 +1022,8 @@ void SpecialFunctionHandler::handleMakeMock(ExecutionState &state,
   KFunction *kf = target->parent->parent;
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0],
+  assert(isa<PointerExpr>(arguments[0]));
+  executor.resolveExact(state, cast<PointerExpr>(arguments[0]),
                         executor.typeSystemManager->getUnknownType(), 0, rl,
                         "make_symbolic");
 
@@ -1076,7 +1088,8 @@ void SpecialFunctionHandler::handleMarkGlobal(
       executor.getWidthForLLVMType(type->getPointerElementType()));
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0],
+  assert(isa<PointerExpr>(arguments[0]));
+  executor.resolveExact(state, cast<PointerExpr>(arguments[0]),
                         executor.typeSystemManager->getUnknownType(), baseBytes,
                         rl, "mark_global");
 
@@ -1218,28 +1231,19 @@ void SpecialFunctionHandler::handleFAbs(ExecutionState &state,
 void SpecialFunctionHandler::handleCTypeBLoc(ExecutionState &state,
                                              KInstruction *target,
                                              std::vector<ref<Expr>> &) {
-  ref<ConstantExpr> pointerValue = Expr::createPointer(
-      reinterpret_cast<uint64_t>(executor.c_type_b_loc_addr));
-  ref<Expr> result = ConstantPointerExpr::create(pointerValue, pointerValue);
-  executor.bindLocal(target, state, result);
+  executor.bindLocal(target, state, executor.c_type_b_loc_addr);
 }
 
 void SpecialFunctionHandler::handleCTypeToLowerLoc(ExecutionState &state,
                                                    KInstruction *target,
                                                    std::vector<ref<Expr>> &) {
-  ref<ConstantExpr> pointerValue = Expr::createPointer(
-      reinterpret_cast<uint64_t>(executor.c_type_tolower_addr));
-  ref<Expr> result = ConstantPointerExpr::create(pointerValue, pointerValue);
-  executor.bindLocal(target, state, result);
+  executor.bindLocal(target, state, executor.c_type_tolower_addr);
 }
 
 void SpecialFunctionHandler::handleCTypeToUpperLoc(ExecutionState &state,
                                                    KInstruction *target,
                                                    std::vector<ref<Expr>> &) {
-  ref<ConstantExpr> pointerValue = Expr::createPointer(
-      reinterpret_cast<uint64_t>(executor.c_type_toupper_addr));
-  ref<Expr> result = ConstantPointerExpr::create(pointerValue, pointerValue);
-  executor.bindLocal(target, state, result);
+  executor.bindLocal(target, state, executor.c_type_toupper_addr);
 }
 
 #endif

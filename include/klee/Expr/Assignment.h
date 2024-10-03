@@ -14,6 +14,7 @@
 #include "klee/ADT/SparseStorage.h"
 #include "klee/Expr/ExprEvaluator.h"
 
+#include <klee/Support/CompilerWarning.h>
 #include <set>
 
 namespace klee {
@@ -102,7 +103,20 @@ inline ref<Expr> Assignment::evaluate(const Array *array, unsigned index,
   bindings_ty::iterator it = bindings.find(array);
   if (it != bindings.end() && isa<ConstantExpr>(sizeExpr) &&
       index < cast<ConstantExpr>(sizeExpr)->getZExtValue()) {
-    return ConstantExpr::alloc(it->second.load(index), array->getRange());
+    switch (array->getRange()) {
+    case Expr::Int8: {
+      return ConstantExpr::alloc(it->second.load(index), array->getRange());
+    }
+    case Expr::Int64: {
+      return ConstantExpr::alloc(
+          it->second.SparseStorage<unsigned char>::load<uint64_t>(index),
+          array->getRange());
+    }
+    default: {
+      assert(false && "Unexpected array range");
+      unreachable();
+    }
+    }
   } else {
     if (allowFreeValues) {
       return ReadExpr::create(UpdateList(array, ref<UpdateNode>(nullptr)),

@@ -106,9 +106,9 @@ MemoryManager::~MemoryManager() {
   while (!objects.empty()) {
     MemoryObject *mo = *objects.begin();
     if (!mo->isFixed && !DeterministicAllocation) {
-      if (ref<ConstantExpr> arrayConstantAddress =
-              dyn_cast<ConstantExpr>(mo->getBaseExpr())) {
-        free((void *)arrayConstantAddress->getZExtValue());
+      if (ref<ConstantPointerExpr> arrayConstantAddress =
+              dyn_cast<ConstantPointerExpr>(mo->getBaseExpr())) {
+        free((void *)arrayConstantAddress->getConstantValue()->getZExtValue());
       }
     }
     objects.erase(mo);
@@ -124,7 +124,7 @@ MemoryObject *MemoryManager::allocate(ref<Expr> size, bool isLocal,
                                       ref<CodeLocation> allocSite,
                                       size_t alignment, KType *type,
                                       ref<Expr> conditionExpr,
-                                      ref<Expr> addressExpr, unsigned timestamp,
+                                      ref<Expr> addressValue, unsigned timestamp,
                                       const Array *content) {
   if (ref<ConstantExpr> sizeExpr = dyn_cast<ConstantExpr>(size)) {
     auto moSize = sizeExpr->getZExtValue();
@@ -146,7 +146,7 @@ MemoryObject *MemoryManager::allocate(ref<Expr> size, bool isLocal,
   }
 
   uint64_t address = 0;
-  if (!addressExpr) {
+  if (!addressValue) {
     ref<ConstantExpr> sizeExpr = dyn_cast<ConstantExpr>(size);
     assert(sizeExpr);
     auto moSize = sizeExpr->getZExtValue();
@@ -182,13 +182,13 @@ MemoryObject *MemoryManager::allocate(ref<Expr> size, bool isLocal,
 
     if (!address)
       return 0;
-    addressExpr = Expr::createPointer(address);
+    addressValue = Expr::createPointer(address);
   }
 
   MemoryObject *res = nullptr;
 
   ++stats::allocations;
-  res = new MemoryObject(addressExpr, size, alignment, isLocal, isGlobal, false,
+  res = new MemoryObject(addressValue, size, alignment, isLocal, isGlobal, false,
                          isLazyInitialized, allocSite, this, type,
                          conditionExpr, timestamp, content);
 
@@ -203,14 +203,18 @@ MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
   for (objects_ty::iterator it = objects.begin(), ie = objects.end(); it != ie;
        ++it) {
     MemoryObject *mo = *it;
-    if (ref<ConstantExpr> addressExpr =
-            dyn_cast<ConstantExpr>(mo->getBaseExpr())) {
+    if (ref<ConstantPointerExpr> addressExpr =
+            dyn_cast<ConstantPointerExpr>(mo->getBaseExpr())) {
       if (ref<ConstantExpr> sizeExpr =
               dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
-        auto moAddress = addressExpr->getZExtValue();
+        auto moAddress = addressExpr->getConstantValue()->getZExtValue();
         auto moSize = sizeExpr->getZExtValue();
-        if (address + size > moAddress && address < moAddress + moSize)
-          klee_error("Trying to allocate an overlapping object");
+        if (address + size > moAddress && address < moAddress + moSize) {
+          klee_error("Trying to allocate an overlapping object: [%" PRIu64
+                     ", %" PRIu64 "] (new) "
+                     "overlapping with [%" PRIu64 ", %" PRIu64 "] (old)",
+                     address, address + size, moAddress, moAddress + moSize);
+        }
       }
     }
   }
@@ -228,9 +232,9 @@ MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
 void MemoryManager::markFreed(MemoryObject *mo) {
   if (objects.find(mo) != objects.end()) {
     if (!mo->isFixed && !DeterministicAllocation) {
-      if (ref<ConstantExpr> arrayConstantAddress =
-              dyn_cast<ConstantExpr>(mo->getBaseExpr())) {
-        free((void *)arrayConstantAddress->getZExtValue());
+      if (ref<ConstantPointerExpr> arrayConstantAddress =
+              dyn_cast<ConstantPointerExpr>(mo->getBaseExpr())) {
+        free((void *)arrayConstantAddress->getConstantValue()->getZExtValue());
       }
     }
     objects.erase(mo);

@@ -230,6 +230,7 @@ void Expr::printKind(llvm::raw_ostream &os, Kind k) {
     X(FMax);
     X(FMin);
     X(Eq);
+    X(PointerEq);
     X(Ne);
     X(Ult);
     X(Ule);
@@ -1644,6 +1645,10 @@ ref<Expr> SelectExpr::create(ref<Expr> c, ref<Expr> t, ref<Expr> f) {
   assert(c->getWidth() == Bool && "type mismatch");
   assert(kt == f->getWidth() && "type mismatch");
 
+  if (auto pc = dyn_cast<PointerExpr>(c)) {
+    return create(pc->getValue(), t, f);
+  }
+
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(c)) {
     return CE->isTrue() ? t : f;
   } else if (t == f) {
@@ -1696,6 +1701,15 @@ ref<Expr> SelectExpr::create(ref<Expr> c, ref<Expr> t, ref<Expr> f) {
     ref<Expr> value = SelectExpr::create(c, truePointer->getValue(),
                                          falsePointer->getValue());
     return PointerExpr::create(base, value);
+  } else if (isa<PointerExpr>(t) || isa<PointerExpr>(f)) {
+    // TODO: remove such a complex logic out of there
+    if (auto pt = dyn_cast<PointerExpr>(t)) {
+      auto unknownBase = ConstantExpr::create(-1, pt->getBase()->getWidth());
+      return create(c, pt, PointerExpr::create(unknownBase, f));
+    }
+    auto pf = dyn_cast<PointerExpr>(f);
+    auto unknownBase = ConstantExpr::create(-1, pf->getBase()->getWidth());
+    return create(c, PointerExpr::create(unknownBase, t), f);
   } else if (!isa<ConstantExpr>(t) && isa<ConstantExpr>(f)) {
     return SelectExpr::alloc(Expr::createIsZero(c), f, t);
   }
@@ -1770,8 +1784,8 @@ ref<Expr> Expr::getValue() const {
 }
 
 ref<Expr> convolution(const ref<Expr> &l, const ref<Expr> &r) {
-  static ref<Expr> null = ConstantExpr::create(0, l->getWidth());
-  return SelectExpr::create(EqExpr::create(l, r), l, null);
+  auto invalid = ConstantExpr::create(-1, l->getWidth());
+  return SelectExpr::create(EqExpr::create(l, r), l, invalid);
 }
 
 ref<Expr> ConcatExpr::create(const ref<Expr> &l, const ref<Expr> &r) {
@@ -1919,6 +1933,7 @@ ref<Expr> ZExtExpr::create(const ref<Expr> &e, Width w) {
   } else if (PointerExpr *pe = dyn_cast<PointerExpr>(e)) {
     return PointerExpr::create(pe->getBase(),
                                ZExtExpr::create(pe->getValue(), w));
+    // return ZExtExpr::create(pe->getValue(), w);
   } else if (SelectExpr *se = dyn_cast<SelectExpr>(e)) {
     if (isa<ConstantExpr>(se->trueExpr)) {
       return SelectExpr::create(se->cond, ZExtExpr::create(se->trueExpr, w),
@@ -1953,6 +1968,10 @@ ref<Expr> SExtExpr::create(const ref<Expr> &e, Width w) {
 /***/
 
 ref<Expr> FPExtExpr::create(const ref<Expr> &e, Width w) {
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue(), w);
+  }
+
   unsigned kBits = e->getWidth();
   if (w == kBits) {
     return e;
@@ -1965,6 +1984,10 @@ ref<Expr> FPExtExpr::create(const ref<Expr> &e, Width w) {
 
 ref<Expr> FPTruncExpr::create(const ref<Expr> &e, Width w,
                               llvm::APFloat::roundingMode rm) {
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue(), w, rm);
+  }
+
   unsigned kBits = e->getWidth();
   if (w == kBits) {
     return e;
@@ -1981,6 +2004,9 @@ ref<Expr> FPTruncExpr::create(const ref<Expr> &e, Width w,
 
 ref<Expr> FPToUIExpr::create(const ref<Expr> &e, Width w,
                              llvm::APFloat::roundingMode rm) {
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue(), w, rm);
+  }
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
     return CE->FPToUI(w, rm);
   } else {
@@ -1990,6 +2016,9 @@ ref<Expr> FPToUIExpr::create(const ref<Expr> &e, Width w,
 
 ref<Expr> FPToSIExpr::create(const ref<Expr> &e, Width w,
                              llvm::APFloat::roundingMode rm) {
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue(), w, rm);
+  }
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
     return CE->FPToSI(w, rm);
   } else {
@@ -1999,6 +2028,9 @@ ref<Expr> FPToSIExpr::create(const ref<Expr> &e, Width w,
 
 ref<Expr> UIToFPExpr::create(const ref<Expr> &e, Width w,
                              llvm::APFloat::roundingMode rm) {
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue(), w, rm);
+  }
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
     return CE->UIToFP(w, rm);
   } else {
@@ -2008,6 +2040,9 @@ ref<Expr> UIToFPExpr::create(const ref<Expr> &e, Width w,
 
 ref<Expr> SIToFPExpr::create(const ref<Expr> &e, Width w,
                              llvm::APFloat::roundingMode rm) {
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue(), w, rm);
+  }
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
     return CE->SIToFP(w, rm);
   } else {
@@ -2017,8 +2052,8 @@ ref<Expr> SIToFPExpr::create(const ref<Expr> &e, Width w,
 
 /***/
 
-static ref<Expr> AndExpr_create(Expr *l, Expr *r);
-static ref<Expr> XorExpr_create(Expr *l, Expr *r);
+static ref<Expr> AndExpr_create(const ref<Expr> &l, const ref<Expr> &r);
+static ref<Expr> XorExpr_create(const ref<Expr> &l, const ref<Expr> &r);
 
 static ref<Expr> EqExpr_createPartial(Expr *l, const ref<ConstantExpr> &cr);
 static ref<Expr> AndExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r);
@@ -2213,7 +2248,7 @@ static ref<Expr> AndExpr_createPointer(Expr *l, const ref<PointerExpr> &pr) {
   return AndExpr_createPointerR(pr, l);
 }
 
-static ref<Expr> AndExpr_create(Expr *l, Expr *r) {
+static ref<Expr> AndExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   if (*l == *r) {
     return l;
   }
@@ -2241,7 +2276,7 @@ static ref<Expr> OrExpr_createPointer(Expr *l, const ref<PointerExpr> &pr) {
   return OrExpr_createPointerR(pr, l);
 }
 
-static ref<Expr> OrExpr_create(Expr *l, Expr *r) {
+static ref<Expr> OrExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   if (*l == *r) {
     return l;
   }
@@ -2270,7 +2305,7 @@ static ref<Expr> XorExpr_createPointer(Expr *l, const ref<PointerExpr> &pr) {
   return XorExpr_createPointerR(pr, l);
 }
 
-static ref<Expr> XorExpr_create(Expr *l, Expr *r) {
+static ref<Expr> XorExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   return XorExpr::alloc(l, r);
 }
 
@@ -2507,6 +2542,45 @@ BCREATE(AShrExpr, AShr)
     }                                                                          \
     return _e_op##_create(l.get(), r.get());                                   \
   }
+
+ref<Expr> PointerEqExpr::create(const ref<Expr> &l, const ref<Expr> &r) {
+  auto pl = cast<PointerExpr>(l);
+  auto pr = cast<PointerExpr>(r);
+  assert(!isa<PointerExpr>(pl->getBase()));
+  assert(!isa<PointerExpr>(pl->getValue()));
+  assert(!isa<PointerExpr>(pr->getBase()));
+  assert(!isa<PointerExpr>(pr->getValue()));
+
+  auto invalidPtr = ConstantExpr::create(-1, pl->getBase()->getWidth());
+
+  if (EqExpr::create(invalidPtr, pl->getBase())->isTrue() ||
+      EqExpr::create(invalidPtr, pr->getBase())->isTrue()) {
+    return EqExpr::create(pl->getBase(), pr->getBase());
+  }
+
+  if (EqExpr::create(pl->getBase(), pr->getBase())->isTrue() &&
+      EqExpr::create(pl->getValue(), pr->getValue())->isTrue()) {
+    return Expr::createTrue();
+  }
+  if (NeExpr::create(pl->getValue(), pr->getValue())->isTrue()) {
+    return Expr::createFalse();
+  }
+  return PointerEqExpr::alloc(l, r);
+}
+
+ref<Expr> PointerEqExpr::sideInvariant() const {
+  auto pl = cast<PointerExpr>(left);
+  auto pr = cast<PointerExpr>(right);
+
+  return OrExpr::create(
+      OrExpr::create(
+          EqExpr::create(pl->getBase(),
+                         ConstantExpr::create(-1, pl->getBase()->getWidth())),
+          EqExpr::create(pr->getBase(),
+                         ConstantExpr::create(-1, pr->getBase()->getWidth()))),
+      Expr::createImplies(EqExpr::create(pl->getValue(), pr->getValue()),
+                          EqExpr::create(pl->getBase(), pr->getBase())));
+}
 
 static ref<Expr> EqExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   if (l == r) {
@@ -2745,6 +2819,12 @@ CMPCREATE(SleExpr, Sle)
 #define FOCMPCREATE(_e_op, _op)                                                \
   ref<Expr> _e_op::create(const ref<Expr> &l, const ref<Expr> &r) {            \
     assert(l->getWidth() == r->getWidth() && "type mismatch");                 \
+    if (auto pl = dyn_cast<PointerExpr>(l)) {                                  \
+      return create(pl->getValue(), r);                                        \
+    }                                                                          \
+    if (auto pr = dyn_cast<PointerExpr>(r)) {                                  \
+      return create(l, pr->getValue());                                        \
+    }                                                                          \
     if (ConstantExpr *cl = dyn_cast<ConstantExpr>(l)) {                        \
       if (ConstantExpr *cr = dyn_cast<ConstantExpr>(r))                        \
         return cl->_op(cr);                                                    \
@@ -2767,6 +2847,12 @@ FOCMPCREATE(FOGeExpr, FOGe)
   ref<Expr> _e_op::create(const ref<Expr> &l, const ref<Expr> &r,              \
                           llvm::APFloat::roundingMode rm) {                    \
     assert(l->getWidth() == r->getWidth() && "type mismatch");                 \
+    if (auto pl = dyn_cast<PointerExpr>(l)) {                                  \
+      return create(pl->getValue(), r, rm);                                    \
+    }                                                                          \
+    if (auto pr = dyn_cast<PointerExpr>(r)) {                                  \
+      return create(l, pr->getValue(), rm);                                    \
+    }                                                                          \
     if (ConstantExpr *cl = dyn_cast<ConstantExpr>(l))                          \
       if (ConstantExpr *cr = dyn_cast<ConstantExpr>(r))                        \
         return cl->_op(cr, rm);                                                \
@@ -2785,12 +2871,18 @@ ref<Expr> IsNaNExpr::create(const ref<Expr> &e) {
   if (ConstantExpr *ce = dyn_cast<ConstantExpr>(e)) {
     return ConstantExpr::alloc(ce->getAPFloatValue().isNaN(), Expr::Bool);
   }
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue());
+  }
   return IsNaNExpr::alloc(e);
 }
 
 ref<Expr> IsInfiniteExpr::create(const ref<Expr> &e) {
   if (ConstantExpr *ce = dyn_cast<ConstantExpr>(e)) {
     return ConstantExpr::alloc(ce->getAPFloatValue().isInfinity(), Expr::Bool);
+  }
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue());
   }
   return IsInfiniteExpr::alloc(e);
 }
@@ -2799,12 +2891,18 @@ ref<Expr> IsNormalExpr::create(const ref<Expr> &e) {
   if (ConstantExpr *ce = dyn_cast<ConstantExpr>(e)) {
     return ConstantExpr::alloc(ce->getAPFloatValue().isNormal(), Expr::Bool);
   }
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue());
+  }
   return IsNormalExpr::alloc(e);
 }
 
 ref<Expr> IsSubnormalExpr::create(const ref<Expr> &e) {
   if (ConstantExpr *ce = dyn_cast<ConstantExpr>(e)) {
     return ConstantExpr::alloc(ce->getAPFloatValue().isDenormal(), Expr::Bool);
+  }
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue());
   }
   return IsSubnormalExpr::alloc(e);
 }
@@ -2814,6 +2912,9 @@ ref<Expr> FSqrtExpr::create(ref<Expr> const &e,
   if (ConstantExpr *ce = dyn_cast<ConstantExpr>(e)) {
     return ce->FSqrt(rm);
   }
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue(), rm);
+  }
   return FSqrtExpr::alloc(e, rm);
 }
 
@@ -2822,6 +2923,9 @@ ref<Expr> FRintExpr::create(ref<Expr> const &e,
   if (ConstantExpr *ce = dyn_cast<ConstantExpr>(e)) {
     return ce->FRint(rm);
   }
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue(), rm);
+  }
   return FRintExpr::alloc(e, rm);
 }
 
@@ -2829,12 +2933,18 @@ ref<Expr> FAbsExpr::create(ref<Expr> const &e) {
   if (ConstantExpr *ce = dyn_cast<ConstantExpr>(e)) {
     return ce->FAbs();
   }
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue());
+  }
   return FAbsExpr::alloc(e);
 }
 
 ref<Expr> FNegExpr::create(ref<Expr> const &e) {
   if (ConstantExpr *ce = dyn_cast<ConstantExpr>(e)) {
     return ce->FNeg();
+  }
+  if (auto pointer = dyn_cast<PointerExpr>(e)) {
+    return create(pointer->getValue());
   }
   return FNegExpr::alloc(e);
 }
@@ -2869,66 +2979,43 @@ ref<Expr> PointerExpr::create(const ref<Expr> &b, const ref<Expr> &v) {
   }
 }
 
-ref<Expr> PointerExpr::createSymbolic(const ref<Expr> &expr,
-                                      const ref<ReadExpr> &read,
-                                      const ref<Expr> &off) {
-  ref<Expr> pointer;
-  auto updates = read->updates;
-  if (isa<LazyInitializationAddressSource>(updates.root->source) ||
-      isa<SymbolicSizeConstantAddressSource>(updates.root->source)) {
-    pointer = PointerExpr::create(expr, expr);
-  } else {
-    auto baseArray = Array::create(
-        ConstantExpr::create(expr->getWidth() / CHAR_BIT, expr->getWidth()),
-        SourceBuilder::lazyInitializationAddress(expr));
-    ref<Expr> baseExpr = Expr::createTempRead(
-        baseArray, expr->getWidth(), SubExpr::create(read->index, off));
-    pointer = PointerExpr::create(baseExpr, expr);
-  }
-  return pointer;
-}
-
-ref<Expr> PointerExpr::create(const ref<Expr> &expr) {
-  ref<PointerExpr> pointer;
-  auto read = expr->hasOrderedReads();
-  if (auto *p = dyn_cast<PointerExpr>(expr)) {
-    pointer = p;
-  } else if (auto *se = dyn_cast<SelectExpr>(expr)) {
-    pointer = cast<PointerExpr>(
-        SelectExpr::create(se->cond, PointerExpr::create(se->trueExpr),
-                           PointerExpr::create(se->falseExpr)));
-  } else if (read && read->updates.root->isSymbolicArray() &&
-             read->updates.root->getSize()->getWidth() == expr->getWidth() &&
-             read->updates.getSize() == 0) {
-    pointer = PointerExpr::createSymbolic(expr, read, read->index);
-  } else {
-    pointer = PointerExpr::create(expr, expr);
-  }
-  return pointer;
-}
-
 ref<Expr> ConstantPointerExpr::create(const ref<ConstantExpr> &b,
                                       const ref<ConstantExpr> &v) {
-  assert(!isa<PointerExpr>(b));
-  assert(!isa<PointerExpr>(v));
   return ConstantPointerExpr::alloc(b, v);
+}
+
+static ref<Expr> checkIfInvalid(ref<PointerExpr> value) {
+  return EqExpr::create(value->getBase(),
+                        ConstantExpr::create(-1, value->getBase()->getWidth()));
 }
 
 #define BCREATE_P(_e_op, _op)                                                  \
   ref<Expr> PointerExpr::_op(const ref<PointerExpr> &RHS) {                    \
     assert(getWidth() == RHS->getWidth() && "type mismatch");                  \
-    if (!isKnownValue()) {                                                     \
-      if (!RHS->isKnownValue()) {                                              \
+    if (isKnownValid()) {                                                      \
+      if (RHS->isKnownValid()) {                                               \
         return _e_op::create(getValue(), RHS->getValue());                     \
       } else {                                                                 \
         return PointerExpr::create(                                            \
-            getBase(), _e_op::create(getValue(), RHS->getValue()));            \
+            SelectExpr::create(                                                \
+                checkIfInvalid(RHS), getBase(),                                \
+                ConstantExpr::create(-1, getBase()->getWidth())),              \
+            _e_op::create(getValue(), RHS->getValue()));                       \
       }                                                                        \
-    } else if (!RHS->isKnownValue()) {                                         \
-      return PointerExpr::create(RHS->getBase(),                               \
-                                 _e_op::create(getValue(), RHS->getValue()));  \
+    } else if (RHS->isKnownValid()) {                                          \
+      return PointerExpr::create(                                              \
+          SelectExpr::create(checkIfInvalid(this), RHS->getBase(),             \
+                             ConstantExpr::create(-1, getBase()->getWidth())), \
+          _e_op::create(getValue(), RHS->getValue()));                         \
     } else {                                                                   \
-      return _e_op::create(getValue(), RHS->getValue());                       \
+      auto eq = EqExpr::create(checkIfInvalid(this), checkIfInvalid(RHS));     \
+      auto baseSelect =                                                        \
+          SelectExpr::create(checkIfInvalid(this), RHS->getBase(), getBase()); \
+      return PointerExpr::create(                                              \
+          SelectExpr::create(eq,                                               \
+                             ConstantExpr::create(-1, getBase()->getWidth()),  \
+                             baseSelect),                                      \
+          _e_op::create(getValue(), RHS->getValue()));                         \
     }                                                                          \
   }
 
@@ -2947,18 +3034,18 @@ BCREATE_P(LShrExpr, LShr)
 BCREATE_P(AShrExpr, AShr)
 
 ref<Expr> PointerExpr::Not() {
-  return PointerExpr::create(getBase(), NotExpr::create(getValue()));
+  return EqExpr::create(
+      this,
+      PointerExpr::create(ConstantExpr::create(-1, getBase()->getWidth()),
+                          ConstantExpr::create(0, getValue()->getWidth())));
 }
 
 ref<Expr> PointerExpr::Eq(const ref<PointerExpr> &RHS) {
-  ref<Expr> areValuesEq = EqExpr::create(getValue(), RHS->getValue());
-  ref<Expr> areBasesEq = EqExpr::create(getBase(), RHS->getBase());
-
-  if (!isKnownValue() && !RHS->isKnownValue()) {
-    return AndExpr::create(areValuesEq, areBasesEq);
+  if (isKnownInvalid() && RHS->isKnownInvalid()) {
+    return EqExpr::create(getValue(), RHS->getValue());
+  } else {
+    return PointerEqExpr::create(this, RHS);
   }
-
-  return areValuesEq;
 }
 
 ref<Expr> PointerExpr::Ne(const ref<PointerExpr> &RHS) {

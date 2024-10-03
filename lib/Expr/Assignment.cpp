@@ -11,6 +11,7 @@
 
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Symcrete.h"
+#include <klee/Support/CompilerWarning.h>
 
 namespace klee {
 
@@ -52,7 +53,23 @@ constraints_ty Assignment::createConstraintsFromAssignment() const {
       result.insert(EqExpr::create(e, evaluate(e)));
     } else {
       for (unsigned arrayIndex = 0; arrayIndex < arraySize; ++arrayIndex) {
-        unsigned char value = values.load(arrayIndex);
+        uint64_t value = 0;
+        switch (array->getRange()) {
+        case Expr::Int8: {
+          value = values.load(arrayIndex);
+          break;
+        }
+        case Expr::Int64: {
+          value =
+              values.SparseStorage<unsigned char>::load<uint64_t>(arrayIndex);
+          break;
+        }
+        default: {
+          assert(false);
+          unreachable();
+        }
+        }
+
         result.insert(EqExpr::create(
             ReadExpr::create(
                 UpdateList(array, 0),

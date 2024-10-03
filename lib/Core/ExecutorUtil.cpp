@@ -91,7 +91,7 @@ ref<klee::Expr> Executor::evalConstant(const Constant *c,
       assert(it != globalAddresses.end());
       return it->second;
     } else if (isa<ConstantPointerNull>(c)) {
-      return PointerExpr::create(Expr::createPointer(0));
+      return PointerExpr::createNull();
     } else if (isa<UndefValue>(c) || isa<ConstantAggregateZero>(c)) {
       if (getWidthForLLVMType(c->getType()) == 0) {
         if (isa<llvm::LandingPadInst>(ki->inst())) {
@@ -158,6 +158,7 @@ ref<klee::Expr> Executor::evalConstant(const Constant *c,
     } else if (const BlockAddress *ba = dyn_cast<BlockAddress>(c)) {
       // return the address of the specified basic block in the specified
       // function
+      klee_error("unimplemented");
       const auto arg_bb = (BasicBlock *)ba->getOperand(1);
       const auto res = PointerExpr::create(
           Expr::createPointer(reinterpret_cast<std::uint64_t>(arg_bb)),
@@ -392,25 +393,25 @@ ref<Expr> Executor::evalConstantExpr(const llvm::ConstantExpr *ce,
     return ZExtExpr::create(op1, getWidthForLLVMType(type));
 
   case Instruction::GetElementPtr: {
-    if (!isPointer1) {
-      op1 = PointerExpr::create(op1, op1);
-    }
-
-    ref<Expr> base = cast<PointerExpr>(op1)->getBase();
-    ref<Expr> offset = cast<PointerExpr>(op1)->getOffset();
+    ref<Expr> offset = op1;
+    assert(isa<PointerExpr>(offset));
 
     for (gep_type_iterator ii = gep_type_begin(ce), ie = gep_type_end(ce);
          ii != ie; ++ii) {
       auto iop = evalConstant(cast<Constant>(ii.getOperand()), rm, ki);
-      ref<Expr> indexOp;
-      if (auto ipointer = dyn_cast<PointerExpr>(iop)) {
-        base = AddExpr::create(base, ipointer->getBase());
-        indexOp = ipointer->getOffset();
-      } else
-        indexOp = iop;
+      // assert(!isa<PointerExpr>(iop));
 
-      if (indexOp->isZero())
+      // ref<Expr> indexOp;
+      // if (auto ipointer = dyn_cast<PointerExpr>(iop)) {
+      //   base = AddExpr::create(base, ipointer->getBase());
+      //   indexOp = ipointer->getOffset();
+      // } else
+      // indexOp = iop;
+      ref<Expr> indexOp = iop;
+
+      if (indexOp->isZero()) {
         continue;
+      }
 
       // Handle a struct index, which adds its field offset to the pointer.
       if (auto STy = ii.getStructTypeOrNull()) {
@@ -422,9 +423,7 @@ ref<Expr> Executor::evalConstantExpr(const llvm::ConstantExpr *ce,
         unsigned ElementIdx = indexOpConst->getZExtValue();
         const StructLayout *SL = kmodule->targetData->getStructLayout(STy);
         offset = AddExpr::create(
-            offset,
-            ConstantExpr::alloc(APInt(Context::get().getPointerWidth(),
-                                      SL->getElementOffset(ElementIdx))));
+            offset, Expr::createPointer(SL->getElementOffset(ElementIdx)));
         continue;
       }
 
@@ -438,7 +437,7 @@ ref<Expr> Executor::evalConstantExpr(const llvm::ConstantExpr *ce,
                                         kmodule->targetData->getTypeAllocSize(
                                             ii.getIndexedType())))));
     }
-    return PointerExpr::create(base, AddExpr::create(base, offset));
+    return offset;
   }
 
   case Instruction::ICmp: {

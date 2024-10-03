@@ -12,6 +12,7 @@
 #include "klee/Expr/Expr.h"
 
 #include <cassert>
+#include <klee/Expr/SourceBuilder.h>
 
 using namespace klee;
 
@@ -42,4 +43,23 @@ ref<Expr> Expr::createZExtToPointerWidth(ref<Expr> e) {
 
 ref<ConstantExpr> Expr::createPointer(uint64_t v) {
   return ConstantExpr::create(v, Context::get().getPointerWidth());
+}
+
+ref<PointerExpr> PointerExpr::createNull() {
+  return ConstantPointerExpr::create(Expr::createPointer(0),
+                                     Expr::createPointer(0));
+}
+
+ref<PointerExpr> PointerExpr::createSymbolic(const ref<Expr> &v) {
+  assert(!llvm::isa<PointerExpr>(v));
+  auto baseArray = Array::create(
+      Expr::createPointer(Context::get().getPointerWidthInBytes()),
+      SourceBuilder::irreproducible("symbolic_base"));
+  return PointerExpr::create(
+      Expr::createTempRead(baseArray, Context::get().getPointerWidth()), v);
+}
+
+ref<PointerExpr> PointerExpr::createMarkedInvalid(ref<Expr> v) {
+  assert(!llvm::isa<PointerExpr>(v));
+  return create(Expr::createPointer(-1), v);
 }

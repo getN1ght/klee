@@ -1,6 +1,7 @@
 #ifndef KLEE_KTYPE_H
 #define KLEE_KTYPE_H
 
+#include <map>
 #include <set>
 #include <stddef.h>
 #include <stdint.h>

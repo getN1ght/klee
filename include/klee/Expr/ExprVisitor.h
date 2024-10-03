@@ -106,6 +106,7 @@ protected:
   virtual Action visitLShr(const LShrExpr &);
   virtual Action visitAShr(const AShrExpr &);
   virtual Action visitEq(const EqExpr &);
+  virtual Action visitPointerEq(const PointerEqExpr &);
   virtual Action visitNe(const NeExpr &);
   virtual Action visitUlt(const UltExpr &);
   virtual Action visitUle(const UleExpr &);

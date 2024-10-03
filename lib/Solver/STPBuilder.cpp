@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "klee/Config/config.h"
+#include <klee/Support/ErrorHandling.h>
 #ifdef ENABLE_STP
 #include "STPBuilder.h"
 
@@ -891,6 +892,22 @@ ExprHandle STPBuilder::constructActual(ref<Expr> e, int *width_out) {
   }
 
     // Comparison
+
+  case Expr::PointerEq: {
+    klee_error(
+        "STP: unimplemented side constrains for construction of PointerEqExpr");
+    // PointerEqExpr *ee = cast<PointerEqExpr>(e);
+    // auto left = cast<PointerExpr>(ee->left);
+    // auto right = cast<PointerExpr>(ee->right);
+
+    // sideConstraints.push_back(construct(ee->sideInvariant()));
+
+    // auto leftTerm = construct(left->getValue(), width_out);
+    // auto rightTerm = construct(right->getValue(), width_out);
+
+    // *width_out = 1;
+    // return eqExpr(leftTerm, rightTerm);
+  }
 
   case Expr::Eq: {
     EqExpr *ee = cast<EqExpr>(e);

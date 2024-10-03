@@ -68,6 +68,47 @@ private:
   ResolutionCacheContainer cache_;
 };
 
+struct ResolveResult {
+private:
+  enum ResolveResultType : std::uint8_t { Ok, Unknown, None };
+
+  ResolveResultType type;
+  ObjectPair resolution;
+
+public:
+  bool isOk() const { return type == ResolveResultType::Ok; }
+  bool isUnknown() const { return type == ResolveResultType::Unknown; }
+  bool isNone() const { return type == ResolveResultType::None; }
+
+  static ResolveResult createOk(const ObjectPair &resolution) {
+    ResolveResult result;
+    result.type = ResolveResultType::Ok;
+    result.resolution = resolution;
+    return result;
+  }
+  static ResolveResult createUnknown(const ObjectPair &resolution) {
+    ResolveResult result;
+    result.type = ResolveResultType::Unknown;
+    result.resolution = resolution;
+    return result;
+  }
+  static ResolveResult createNone() {
+    ResolveResult result;
+    result.type = ResolveResultType::None;
+    return result;
+  }
+
+  ObjectPair &get() {
+    if (isNone()) {
+      // throw std::runtime_error("Accessing empty ResolveResult object");
+      assert(false);
+    }
+    return resolution;
+  }
+
+  operator bool() const { return isOk(); }
+};
+
 class AddressSpace {
 private:
   /// Epoch counter used to control ownership of objects.
@@ -102,19 +143,20 @@ public:
   //
   // The mapping from ids to objects to safely update the underlying objects
   // if required (e.g. useful for symbolic sizes).
+  IDMap idsToObjects;
 
   mutable bool complete = false;
 
   AddressSpace() : cowKey(1) {}
   AddressSpace(const AddressSpace &b)
       : cowKey(++b.cowKey), cache(b.cache), objects(b.objects),
-        complete(b.complete) {}
+        idsToObjects(b.idsToObjects), complete(b.complete) {}
   ~AddressSpace() {}
 
   /// Resolve address to an ObjectPair in result.
   /// \return true iff an object was found.
-  bool resolveOne(ref<ConstantPointerExpr> address, KType *objectType,
-                  ObjectPair &result) const;
+  ResolveResult resolveOne(ref<ConstantPointerExpr> address,
+                           KType *objectType) const;
 
   /// Resolve address to an ObjectPair in result.
   ///
@@ -125,10 +167,9 @@ public:
   /// \param[out] result An ObjectPair this address can resolve to
   ///               (when returning true).
   /// \return true iff an object was found at \a address.
-  bool resolveOne(ExecutionState &state, TimingSolver *solver,
-                  ref<PointerExpr> address, KType *objectType,
-                  ObjectPair &result, bool &success,
-                  const std::atomic_bool &haltExecution) const;
+  ResolveResult resolveOne(ExecutionState &state, TimingSolver *solver,
+                           ref<PointerExpr> address, KType *objectType,
+                           const std::atomic_bool &haltExecution) const;
 
   /// @brief Tries to resolve the pointer in the concrete object
   /// if it value is unique.
@@ -207,6 +248,10 @@ public:
   bool copyInConcrete(ExecutionState &state, const MemoryObject *mo,
                       const ObjectState *os, uint64_t src_address,
                       const Assignment &assignment);
+
+private:
+  ResolveResult resolveOneByBase(ref<ConstantPointerExpr> pointer) const;
+  ResolveResult resolveOneByValue(ref<ConstantPointerExpr> pointer) const;
 };
 } // namespace klee
 

@@ -39,6 +39,14 @@ void findSymbolicObjects(ref<Expr> e, std::vector<const Array *> &results);
 
 /// Return a list of all unique symbolic objects referenced by the
 /// given expression range.
+
+template <typename InputIterator>
+std::vector<const Array *> findSymbolicObjects(InputIterator begin,
+                                               InputIterator end);
+
+template <typename InputIterator>
+std::vector<const Array *> findObjects(InputIterator begin, InputIterator end);
+
 template <typename InputIterator>
 void findSymbolicObjects(InputIterator begin, InputIterator end,
                          std::vector<const Array *> &results);

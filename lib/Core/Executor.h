@@ -126,12 +126,12 @@ public:
   RNG theRNG;
 
 private:
-  int *errno_addr;
+  ref<ConstantPointerExpr> errno_addr;
 
 #ifdef HAVE_CTYPE_EXTERNALS
-  decltype(__ctype_b_loc()) c_type_b_loc_addr;
-  decltype(__ctype_tolower_loc()) c_type_tolower_addr;
-  decltype(__ctype_toupper_loc()) c_type_toupper_addr;
+  ref<ConstantPointerExpr> c_type_b_loc_addr;
+  ref<ConstantPointerExpr> c_type_tolower_addr;
+  ref<ConstantPointerExpr> c_type_toupper_addr;
 #endif
 
   size_t maxNewWriteableOSSize = 0;
@@ -279,13 +279,14 @@ private:
 
 #ifdef HAVE_CTYPE_EXTERNALS
   template <typename F>
-  decltype(auto) addCTypeFixedObject(ExecutionState &state, int addressSpaceNum,
-                                     llvm::Module &m, F objectProvider);
+  ref<ConstantPointerExpr>
+  addCTypeFixedObject(ExecutionState &state, int addressSpaceNum,
+                      llvm::Module &m, F objectProvider);
 
   template <typename F>
-  decltype(auto) addCTypeModelledObject(ExecutionState &state,
-                                        int addressSpaceNum, llvm::Module &m,
-                                        F objectProvider);
+  ref<ConstantPointerExpr>
+  addCTypeModelledObject(ExecutionState &state, int addressSpaceNum,
+                         llvm::Module &m, F objectProvider);
 #endif
 
   void initializeGlobalAlias(const llvm::Constant *c, ExecutionState &state);
@@ -322,7 +323,7 @@ private:
   /// beginning of.
   typedef std::vector<std::pair<const MemoryObject *, ExecutionState *>>
       ExactResolutionList;
-  bool resolveExact(ExecutionState &state, ref<Expr> p, KType *type,
+  bool resolveExact(ExecutionState &state, ref<PointerExpr> p, KType *type,
                     unsigned bytes, ExactResolutionList &results,
                     const std::string &name);
 
@@ -341,7 +342,7 @@ private:
                          bool isGlobal, ref<CodeLocation> allocSite,
                          size_t allocationAlignment, KType *type,
                          ref<Expr> conditionExpr = Expr::createTrue(),
-                         ref<Expr> lazyInitializationSource = ref<Expr>(),
+                         ref<PointerExpr> lazyInitializationSource = nullptr,
                          unsigned timestamp = 0);
 
   /// Allocate and bind a new object in a particular state. NOTE: This
@@ -414,6 +415,11 @@ private:
                     const ObjectResolutionList &resolvedMemoryObjects,
                     std::vector<ref<Expr>> &results);
 
+  std::vector<ref<Expr>>
+  collectReads(ExecutionState &state, ref<PointerExpr> address,
+               Expr::Width type,
+               const ObjectResolutionList &resolvedMemoryObjects);
+
   // do address resolution / object binding / out of bounds checking
   // and perform the operation
   void executeMemoryOperation(ExecutionState &state, bool isWrite,
@@ -428,9 +434,11 @@ private:
                        ref<Expr> conditionExpr, bool isConstant = true);
 
   void lazyInitializeLocalObject(ExecutionState &state, StackFrame &sf,
-                                 ref<Expr> address, const KInstruction *target);
+                                 ref<PointerExpr> address,
+                                 const KInstruction *target);
 
-  void lazyInitializeLocalObject(ExecutionState &state, ref<Expr> address,
+  void lazyInitializeLocalObject(ExecutionState &state,
+                                 ref<PointerExpr> address,
                                  const KInstruction *target);
 
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
@@ -682,8 +690,6 @@ private:
 
   const Array *makeArray(ref<Expr> size,
                          const ref<SymbolicSource> source) const;
-
-  ref<PointerExpr> makePointer(ref<Expr> expr) const;
 
   void prepareTargetedExecution(ExecutionState &initialState,
                                 ref<TargetForest> whitelist);

@@ -226,6 +226,21 @@ ExprVisitor::Action ConstantArrayFinder::visitRead(const ReadExpr &re) {
 } // namespace klee
 
 template <typename InputIterator>
+std::vector<const Array *> findSymbolicObjects(InputIterator begin,
+                                               InputIterator end) {
+  std::vector<const Array *> results;
+  findSymbolicObjects(begin, end, results);
+  return results;
+}
+
+template <typename InputIterator>
+std::vector<const Array *> findObjects(InputIterator begin, InputIterator end) {
+  std::vector<const Array *> results;
+  findObjects(begin, end, results);
+  return results;
+}
+
+template <typename InputIterator>
 void klee::findSymbolicObjects(InputIterator begin, InputIterator end,
                                std::vector<const Array *> &results) {
   SymbolicObjectFinder of(results);

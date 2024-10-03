@@ -10,6 +10,7 @@
 #include "klee/Config/config.h"
 #include "klee/Solver/SolverStats.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
+#include <klee/Support/CompilerWarning.h>
 
 #ifdef ENABLE_Z3
 
@@ -753,17 +754,33 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
                      Z3_NUMERAL_AST &&
                  "Evaluated expression has wrong sort");
 
-          int arrayElementValue = 0;
-          if (!Z3_get_numeral_int(builder->ctx, arrayElementExpr,
-                                  &arrayElementValue)) {
+          uint64_t arrayElementValue = 0;
+          if (!Z3_get_numeral_uint64(builder->ctx, arrayElementExpr,
+                                     &arrayElementValue)) {
             Z3_dec_ref(builder->ctx, arrayElementExpr);
             Z3_dec_ref(builder->ctx, arraySizeExpr);
             Z3_model_dec_ref(builder->ctx, theModel);
             return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
           }
-          assert(arrayElementValue >= 0 && arrayElementValue <= 255 &&
-                 "Integer from model is out of range");
-          data.store(offset, arrayElementValue);
+
+          switch (array->getRange()) {
+          case Expr::Int8: {
+            assert(arrayElementValue >= 0 && arrayElementValue <= 255 &&
+                   "Integer from model is out of range");
+            data.store(offset, arrayElementValue);
+            break;
+          }
+          case Expr::Int64: {
+            data.SparseStorage<unsigned char>::store<uint64_t>(
+                offset, arrayElementValue);
+            break;
+          }
+          default: {
+            assert(false && "Unexpceted array range");
+            unreachable();
+          }
+          }
+
           Z3_dec_ref(builder->ctx, arrayElementExpr);
         }
       }
@@ -889,16 +906,19 @@ public:
       Z3_goal goal = Z3_mk_goal(ctx, false, false, false);
       Z3_goal_inc_ref(ctx, goal);
 
-      for (auto constraint : assertions)
+      for (auto constraint : assertions) {
         Z3_goal_assert(ctx, goal, constraint);
-      if (Z3_probe_apply(ctx, probe, goal))
+      }
+      if (Z3_probe_apply(ctx, probe, goal)) {
         theSolver =
             Z3_mk_solver_for_logic(ctx, Z3_mk_string_symbol(ctx, "QF_AUFBV"));
+      }
       Z3_goal_dec_ref(ctx, goal);
       Z3_probe_dec_ref(ctx, probe);
     }
-    if (!theSolver)
+    if (!theSolver) {
       theSolver = Z3_mk_solver(ctx);
+    }
     Z3_solver_inc_ref(ctx, theSolver);
     Z3_solver_set_params(ctx, theSolver, solverParameters);
     return theSolver;

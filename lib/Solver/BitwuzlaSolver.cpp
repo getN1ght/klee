@@ -12,6 +12,7 @@
 #include "klee/Config/config.h"
 #include "klee/Solver/SolverStats.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
+#include <klee/Support/CompilerWarning.h>
 
 #ifdef ENABLE_BITWUZLA
 
@@ -423,7 +424,7 @@ bool BitwuzlaSolverImpl::computeInitialValues(
     std::vector<SparseStorageImpl<unsigned char>> &values, bool &hasSolution) {
   return internalRunSolver(query, env,
                            ObjectAssignment::NeededForObjectsFromEnv, &values,
-                           /*validityCore=*/NULL, hasSolution);
+                           /*validityCore=*/nullptr, hasSolution);
 }
 
 bool BitwuzlaSolverImpl::check(const ConstraintQuery &query,
@@ -642,7 +643,21 @@ SolverImpl::SolverRunStatus BitwuzlaSolverImpl::handleSolverResponse(
 
           uint64_t arrayElementValue =
               std::stoull(initial_read_expr.value<std::string>(10));
-          data.store(offset, arrayElementValue);
+          switch (array->getRange()) {
+          case Expr::Int8: {
+            data.store(offset, arrayElementValue);
+            break;
+          }
+          case Expr::Int64: {
+            data.SparseStorage<unsigned char>::store<uint64_t>(
+                offset, arrayElementValue);
+            break;
+          }
+          default: {
+            assert(false && "Unexpected array range");
+            unreachable();
+          }
+          }
         }
       }
 

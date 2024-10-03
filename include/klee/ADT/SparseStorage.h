@@ -39,7 +39,13 @@ protected:
 public:
   virtual ~SparseStorage() = default;
 
-  virtual void store(size_t idx, const ValueType &value) = 0;
+  template <typename T> void store(size_t idx, const T &value) {
+    static_assert(sizeof(T) % sizeof(ValueType) == 0);
+    auto bytes = reinterpret_cast<const ValueType *>(&value);
+    for (std::size_t off = 0; off < sizeof(T) / sizeof(ValueType); ++off) {
+      store(sizeof(T) / sizeof(ValueType) * idx + off, bytes[off]);
+    }
+  }
 
   template <typename InputIterator>
   void store(size_t idx, InputIterator iteratorBegin,
@@ -47,6 +53,18 @@ public:
     for (; iteratorBegin != iteratorEnd; ++iteratorBegin, ++idx) {
       store(idx, *iteratorBegin);
     }
+  }
+
+  virtual void store(size_t idx, const ValueType &value) = 0;
+
+  template <typename T> T load(size_t idx) const {
+    static_assert(sizeof(T) % sizeof(ValueType) == 0);
+    T return_value;
+    auto bytes = reinterpret_cast<ValueType *>(&return_value);
+    for (std::size_t off = 0; off < sizeof(T) / sizeof(ValueType); ++off) {
+      bytes[off] = load(sizeof(T) / sizeof(ValueType) * idx + off);
+    }
+    return return_value;
   }
 
   virtual ValueType load(size_t idx) const = 0;
@@ -144,14 +162,6 @@ public:
       internalStorage.remove(idx);
     } else {
       internalStorage.set(idx, value);
-    }
-  }
-
-  template <typename InputIterator>
-  void store(size_t idx, InputIterator iteratorBegin,
-             InputIterator iteratorEnd) {
-    for (; iteratorBegin != iteratorEnd; ++iteratorBegin, ++idx) {
-      store(idx, *iteratorBegin);
     }
   }
 

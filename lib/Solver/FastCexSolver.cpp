@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <klee/Support/CompilerWarning.h>
 #define DEBUG_TYPE "cex-solver"
 #include "klee/Solver/Solver.h"
 
@@ -1193,7 +1194,21 @@ bool FastCexSolver::computeInitialValues(
       ref<Expr> value = cd.evaluatePossible(read);
 
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(value)) {
-        data.store(i, ((unsigned char)CE->getZExtValue(8)));
+        switch (array->getRange()) {
+        case Expr::Int8: {
+          data.store(i, CE->getZExtValue(8));
+          break;
+        }
+        case Expr::Int64: {
+          data.SparseStorage<unsigned char>::store<uint64_t>(
+              i, CE->getZExtValue());
+          break;
+        }
+        default: {
+          assert(false);
+          unreachable();
+        }
+        }
       } else {
         // FIXME: When does this happen?
         return false;

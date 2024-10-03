@@ -141,6 +141,9 @@ ref<Expr> ExprVisitor::visitActual(const ref<Expr> &e) {
     case Expr::Eq:
       res = visitEq(static_cast<EqExpr &>(ep));
       break;
+    case Expr::PointerEq:
+      res = visitPointerEq(static_cast<PointerEqExpr &>(ep));
+      break;
     case Expr::Ne:
       res = visitNe(static_cast<NeExpr &>(ep));
       break;
@@ -404,6 +407,10 @@ ExprVisitor::Action ExprVisitor::visitAShr(const AShrExpr &) {
 }
 
 ExprVisitor::Action ExprVisitor::visitEq(const EqExpr &) {
+  return Action::doChildren();
+}
+
+ExprVisitor::Action ExprVisitor::visitPointerEq(const PointerEqExpr &) {
   return Action::doChildren();
 }
 

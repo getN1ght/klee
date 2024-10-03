@@ -58,15 +58,9 @@ ConstantAddressSpace::ConstantAddressSpace(const AddressSpace &addressSpace,
   }
 }
 
-bool ConstantAddressSpace::isResolution(ref<ConstantPointerExpr> address,
-                                        const MemoryObject &object) const {
-  auto condition = object.getBoundsCheckPointer(address);
-  return model.evaluate(condition)->isTrue();
-}
-
 std::uint64_t
 ConstantAddressSpace::addressOf(const MemoryObject &object) const {
-  auto addressExpr = PointerExpr::create(object.getBaseExpr());
+  auto addressExpr = object.getBaseExpr();
 
   ref<ConstantPointerExpr> constantAddressExpr =
       dyn_cast<ConstantPointerExpr>(model.evaluate(addressExpr));
@@ -105,19 +99,18 @@ ConstantAddressSpace::referencesInInitial(const ObjectPair &objectPair) const {
   for (Expr::Width i = 0; i + pointerWidth / CHAR_BIT <= objectSize; ++i) {
     auto contentPart = state->readInitialValue(i, pointerWidth);
 
-    auto pointer = PointerExpr::create(contentPart);
+    // FIXME: not sure it is correct
     ref<ConstantPointerExpr> constantPointer =
-        dyn_cast<ConstantPointerExpr>(model.evaluate(pointer, false));
+        dyn_cast<ConstantPointerExpr>(model.evaluate(contentPart, false));
 
-    assert(!constantPointer.isNull());
-
-    if (auto resolution = resolve(constantPointer)) {
-      references.emplace(
-          i, ConstantResolution{
-                 constantPointer->getConstantValue()->getZExtValue(),
-                 std::move(*resolution)});
+    if (!constantPointer.isNull()) {
+      if (auto resolution = resolve(constantPointer)) {
+        references.emplace(
+            i, ConstantResolution{
+                   constantPointer->getConstantValue()->getZExtValue(),
+                   std::move(*resolution)});
+      }
     }
-    assert(!constantPointer.isNull());
   }
 
   return references;
@@ -141,17 +134,17 @@ ConstantAddressSpace::referencesInFinal(const ObjectPair &objectPair) const {
     // TODO: replace with call to readValue()
     auto contentPart = state->read(i, pointerWidth);
 
-    auto pointer = PointerExpr::create(contentPart);
+    // FIXME: not sure if this correct
     ref<ConstantPointerExpr> constantPointer =
-        dyn_cast<ConstantPointerExpr>(model.evaluate(pointer, false));
+        dyn_cast<ConstantPointerExpr>(model.evaluate(contentPart, false));
 
-    assert(!constantPointer.isNull());
-
-    if (auto resolution = resolve(constantPointer)) {
-      references.emplace(
-          i, ConstantResolution{
-                 constantPointer->getConstantValue()->getZExtValue(),
-                 std::move(*resolution)});
+    if (!constantPointer.isNull()) {
+      if (auto resolution = resolve(constantPointer)) {
+        references.emplace(
+            i, ConstantResolution{
+                   constantPointer->getConstantValue()->getZExtValue(),
+                   std::move(*resolution)});
+      }
     }
   }
 
@@ -160,21 +153,9 @@ ConstantAddressSpace::referencesInFinal(const ObjectPair &objectPair) const {
 
 std::optional<ObjectPair>
 ConstantAddressSpace::resolve(ref<ConstantPointerExpr> address) const {
-  auto valueOfAddress = address->getConstantBase()->getZExtValue();
-  auto itNextToObject = objects.upper_bound(valueOfAddress);
-
-  if (itNextToObject != objects.begin()) {
-    auto object = std::prev(itNextToObject)->second;
-    if (isResolution(address, *object)) {
-      return {addressSpace.findObject(object)};
-    }
-  }
-
-  if (itNextToObject != objects.end()) {
-    auto object = itNextToObject->second;
-    if (isResolution(address, *object)) {
-      return {addressSpace.findObject(object)};
-    }
+  auto valueOfBase = address->getConstantBase()->getZExtValue();
+  if (objects.count(valueOfBase)) {
+    return addressSpace.findObject(objects.at(valueOfBase));
   }
 
   return std::nullopt;
@@ -186,12 +167,5 @@ ConstantPointerGraph ConstantAddressSpace::createPointerGraph() const {
 
 void ConstantAddressSpace::insert(const ObjectPair &objectPair) {
   auto object = objectPair.first;
-
-  auto addressOfObject = model.evaluate(object->getBaseExpr());
-
-  assert(isa<ConstantExpr>(addressOfObject));
-  auto valueOfAddressOfObject =
-      cast<ConstantExpr>(addressOfObject)->getZExtValue();
-  assert(objects.count(valueOfAddressOfObject) == 0);
-  objects.emplace(valueOfAddressOfObject, object);
+  objects.emplace(object->id, object);
 }

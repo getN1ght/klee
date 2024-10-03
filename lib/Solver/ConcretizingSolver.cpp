@@ -272,8 +272,11 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
   ExprHashMap<ref<Expr>> concretizations;
 
   for (ref<Symcrete> symcrete : query.constraints.symcretes()) {
-    concretizations[symcrete->symcretized] =
-        cast<ConstantExpr>(assignment.evaluate(symcrete->symcretized));
+    auto symcreteEvaluated = assignment.evaluate(symcrete->symcretized);
+    assert(symcreteEvaluated->getKind() == Expr::Constant ||
+           symcreteEvaluated->getKind() == Expr::ConstantPointer);
+
+    concretizations[symcrete->symcretized] = symcreteEvaluated;
   }
 
   ref<Expr> concretizationCondition = query.expr;

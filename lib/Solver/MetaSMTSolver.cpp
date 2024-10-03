@@ -405,7 +405,8 @@ MetaSMTSolverImpl<SolverContext>::runAndGetCexForked(
       values = std::vector<SparseStorageImpl<unsigned char>>(objects.size());
       for (unsigned i = 0; i < objects.size(); ++i) {
         SparseStorageImpl<unsigned char> &data = values[i];
-        data.store(0, pos, pos + shared_memory_sizes_ptr[i]);
+        data.SparseStoreage<unsigned char>::store(
+            0, pos, pos + shared_memory_sizes_ptr[i]);
         pos += shared_memory_sizes_ptr[i];
       }
     }

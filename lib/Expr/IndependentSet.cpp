@@ -9,6 +9,7 @@
 #include "klee/Expr/Symcrete.h"
 #include "klee/Module/KModule.h"
 
+#include <klee/Support/CompilerWarning.h>
 #include <queue>
 #include <set>
 #include <vector>
@@ -86,7 +87,22 @@ void IndependentConstraintSet::addValuesToAssignment(
       for (std::set<unsigned>::iterator it2 = ds.begin(); it2 != ds.end();
            it2++) {
         unsigned index = *it2;
-        value.store(index, values[i].load(index));
+        switch (objects[i]->getRange()) {
+        case Expr::Int8: {
+          value.store(index, values[i].load(index));
+          break;
+        }
+        case Expr::Int64: {
+          value.SparseStorage<unsigned char>::store<uint64_t>(
+              index,
+              values[i].SparseStorage<unsigned char>::load<uint64_t>(index));
+          break;
+        }
+        default: {
+          assert(false);
+          unreachable();
+        }
+        }
       }
       assign.bindings.replace({objects[i], value});
     } else {

@@ -846,6 +846,19 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
 
     // Comparison
 
+  case Expr::PointerEq: {
+    PointerEqExpr *ee = cast<PointerEqExpr>(e);
+    auto left = cast<PointerExpr>(ee->left);
+    auto right = cast<PointerExpr>(ee->right);
+
+    sideConstraints.push_back(construct(ee->sideInvariant()));
+
+    auto leftTerm = construct(left->getValue(), width_out);
+    auto rightTerm = construct(right->getValue(), width_out);
+
+    *width_out = 1;
+    return eqExpr(leftTerm, rightTerm);
+  }
   case Expr::Eq: {
     EqExpr *ee = cast<EqExpr>(e);
     Term left = construct(ee->left, width_out);
@@ -1205,6 +1218,7 @@ Term BitwuzlaBuilder::castToFloat(const Term &e) {
       return ieeeBitPatternAsFloat;
     }
     default:
+      assert(false);
       llvm_unreachable("Unhandled width when casting bitvector to float");
     }
   } else {

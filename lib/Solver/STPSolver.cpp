@@ -275,8 +275,22 @@ runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
     for (unsigned offset = 0; offset < objectSize; offset++) {
       ExprHandle counter =
           vc_getCounterExample(vc, builder->getInitialRead(object, offset));
-      values[i].store(offset,
-                      static_cast<unsigned char>(getBVUnsigned(counter)));
+      auto byteValue = static_cast<unsigned char>(getBVUnsigned(counter));
+      switch (object->getRange()) {
+      case Expr::Int8: {
+        values[i].store(offset, byteValue);
+        break;
+      }
+      case Expr::Int64: {
+        values[i].SparseStorage<unsigned char>::store<uint64_t>(offset,
+                                                                byteValue);
+        break;
+      }
+      default: {
+        assert(false && "Unexpected array range");
+        unreachable();
+      }
+      }
     }
     ++i;
   }
@@ -391,7 +405,8 @@ runAndGetCexForked(::VC vc, STPBuilder *builder, ::VCExpr q,
       for (unsigned idx = 0; idx < objects.size(); ++idx) {
         uint64_t objectSize = shared_memory_object_sizes[idx];
         values.emplace_back(0);
-        values.back().store(0, pos, pos + objectSize);
+        values.back().SparseStorage<unsigned char>::store(0, pos,
+                                                          pos + objectSize);
         pos += objectSize;
       }
 

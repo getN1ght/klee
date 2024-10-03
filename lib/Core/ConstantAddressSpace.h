@@ -136,10 +136,6 @@ public:
   std::size_t size() const { return objects.size(); }
 
 private:
-  bool isResolution(ref<ConstantPointerExpr> address,
-                    const MemoryObject &object) const;
-
-private:
   const AddressSpace &addressSpace;
   const Assignment &model;
   OrderedObjectsContainer objects;
