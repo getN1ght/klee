@@ -36,6 +36,9 @@ void *klee_define_fixed_object(void *addr, size_t nbytes);
  */
 void klee_make_symbolic(void *addr, size_t nbytes, const char *name);
 
+#define symbolic(x) \
+  klee_make_symbolic(&x, sizeof(x), #x)
+
 /* klee_range - Construct a symbolic value in the signed interval
  * [begin,end).
  *

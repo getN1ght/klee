@@ -158,6 +158,8 @@ public:
   ResolveResult resolveOne(ref<ConstantPointerExpr> address,
                            KType *objectType) const;
 
+  ResolveResult resolveOneByBase(ref<ConstantPointerExpr> pointer) const;
+
   /// Resolve address to an ObjectPair in result.
   ///
   /// \param state The state this address space is part of.
@@ -170,19 +172,6 @@ public:
   ResolveResult resolveOne(ExecutionState &state, TimingSolver *solver,
                            ref<PointerExpr> address, KType *objectType,
                            const std::atomic_bool &haltExecution) const;
-
-  /// @brief Tries to resolve the pointer in the concrete object
-  /// if it value is unique.
-  /// @param state The state this address space is part of.
-  /// @param solver A solver used to determine possible
-  ///               locations of the \a address.
-  /// @param address The address to search for.
-  /// @param result The id of appropriate object, if was found so.
-  /// @param success True iff object was found.
-  /// @return false iff the resolution is incomplete (query timed out).
-  bool resolveOneIfUnique(ExecutionState &state, TimingSolver *solver,
-                          ref<PointerExpr> address, KType *objectType,
-                          ObjectPair &result, bool &success) const;
 
   /// Resolve pointer `p` to a list of `ObjectPairs` it can point
   /// to. If `maxResolutions` is non-zero then no more than that many
@@ -248,10 +237,6 @@ public:
   bool copyInConcrete(ExecutionState &state, const MemoryObject *mo,
                       const ObjectState *os, uint64_t src_address,
                       const Assignment &assignment);
-
-private:
-  ResolveResult resolveOneByBase(ref<ConstantPointerExpr> pointer) const;
-  ResolveResult resolveOneByValue(ref<ConstantPointerExpr> pointer) const;
 };
 } // namespace klee
 

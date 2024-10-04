@@ -1702,6 +1702,8 @@ public:
 
 class PointerExpr : public NonConstantExpr {
 public:
+  enum { CODE = -2, CONSTANT = -1, NULLPTR = 0 };
+
   static const Kind kind = Expr::Pointer;
   static const unsigned numKids = 2;
   ref<Expr> base;
@@ -1716,21 +1718,26 @@ public:
   static ref<Expr> create(const ref<Expr> &b, const ref<Expr> &o);
 
   static ref<PointerExpr> createSymbolic(const ref<Expr> &v);
-  static ref<PointerExpr> createMarkedInvalid(ref<Expr> v);
   static ref<PointerExpr> createNull();
 
   bool isKnownInvalid() const {
     return EqExpr::create(getBase(),
-                          ConstantExpr::create(-1, getBase()->getWidth()))
+                          ConstantExpr::create(
+                              bits64::truncateToNBits(PointerExpr::CONSTANT,
+                                                      getBase()->getWidth()),
+                              getBase()->getWidth()))
         ->isTrue();
   }
 
-  bool isKnownValid() const {
-    return NotExpr::create(
-               EqExpr::create(getBase(),
-                              ConstantExpr::create(-1, getBase()->getWidth())))
-        ->isTrue();
-  }
+  // bool isKnownValid() const {
+  //   return NotExpr::create(
+  //              EqExpr::create(getBase(),
+  //                             ConstantExpr::create(bits64::truncateToNBits(
+  //                                                      PointerExpr::CONSTANT,
+  //                                                      getBase()->getWidth()),
+  //                                                  getBase()->getWidth())))
+  //       ->isTrue();
+  // }
 
   Width getWidth() const { return value->getWidth(); }
   Kind getKind() const { return Expr::Pointer; }

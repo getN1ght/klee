@@ -1704,11 +1704,17 @@ ref<Expr> SelectExpr::create(ref<Expr> c, ref<Expr> t, ref<Expr> f) {
   } else if (isa<PointerExpr>(t) || isa<PointerExpr>(f)) {
     // TODO: remove such a complex logic out of there
     if (auto pt = dyn_cast<PointerExpr>(t)) {
-      auto unknownBase = ConstantExpr::create(-1, pt->getBase()->getWidth());
+      auto unknownBase = ConstantExpr::create(
+          bits64::truncateToNBits(PointerExpr::CONSTANT,
+                                  pt->getBase()->getWidth()),
+          pt->getBase()->getWidth());
       return create(c, pt, PointerExpr::create(unknownBase, f));
     }
     auto pf = dyn_cast<PointerExpr>(f);
-    auto unknownBase = ConstantExpr::create(-1, pf->getBase()->getWidth());
+    auto unknownBase =
+        ConstantExpr::create(bits64::truncateToNBits(PointerExpr::CONSTANT,
+                                                     pf->getBase()->getWidth()),
+                             pf->getBase()->getWidth());
     return create(c, PointerExpr::create(unknownBase, t), f);
   } else if (!isa<ConstantExpr>(t) && isa<ConstantExpr>(f)) {
     return SelectExpr::alloc(Expr::createIsZero(c), f, t);
@@ -1784,7 +1790,9 @@ ref<Expr> Expr::getValue() const {
 }
 
 ref<Expr> convolution(const ref<Expr> &l, const ref<Expr> &r) {
-  auto invalid = ConstantExpr::create(-1, l->getWidth());
+  auto invalid = ConstantExpr::create(
+      bits64::truncateToNBits(PointerExpr::CONSTANT, l->getWidth()),
+      l->getWidth());
   return SelectExpr::create(EqExpr::create(l, r), l, invalid);
 }
 
@@ -2551,11 +2559,13 @@ ref<Expr> PointerEqExpr::create(const ref<Expr> &l, const ref<Expr> &r) {
   assert(!isa<PointerExpr>(pr->getBase()));
   assert(!isa<PointerExpr>(pr->getValue()));
 
-  auto invalidPtr = ConstantExpr::create(-1, pl->getBase()->getWidth());
+  auto invalidPtr = ConstantExpr::create(
+      bits64::truncateToNBits(PointerExpr::CONSTANT, pl->getBase()->getWidth()),
+      pl->getBase()->getWidth());
 
   if (EqExpr::create(invalidPtr, pl->getBase())->isTrue() ||
       EqExpr::create(invalidPtr, pr->getBase())->isTrue()) {
-    return EqExpr::create(pl->getBase(), pr->getBase());
+    return EqExpr::create(pl->getValue(), pr->getValue());
   }
 
   if (EqExpr::create(pl->getBase(), pr->getBase())->isTrue() &&
@@ -2575,9 +2585,15 @@ ref<Expr> PointerEqExpr::sideInvariant() const {
   return OrExpr::create(
       OrExpr::create(
           EqExpr::create(pl->getBase(),
-                         ConstantExpr::create(-1, pl->getBase()->getWidth())),
+                         ConstantExpr::create(
+                             bits64::truncateToNBits(PointerExpr::CONSTANT,
+                                                     pl->getBase()->getWidth()),
+                             pl->getBase()->getWidth())),
           EqExpr::create(pr->getBase(),
-                         ConstantExpr::create(-1, pr->getBase()->getWidth()))),
+                         ConstantExpr::create(
+                             bits64::truncateToNBits(PointerExpr::CONSTANT,
+                                                     pr->getBase()->getWidth()),
+                             pr->getBase()->getWidth()))),
       Expr::createImplies(EqExpr::create(pl->getValue(), pr->getValue()),
                           EqExpr::create(pl->getBase(), pr->getBase())));
 }
@@ -2985,27 +3001,42 @@ ref<Expr> ConstantPointerExpr::create(const ref<ConstantExpr> &b,
 }
 
 static ref<Expr> checkIfInvalid(ref<PointerExpr> value) {
-  return EqExpr::create(value->getBase(),
-                        ConstantExpr::create(-1, value->getBase()->getWidth()));
+  return OrExpr::create(
+      EqExpr::create(value->getBase(),
+                     ConstantExpr::create(
+                         bits64::truncateToNBits(PointerExpr::NULLPTR,
+                                                 value->getBase()->getWidth()),
+                         value->getBase()->getWidth())),
+      EqExpr::create(value->getBase(),
+                     ConstantExpr::create(
+                         bits64::truncateToNBits(PointerExpr::CONSTANT,
+                                                 value->getBase()->getWidth()),
+                         value->getBase()->getWidth())));
 }
 
 #define BCREATE_P(_e_op, _op)                                                  \
   ref<Expr> PointerExpr::_op(const ref<PointerExpr> &RHS) {                    \
     assert(getWidth() == RHS->getWidth() && "type mismatch");                  \
-    if (isKnownValid()) {                                                      \
-      if (RHS->isKnownValid()) {                                               \
+    if (NotExpr::create(checkIfInvalid(this))->isTrue()) {                     \
+      if (NotExpr::create(checkIfInvalid(RHS))->isTrue()) {                    \
         return _e_op::create(getValue(), RHS->getValue());                     \
       } else {                                                                 \
         return PointerExpr::create(                                            \
             SelectExpr::create(                                                \
                 checkIfInvalid(RHS), getBase(),                                \
-                ConstantExpr::create(-1, getBase()->getWidth())),              \
+                ConstantExpr::create(                                          \
+                    bits64::truncateToNBits(PointerExpr::CONSTANT,             \
+                                            getBase()->getWidth()),            \
+                    getBase()->getWidth())),                                   \
             _e_op::create(getValue(), RHS->getValue()));                       \
       }                                                                        \
-    } else if (RHS->isKnownValid()) {                                          \
+    } else if (NotExpr::create(checkIfInvalid(RHS))->isTrue()) {               \
       return PointerExpr::create(                                              \
           SelectExpr::create(checkIfInvalid(this), RHS->getBase(),             \
-                             ConstantExpr::create(-1, getBase()->getWidth())), \
+                             ConstantExpr::create(bits64::truncateToNBits(     \
+                                                      PointerExpr::CONSTANT,   \
+                                                      getBase()->getWidth()),  \
+                                                  getBase()->getWidth())),     \
           _e_op::create(getValue(), RHS->getValue()));                         \
     } else {                                                                   \
       auto eq = EqExpr::create(checkIfInvalid(this), checkIfInvalid(RHS));     \
@@ -3013,7 +3044,10 @@ static ref<Expr> checkIfInvalid(ref<PointerExpr> value) {
           SelectExpr::create(checkIfInvalid(this), RHS->getBase(), getBase()); \
       return PointerExpr::create(                                              \
           SelectExpr::create(eq,                                               \
-                             ConstantExpr::create(-1, getBase()->getWidth()),  \
+                             ConstantExpr::create(bits64::truncateToNBits(     \
+                                                      PointerExpr::CONSTANT,   \
+                                                      getBase()->getWidth()),  \
+                                                  getBase()->getWidth()),      \
                              baseSelect),                                      \
           _e_op::create(getValue(), RHS->getValue()));                         \
     }                                                                          \
@@ -3036,8 +3070,13 @@ BCREATE_P(AShrExpr, AShr)
 ref<Expr> PointerExpr::Not() {
   return EqExpr::create(
       this,
-      PointerExpr::create(ConstantExpr::create(-1, getBase()->getWidth()),
-                          ConstantExpr::create(0, getValue()->getWidth())));
+      PointerExpr::create(
+          ConstantExpr::create(bits64::truncateToNBits(PointerExpr::CONSTANT,
+                                                       getBase()->getWidth()),
+                               getBase()->getWidth()),
+          ConstantExpr::create(bits64::truncateToNBits(PointerExpr::NULLPTR,
+                                                       getValue()->getWidth()),
+                               getValue()->getWidth())));
 }
 
 ref<Expr> PointerExpr::Eq(const ref<PointerExpr> &RHS) {

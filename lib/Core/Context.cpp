@@ -46,7 +46,7 @@ ref<ConstantExpr> Expr::createPointer(uint64_t v) {
 }
 
 ref<PointerExpr> PointerExpr::createNull() {
-  return ConstantPointerExpr::create(Expr::createPointer(0),
+  return ConstantPointerExpr::create(Expr::createPointer(PointerExpr::NULLPTR),
                                      Expr::createPointer(0));
 }
 
@@ -57,9 +57,4 @@ ref<PointerExpr> PointerExpr::createSymbolic(const ref<Expr> &v) {
       SourceBuilder::irreproducible("symbolic_base"));
   return PointerExpr::create(
       Expr::createTempRead(baseArray, Context::get().getPointerWidth()), v);
-}
-
-ref<PointerExpr> PointerExpr::createMarkedInvalid(ref<Expr> v) {
-  assert(!llvm::isa<PointerExpr>(v));
-  return create(Expr::createPointer(-1), v);
 }

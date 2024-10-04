@@ -109,8 +109,8 @@ ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
       lastUpdate(nullptr), size(array->size), dynamicType(dt), readOnly(false) {
   if (array->source && (isa<ConstantSource>(array->source) ||
                         isa<UninitializedSource>(array->source))) {
-    baseOS.initializeWith(
-        ConstantExpr::create(-1, Context::get().getPointerWidth()));
+    baseOS.initializeWith(ConstantExpr::create(
+        PointerExpr::CONSTANT, Context::get().getPointerWidth()));
   }
 }
 
@@ -132,8 +132,7 @@ ObjectState::ObjectState(const ObjectState &os)
 
 void ObjectState::initializeToZero() {
   valueOS.initializeToZero();
-  baseOS.initializeWith(
-      ConstantExpr::create(-1, Context::get().getPointerWidth()));
+  baseOS.initializeWith(Expr::createPointer(PointerExpr::NULLPTR));
 }
 
 ref<Expr> ObjectState::read8(unsigned offset) const {
@@ -244,8 +243,7 @@ ref<Expr> ObjectState::readBase8(ref<Expr> offset) const {
 
 void ObjectState::write8(unsigned offset, uint8_t value) {
   valueOS.writeWidth(offset, value);
-  baseOS.writeWidth(offset,
-                    ConstantExpr::create(-1, Context::get().getPointerWidth()));
+  baseOS.writeWidth(offset, Expr::createPointer(PointerExpr::CONSTANT));
 }
 
 void ObjectState::write8(unsigned offset, ref<Expr> value) {
@@ -255,8 +253,7 @@ void ObjectState::write8(unsigned offset, ref<Expr> value) {
     baseOS.writeWidth(offset, pointer->getBase());
   } else {
     valueOS.writeWidth(offset, value);
-    baseOS.writeWidth(
-        offset, ConstantExpr::create(-1, Context::get().getPointerWidth()));
+    baseOS.writeWidth(offset, Expr::createPointer(PointerExpr::CONSTANT));
   }
 }
 
@@ -289,8 +286,7 @@ void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
     baseOS.writeWidth(offset, pointer->getBase());
   } else {
     valueOS.writeWidth(offset, value);
-    baseOS.writeWidth(
-        offset, ConstantExpr::create(-1, Context::get().getPointerWidth()));
+    baseOS.writeWidth(offset, Expr::createPointer(PointerExpr::CONSTANT));
   }
 }
 
@@ -412,7 +408,7 @@ ref<Expr> ObjectState::readBase(ref<Expr> offset, Expr::Width width) const {
   }
 
   return SelectExpr::create(areAllBasesEqual, res,
-                            ConstantExpr::create(-1, res->getWidth()));
+                            Expr::createPointer(PointerExpr::CONSTANT));
 }
 
 ref<Expr> ObjectState::readBase(unsigned offset, Expr::Width width) const {
@@ -434,7 +430,7 @@ ref<Expr> ObjectState::readBase(unsigned offset, Expr::Width width) const {
   }
 
   return SelectExpr::create(areAllBasesEqual, res,
-                            ConstantExpr::create(-1, res->getWidth()));
+                            Expr::createPointer(PointerExpr::CONSTANT));
 }
 
 void ObjectState::write(ref<Expr> offset, ref<Expr> value) {

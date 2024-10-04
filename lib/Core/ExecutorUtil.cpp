@@ -158,10 +158,9 @@ ref<klee::Expr> Executor::evalConstant(const Constant *c,
     } else if (const BlockAddress *ba = dyn_cast<BlockAddress>(c)) {
       // return the address of the specified basic block in the specified
       // function
-      klee_error("unimplemented");
       const auto arg_bb = (BasicBlock *)ba->getOperand(1);
       const auto res = PointerExpr::create(
-          Expr::createPointer(reinterpret_cast<std::uint64_t>(arg_bb)),
+          Expr::createPointer(PointerExpr::CODE),
           Expr::createPointer(reinterpret_cast<std::uint64_t>(arg_bb)));
       return res;
     } else {

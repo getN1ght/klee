@@ -117,39 +117,36 @@ ResolveResult
 AddressSpace::resolveOneByBase(ref<ConstantPointerExpr> pointer) const {
   auto base = pointer->getConstantBase()->getZExtValue();
   auto address = pointer->getConstantValue()->getZExtValue();
-  // FIXME: do a O(log n) or O(1) search
-  for (const auto &[object, state] : objects) {
-    if (object->id != base) {
-      continue;
-    }
 
-    ObjectPair objectPair = {object, state.get()};
-
-    // Get constant value of size
-    auto objectConstantSizeExpr = dyn_cast<ConstantExpr>(object->getSizeExpr());
-    if (objectConstantSizeExpr == nullptr) {
-      return ResolveResult::createUnknown(objectPair);
-    }
-    auto objectConstantSizeValue = objectConstantSizeExpr->getZExtValue();
-
-    // Get constant value of address
-    auto objectConstantAddressExpr =
-        dyn_cast<ConstantExpr>(object->getBaseExpr()->getValue());
-    if (objectConstantAddressExpr == nullptr) {
-      return ResolveResult::createUnknown(objectPair);
-    }
-    uint64_t objectConstantAddressValue =
-        objectConstantAddressExpr->getZExtValue();
-
-    // Check if the provided address is between start and end of the object
-    // [mo->address, mo->address + mo->size) or the object is a 0 - sized
-    // object.
-    if ((objectConstantSizeValue == 0 &&
-         address == objectConstantAddressValue) ||
-        address - objectConstantAddressValue < objectConstantSizeValue) {
-      return ResolveResult::createOk({object, state.get()});
-    }
+  if (idsToObjects.count(base) == 0) {
     return ResolveResult::createNone();
+  }
+
+  auto object = idsToObjects.at(base);
+  ObjectPair objectPair = findObject(idsToObjects.at(base));
+
+  // Get constant value of size
+  auto objectConstantSizeExpr = dyn_cast<ConstantExpr>(object->getSizeExpr());
+  if (objectConstantSizeExpr == nullptr) {
+    return ResolveResult::createUnknown(objectPair);
+  }
+  auto objectConstantSizeValue = objectConstantSizeExpr->getZExtValue();
+
+  // Get constant value of address
+  auto objectConstantAddressExpr =
+      dyn_cast<ConstantExpr>(object->getBaseExpr()->getValue());
+  if (objectConstantAddressExpr == nullptr) {
+    return ResolveResult::createUnknown(objectPair);
+  }
+  uint64_t objectConstantAddressValue =
+      objectConstantAddressExpr->getZExtValue();
+
+  // Check if the provided address is between start and end of the object
+  // [mo->address, mo->address + mo->size) or the object is a 0 - sized
+  // object.
+  if ((objectConstantSizeValue == 0 && address == objectConstantAddressValue) ||
+      address - objectConstantAddressValue < objectConstantSizeValue) {
+    return ResolveResult::createOk(objectPair);
   }
   return ResolveResult::createNone();
 }
@@ -231,39 +228,6 @@ ResolveResult AddressSpace::resolveOne(ref<ConstantPointerExpr> pointer,
 //   return false;
 // }
 
-// bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
-//                                       TimingSolver *solver,
-//                                       ref<PointerExpr> address, KType *,
-//                                       ObjectPair &result, bool &success)
-//                                       const {
-//   ref<Expr> base = address->getBase();
-//   ref<Expr> uniqueAddress = base;
-//   if (!isa<ConstantExpr>(uniqueAddress) &&
-//       !solver->tryGetUnique(state.constraints.cs(), base, uniqueAddress,
-//                             state.queryMetaData)) {
-//     return false;
-//   }
-
-//   success = false;
-//   if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(uniqueAddress)) {
-//     MemoryObject hack(CE->getZExtValue());
-//     if (const auto *res = objects.lookup_previous(&hack)) {
-//       const MemoryObject *mo = res->first;
-//       ref<Expr> inBounds = mo->getBoundsCheckPointer(address);
-
-//       if (!solver->mayBeTrue(state.constraints.cs(), inBounds, success,
-//                              state.queryMetaData)) {
-//         return false;
-//       }
-//       if (success) {
-//         // cache.cacheResolution(address, ObjectResolutionList{mo});
-//         result = findObject(mo);
-//       }
-//     }
-//   }
-
-//   return true;
-// }
 
 class ResolvePredicate {
   bool useTimestamps;
@@ -365,6 +329,8 @@ AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   if (auto resolveResult = resolveOne(addressCex, objectType)) {
     return resolveResult;
   }
+
+  // TODO: make a constant optimization on the result
 
   // didn't work, now we have to search
 

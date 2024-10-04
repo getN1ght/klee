@@ -999,8 +999,6 @@ void SpecialFunctionHandler::handleMakeSymbolic(
 void SpecialFunctionHandler::handleMakeMock(ExecutionState &state,
                                             KInstruction *target,
                                             std::vector<ref<Expr>> &arguments) {
-  std::string name;
-
   if (arguments.size() != 3) {
     executor.terminateStateOnUserError(state,
                                        "Incorrect number of arguments to "
@@ -1009,9 +1007,9 @@ void SpecialFunctionHandler::handleMakeMock(ExecutionState &state,
   }
 
   assert(isa<PointerExpr>(arguments[2]));
-  name = arguments[2]->isZero()
-             ? ""
-             : readStringAtAddress(state, cast<PointerExpr>(arguments[2]));
+  auto name = EqExpr::create(arguments[2], PointerExpr::createNull())->isTrue()
+                  ? ""
+                  : readStringAtAddress(state, cast<PointerExpr>(arguments[2]));
 
   if (name.empty()) {
     executor.terminateStateOnUserError(
@@ -1043,7 +1041,7 @@ void SpecialFunctionHandler::handleMakeMock(ExecutionState &state,
     }
 
     bool res;
-    bool success __attribute__((unused)) = executor.solver->mustBeTrue(
+    [[maybe_unused]] bool success = executor.solver->mustBeTrue(
         s->constraints.cs(),
         EqExpr::create(
             ZExtExpr::create(arguments[1], Context::get().getPointerWidth()),
