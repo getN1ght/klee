@@ -35,6 +35,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
+#include <climits>
 #include <sstream>
 
 using namespace llvm;
@@ -320,15 +321,25 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
   for (size_t i = offset; i < moSize; ++i) {
     ref<Expr> cur = os->read8(i);
     cur = executor.toUnique(state, cur);
-    assert(isa<ConstantExpr>(cur) &&
-           "hit symbolic char while reading concrete string");
-    c = cast<ConstantExpr>(cur)->getZExtValue(8);
-    if (c == '\0') {
-      // we read the whole string
+    // We may meet zero as a part of zero pointer here.
+    // That would mean that we had reach the end of the string.
+    if (auto pCur = dyn_cast<ConstantPointerExpr>(cur)) {
+      assert(pCur->getConstantBase()->getZExtValue() == 0);
+      assert(pCur->getConstantValue()->getZExtValue() == 0);
+      c = '\0';
+      break;
+    } else if (auto cCur = dyn_cast<ConstantExpr>(cur)) {
+      c = cCur->getZExtValue(sizeof(char) * CHAR_BIT);
+      if (c == '\0') {
+        // we read the whole string
+        break;
+      }
+
+      buf << c;
+    } else {
+      assert(false && "hit symbolic char while reading concrete string");
       break;
     }
-
-    buf << c;
   }
 
   if (c != '\0') {
@@ -681,24 +692,30 @@ void SpecialFunctionHandler::handlePrintRange(
   assert(isa<PointerExpr>(arguments[0]));
   std::string msg_str =
       readStringAtAddress(state, cast<PointerExpr>(arguments[0]));
-  llvm::errs() << msg_str << ":" << arguments[1];
-  if (!isa<ConstantExpr>(arguments[1])) {
+
+  auto argValue = arguments[1];
+  if (auto pointerValue = dyn_cast<PointerExpr>(argValue)) {
+    argValue = pointerValue->getValue();
+  }
+
+  llvm::errs() << msg_str << ":" << argValue;
+  if (!isa<ConstantExpr>(argValue)) {
     // FIXME: Pull into a unique value method?
     ref<ConstantExpr> value;
     bool success __attribute__((unused)) = executor.solver->getValue(
-        state.constraints.cs(), arguments[1], value, state.queryMetaData);
+        state.constraints.cs(), argValue, value, state.queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");
     bool res;
     success = executor.solver->mustBeTrue(state.constraints.cs(),
-                                          EqExpr::create(arguments[1], value),
-                                          res, state.queryMetaData);
+                                          EqExpr::create(argValue, value), res,
+                                          state.queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");
     if (res) {
       llvm::errs() << " == " << value;
     } else {
       llvm::errs() << " ~= " << value;
       std::pair<ref<Expr>, ref<Expr>> res = executor.solver->getRange(
-          state.constraints.cs(), arguments[1], state.queryMetaData);
+          state.constraints.cs(), argValue, state.queryMetaData);
       llvm::errs() << " (in [" << res.first << ", " << res.second << "])";
     }
   }

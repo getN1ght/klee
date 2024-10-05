@@ -103,7 +103,9 @@ std::string MemoryObject::getAllocInfo() const {
 ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
     : copyOnWriteOwner(0), object(mo), valueOS(ObjectStage(array, nullptr)),
       baseOS(ObjectStage(
-          Array::create(array->size, SourceBuilder::irreproducible("base"),
+          Array::create(array->size,
+                        SourceBuilder::makeSymbolic(
+                            array->source->toString() + "_base", 0),
                         Expr::Int32, Context::get().getPointerWidth()),
           nullptr, false, Context::get().getPointerWidth())),
       lastUpdate(nullptr), size(array->size), dynamicType(dt), readOnly(false) {

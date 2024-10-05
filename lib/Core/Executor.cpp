@@ -6424,7 +6424,6 @@ void Executor::executeMemoryOperation(
         forkInternal(*state, isNullPointer, BranchType::MemOp);
 
     if (bound != nullptr) {
-      address->dump();
       terminateStateOnProgramError(
           *bound, new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
                                  "memory error: null pointer exception"));
