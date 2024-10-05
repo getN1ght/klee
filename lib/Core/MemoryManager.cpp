@@ -41,11 +41,6 @@ llvm::cl::opt<unsigned> DeterministicAllocationSize(
         "Preallocated memory for deterministic allocation in MB (default=100)"),
     llvm::cl::init(100), llvm::cl::cat(MemoryCat));
 
-llvm::cl::opt<bool> NullOnZeroMalloc(
-    "return-null-on-zero-malloc",
-    llvm::cl::desc("Returns NULL if malloc(0) is called (default=false)"),
-    llvm::cl::init(false), llvm::cl::cat(MemoryCat));
-
 llvm::cl::opt<unsigned> RedzoneSize(
     "redzone-size",
     llvm::cl::desc("Set the size of the redzones to be added after each "
@@ -59,6 +54,11 @@ llvm::cl::opt<unsigned long long> DeterministicStartAddress(
                    "aligned (default=0x7ff30000000)"),
     llvm::cl::init(0x7ff30000000), llvm::cl::cat(MemoryCat));
 } // namespace
+
+llvm::cl::opt<bool> NullOnZeroMalloc(
+    "return-null-on-zero-malloc",
+    llvm::cl::desc("Returns NULL if malloc(0) is called (default=false)"),
+    llvm::cl::init(false), llvm::cl::cat(MemoryCat));
 
 llvm::cl::opt<unsigned long> MaxConstantAllocationSize(
     "max-constant-size-alloc",
@@ -119,13 +119,12 @@ MemoryManager::~MemoryManager() {
     munmap(deterministicSpace, spaceSize);
 }
 
-MemoryObject *MemoryManager::allocate(ref<Expr> size, bool isLocal,
-                                      bool isGlobal, bool isLazyInitialized,
-                                      ref<CodeLocation> allocSite,
-                                      size_t alignment, KType *type,
-                                      ref<Expr> conditionExpr,
-                                      ref<Expr> addressValue, unsigned timestamp,
-                                      const Array *content) {
+MemoryObject *
+MemoryManager::allocate(ref<Expr> size, bool isLocal, bool isGlobal,
+                        bool isLazyInitialized, ref<CodeLocation> allocSite,
+                        size_t alignment, KType *type, ref<Expr> conditionExpr,
+                        ref<Expr> addressValue, unsigned timestamp,
+                        const Array *content) {
   if (ref<ConstantExpr> sizeExpr = dyn_cast<ConstantExpr>(size)) {
     auto moSize = sizeExpr->getZExtValue();
     if (moSize > MaxConstantAllocationSize) {
@@ -136,8 +135,9 @@ MemoryObject *MemoryManager::allocate(ref<Expr> size, bool isLocal,
     }
 
     // Return NULL if size is zero, this is equal to error during allocation
-    if (NullOnZeroMalloc && moSize == 0)
+    if (NullOnZeroMalloc && moSize == 0) {
       return 0;
+    }
   }
 
   if (!llvm::isPowerOf2_64(alignment)) {
@@ -188,8 +188,8 @@ MemoryObject *MemoryManager::allocate(ref<Expr> size, bool isLocal,
   MemoryObject *res = nullptr;
 
   ++stats::allocations;
-  res = new MemoryObject(addressValue, size, alignment, isLocal, isGlobal, false,
-                         isLazyInitialized, allocSite, this, type,
+  res = new MemoryObject(addressValue, size, alignment, isLocal, isGlobal,
+                         false, isLazyInitialized, allocSite, this, type,
                          conditionExpr, timestamp, content);
 
   objects.insert(res);

@@ -30,6 +30,8 @@ namespace llvm {
 class Value;
 }
 
+extern llvm::cl::opt<bool> NullOnZeroMalloc;
+
 namespace klee {
 
 class BitArray;
@@ -142,9 +144,14 @@ public:
   void updateTimestamp() const { this->timestamp = time++; }
 
   ref<PointerExpr> getBaseExpr() const {
-    return PointerExpr::create(
-        ConstantExpr::create(id, Context::get().getPointerWidth()),
-        addressExpr);
+    ref<PointerExpr> pointer =
+        PointerExpr::create(Expr::createPointer(id), addressExpr);
+    if (NullOnZeroMalloc) {
+      return SelectExpr::create(Expr::createIsZero(getSizeExpr()),
+                                PointerExpr::createNull(), pointer);
+    } else {
+      return pointer;
+    }
   }
 
   ref<Expr> getSizeExpr() const { return sizeExpr; }

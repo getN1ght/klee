@@ -5601,7 +5601,8 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
 void Executor::executeFree(ExecutionState &state, ref<PointerExpr> address,
                            KInstruction *target) {
   address = optimizer.optimizeExpr(address, true);
-  ref<Expr> isNullPointer = Expr::createIsZero(address->getValue());
+  ref<Expr> isNullPointer =
+      EqExpr::create(address->getBase(), PointerExpr::createNull()->getBase());
   StatePair zeroPointer = forkInternal(state, isNullPointer, BranchType::Free);
   if (zeroPointer.first) {
     if (target) {
@@ -5675,7 +5676,8 @@ bool Executor::resolveExact(ExecutionState &estate, ref<PointerExpr> address,
   //     Simplificator::simplifyExpr(estate.constraints.cs(), base).simplified;
   // uniqueBase = toUnique(estate, uniqueBase);
 
-  ref<Expr> isNullPointer = EqExpr::create(address, PointerExpr::createNull());
+  ref<Expr> isNullPointer =
+      EqExpr::create(address->getBase(), PointerExpr::createNull()->getBase());
   StatePair branches = forkInternal(estate, isNullPointer, BranchType::MemOp);
   ExecutionState *bound = branches.first;
   if (bound) {
@@ -6516,13 +6518,6 @@ void Executor::executeMemoryOperation(
     ///////////////////////////////////////////////
 
     bool mustBeInBounds = !isa<InvalidResponse>(response);
-    // if (!mustBeInBounds) {
-    //   response->dump();
-    //   inBounds->dump();
-    //   solver->getResponse(state->constraints.cs(), inBounds, response,
-    //                       state->queryMetaData);
-    // }
-
     if (mustBeInBounds) {
       ref<Expr> result;
       op = state->addressSpace.findOrLazyInitializeObject(
@@ -6568,10 +6563,6 @@ void Executor::executeMemoryOperation(
         if (interpreterOpts.MakeConcreteSymbolic) {
           result = replaceReadWithSymbolic(*state, result);
         }
-
-        // if (target->inst()->getType()->isPointerTy()) {
-        //   result = PointerExpr::create(result);
-        // }
 
         bindLocal(target, *state, result);
       }
@@ -6686,9 +6677,6 @@ void Executor::executeMemoryOperation(
           result = SelectExpr::create(resolveConditions[index], results[index],
                                       result);
         }
-        // if (target->inst()->getType()->isPointerTy()) {
-        //   result = PointerExpr::create(result);
-        // }
         bindLocal(target, *state, result);
       }
     }
@@ -6761,10 +6749,6 @@ void Executor::executeMemoryOperation(
           result = FPToX87FP80Ext(result);
         }
 
-        // if (target->inst()->getType()->isPointerTy()) {
-        //   result = PointerExpr::create(result);
-        // }
-
         bindLocal(target, *bound, result);
       }
     }
@@ -6808,12 +6792,17 @@ void Executor::executeMemoryOperation(
       }
     }
 
+    /**
+     If object with the given base was not found, then it is indicates that we
+     are trying to access already freed object.
+    */
+
     // Source event can not be found, shut down without alloc information
-    terminateStateOnProgramError(
-        *unbound,
-        new ErrorEvent(locationOf(*unbound), StateTerminationType::Ptr,
-                       "memory error: out of bound pointer"),
-        getAddressInfo(*unbound, address));
+    terminateStateOnProgramError(*unbound,
+                                 new ErrorEvent(locationOf(*unbound),
+                                                StateTerminationType::Ptr,
+                                                "memory error: use after free"),
+                                 getAddressInfo(*unbound, address));
   }
 }
 
