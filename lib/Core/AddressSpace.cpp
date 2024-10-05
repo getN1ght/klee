@@ -83,7 +83,17 @@ ObjectPair AddressSpace::findObject(const MemoryObject *mo) const {
 }
 
 RefObjectPair AddressSpace::lazyInitializeObject(const MemoryObject *mo) const {
-  return RefObjectPair(mo, new ObjectState(mo, mo->content, mo->type));
+  auto valueArray = mo->content;
+  assert(valueArray != nullptr);
+
+  const Array *baseArray = Array::create(
+      mo->getSizeExpr(),
+      SourceBuilder::makeSymbolic(valueArray->source->toString() + "_base", 0),
+      Expr::Int32, Context::get().getPointerWidth());
+
+  return RefObjectPair(
+      mo,
+      new ObjectState(mo, ObjectStateContent(valueArray, baseArray), mo->type));
 }
 
 RefObjectPair
@@ -227,7 +237,6 @@ ResolveResult AddressSpace::resolveOne(ref<ConstantPointerExpr> pointer,
 
 //   return false;
 // }
-
 
 class ResolvePredicate {
   bool useTimestamps;

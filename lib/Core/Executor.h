@@ -307,9 +307,10 @@ private:
                             KCallable *callable,
                             std::vector<ref<Expr>> &arguments);
 
-  ObjectState *bindObjectInState(ExecutionState &state, const MemoryObject *mo,
-                                 KType *dynamicType, bool IsAlloca,
-                                 const Array *array = nullptr);
+  ObjectState *
+  bindObjectInState(ExecutionState &state, const MemoryObject *mo,
+                    KType *dynamicType, bool IsAlloca,
+                    std::optional<ObjectStateContent> = std::nullopt);
   ObjectState *bindObjectInState(ExecutionState &state, const MemoryObject *mo,
                                  const ObjectState *object);
 

@@ -221,6 +221,16 @@ private:
   }
 };
 
+struct ObjectStateContent {
+  ref<Expr> size;
+
+  const Array *const value;
+  const Array *const base;
+
+  ObjectStateContent(const Array *value, const Array *base)
+      : size(value->size), value(value), base(base) {}
+};
+
 class ObjectStage {
   friend struct Symbolic;
 
@@ -318,7 +328,7 @@ public:
 
   /// Create a new object state for the given memory
   // For objects in memory
-  ObjectState(const MemoryObject *mo, const Array *array, KType *dt);
+  ObjectState(const MemoryObject *mo, ObjectStateContent content, KType *dt);
   ObjectState(const MemoryObject *mo, KType *dt);
 
   // For symbolic objects not in memory (hack)

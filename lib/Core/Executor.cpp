@@ -1134,8 +1134,7 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
   for (const GlobalVariable &v : m->globals()) {
     MemoryObject *mo = globalObjects.find(&v)->second;
     ObjectState *os = bindObjectInState(
-        state, mo, typeSystemManager->getWrappedType(v.getType()), false,
-        nullptr);
+        state, mo, typeSystemManager->getWrappedType(v.getType()), false);
 
     if (v.isDeclaration()) {
       if (isa<ConstantExpr>(mo->getSizeExpr())) {
@@ -5462,12 +5461,13 @@ ref<Expr> Executor::makeMockValue(const std::string &name, Expr::Width width) {
   return result;
 }
 
-ObjectState *Executor::bindObjectInState(ExecutionState &state,
-                                         const MemoryObject *mo,
-                                         KType *dynamicType, bool isLocal,
-                                         const Array *array) {
-  ObjectState *os = array ? new ObjectState(mo, array, dynamicType)
-                          : new ObjectState(mo, dynamicType);
+ObjectState *
+Executor::bindObjectInState(ExecutionState &state, const MemoryObject *mo,
+                            KType *dynamicType, bool isLocal,
+                            std::optional<ObjectStateContent> arrayPair) {
+  ObjectState *os = arrayPair.has_value()
+                        ? new ObjectState(mo, *arrayPair, dynamicType)
+                        : new ObjectState(mo, dynamicType);
   state.addressSpace.bindObject(mo, os);
 
   // Its possible that multiple bindings of the same mo in the state
@@ -5549,15 +5549,22 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
     if (!mo) {
       bindLocal(target, state, PointerExpr::createNull());
     } else {
-      ref<SymbolicSource> source = nullptr;
+      ref<SymbolicSource> valueSource = nullptr;
       if (zeroMemory) {
-        source = SourceBuilder::constant(
+        valueSource = SourceBuilder::constant(
             constructStorage(size, ConstantExpr::create(0, Expr::Int8)));
       } else {
-        source = SourceBuilder::uninitialized(allocations++, target);
+        valueSource = SourceBuilder::uninitialized(allocations++, target);
       }
-      auto array = makeArray(size, source);
-      ObjectState *os = bindObjectInState(state, mo, type, isLocal, array);
+      auto array = makeArray(size, valueSource);
+
+      ref<SymbolicSource> baseSource = SourceBuilder::constant(
+          constructStorage(size, Expr::createPointer(PointerExpr::CONSTANT)));
+      auto baseArray = Array::create(array->size, baseSource, Expr::Int32,
+                                     Context::get().getPointerWidth());
+
+      ObjectState *os = bindObjectInState(state, mo, type, isLocal,
+                                          ObjectStateContent(array, baseArray));
 
       ref<Expr> address = mo->getBaseExpr();
 
@@ -5915,10 +5922,8 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     }
   } else {
     // TODO: I do not like that
-    assert(lazyInitializationSource->getValue()->hasOrderedReads());
-    sourceAddressArray = lazyInitializationSource->getValue()
-                             ->hasOrderedReads()
-                             ->updates.root->source;
+    sourceAddressArray =
+        SourceBuilder::lazyInitializationAddress(lazyInitializationSource);
   }
 
   if (lazyInitializationSource) {
@@ -5972,9 +5977,16 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     return nullptr;
   }
 
+  // TODO:
+  // if (!lazyInitializationSource.isNull()) {
+  //   addConstraint(state,
+  //                 EqExpr::create(mo->getBaseExpr(),
+  //                 lazyInitializationSource));
+  // }
   if (!lazyInitializationSource.isNull()) {
-    addConstraint(state,
-                  EqExpr::create(mo->getBaseExpr(), lazyInitializationSource));
+    // Lazy initialization should point here
+    addConstraint(state, EqExpr::create(mo->getBaseExpr()->getBase(),
+                                        lazyInitializationSource->getBase()));
   }
 
   // if (lazyInitializationSource.isNull()) {
@@ -6812,10 +6824,10 @@ ref<const MemoryObject> Executor::lazyInitializeObject(
   assert(!isa<ConstantPointerExpr>(address));
   std::pair<ref<const MemoryObject>, ref<Expr>> moBasePair;
   unsigned timestamp = 0;
-  ref<Expr> base = address->getBase();
-  if (state.getBase(base, moBasePair)) {
-    timestamp = moBasePair.first->timestamp;
-  }
+  // ref<Expr> base = address->getBase();
+  // if (state.getBase(base, moBasePair)) {
+  //   timestamp = moBasePair.first->timestamp;
+  // }
 
   ref<Expr> sizeExpr;
   if (!isa<ConstantExpr>(size) &&
@@ -6929,8 +6941,14 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
                                    bool isLocal) {
   // Create a new object state for the memory object (instead of a copy).
   if (!replayKTest) {
-    const Array *array = makeArray(mo->getSizeExpr(), source);
-    ObjectState *os = bindObjectInState(state, mo, type, isLocal, array);
+    const Array *valueArray = makeArray(mo->getSizeExpr(), source);
+    const Array *baseArray = Array::create(
+        mo->getSizeExpr(),
+        SourceBuilder::makeSymbolic(source->toString() + "_base", 0),
+        Expr::Int32, Context::get().getPointerWidth());
+
+    ObjectState *os = bindObjectInState(
+        state, mo, type, isLocal, ObjectStateContent(valueArray, baseArray));
 
     ref<ConstantExpr> sizeExpr =
         dyn_cast<ConstantExpr>(os->getObject()->getSizeExpr());
@@ -6953,7 +6971,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
         if (!obj) {
           if (ZeroSeedExtension) {
             si.assignment.bindings.replace(
-                {array, SparseStorageImpl<unsigned char>(0)});
+                {valueArray, SparseStorageImpl<unsigned char>(0)});
           } else if (!AllowSeedExtension) {
             terminateStateOnUserError(state,
                                       "ran out of inputs during seeding");
@@ -6978,14 +6996,14 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
               break;
             } else {
               SparseStorageImpl<unsigned char> values;
-              if (si.assignment.bindings.find(array) !=
+              if (si.assignment.bindings.find(valueArray) !=
                   si.assignment.bindings.end()) {
-                values = si.assignment.bindings.at(array);
+                values = si.assignment.bindings.at(valueArray);
               }
               values.SparseStorage<unsigned char>::store(
                   0, obj->content.bytes,
                   obj->content.bytes + std::min(obj->content.numBytes, moSize));
-              si.assignment.bindings.replace({array, values});
+              si.assignment.bindings.replace({valueArray, values});
             }
           }
         }
