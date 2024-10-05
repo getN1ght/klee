@@ -6793,16 +6793,100 @@ void Executor::executeMemoryOperation(
     }
 
     /**
-     If object with the given base was not found, then it is indicates that we
-     are trying to access already freed object.
+     If object with the given base was not found, then if it may have constant
+     base, then are trying to access already freed object.
     */
+    std::vector<ref<Expr>> alternatives;
+    if (auto baseSelectExpr = dyn_cast<SelectExpr>(address->getBase())) {
+      alternatives = ArrayExprHelper::collectAlternatives(*baseSelectExpr);
+    } else {
+      alternatives.push_back(address->getBase());
+    }
 
-    // Source event can not be found, shut down without alloc information
-    terminateStateOnProgramError(*unbound,
-                                 new ErrorEvent(locationOf(*unbound),
-                                                StateTerminationType::Ptr,
-                                                "memory error: use after free"),
-                                 getAddressInfo(*unbound, address));
+    std::vector<ref<Expr>> isUseAfterFreeConstraints;
+    isUseAfterFreeConstraints.reserve(alternatives.size() + 1);
+
+    ref<Expr> isOutOfBoundExpr = Expr::createTrue();
+    for (auto possibleBase : alternatives) {
+      ref<ConstantExpr> constantPossibleBase =
+          dyn_cast<ConstantExpr>(possibleBase);
+      if (constantPossibleBase.isNull()) {
+        continue;
+      }
+
+      auto baseConstraintExpr =
+          EqExpr::create(constantPossibleBase, address->getBase());
+      bool baseConstraintValue = false;
+
+      solver->setTimeout(coreSolverTimeout);
+      [[maybe_unused]] bool success =
+          solver->mayBeTrue(unbound->constraints.cs(), baseConstraintExpr,
+                            baseConstraintValue, unbound->queryMetaData);
+      solver->setTimeout(time::Span());
+
+      // TODO:
+      assert(success);
+
+      if (baseConstraintValue) {
+        isUseAfterFreeConstraints.push_back(baseConstraintExpr);
+        isOutOfBoundExpr = AndExpr::create(isOutOfBoundExpr,
+                                           NotExpr::create(baseConstraintExpr));
+      }
+    }
+
+    // Check if OOB is possible
+
+    bool isOutOfBoundExprValue = false;
+    solver->setTimeout(coreSolverTimeout);
+    [[maybe_unused]] bool success =
+        solver->mayBeTrue(unbound->constraints.cs(), isOutOfBoundExpr,
+                          isOutOfBoundExprValue, unbound->queryMetaData);
+    solver->setTimeout(time::Span());
+
+    assert(success);
+
+    if (isOutOfBoundExprValue) {
+      isUseAfterFreeConstraints.push_back(isOutOfBoundExpr);
+    }
+
+    // Branch on checked conditions
+
+    std::vector<ExecutionState *> useAfterFreeStates;
+    branch(*unbound, isUseAfterFreeConstraints, useAfterFreeStates,
+           BranchType::MemOp);
+
+    assert(std::find_if(useAfterFreeStates.begin(), useAfterFreeStates.end(),
+                        [](auto state) { return state != nullptr; }) !=
+           useAfterFreeStates.end());
+
+    // Handle OOB case
+
+    if (isOutOfBoundExprValue) {
+      if (useAfterFreeStates.back() != nullptr) {
+        auto *state = useAfterFreeStates.back();
+        // Source event can not be found, shut down without alloc information
+        terminateStateOnProgramError(
+            *state,
+            new ErrorEvent(locationOf(*state), StateTerminationType::Ptr,
+                           "memory error: out of bound pointer"),
+            getAddressInfo(*state, address));
+      }
+      useAfterFreeStates.pop_back();
+    }
+
+    // Handle Use-After-Free cases
+
+    for (auto state : useAfterFreeStates) {
+      if (state == nullptr) {
+        continue;
+      }
+
+      terminateStateOnProgramError(
+          *state,
+          new ErrorEvent(locationOf(*state), StateTerminationType::Ptr,
+                         "memory error: use after free"),
+          getAddressInfo(*state, address));
+    }
   }
 }
 
@@ -6872,7 +6956,7 @@ void Executor::lazyInitializeLocalObject(ExecutionState &state, StackFrame &sf,
       elementSize = cast<ConstantExpr>(size)->getZExtValue();
     } else {
       const Array *lazyInstantiationSize = makeArray(
-          Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
+          Expr::createPointer(Context::get().getPointerWidthInBytes()),
           SourceBuilder::lazyInitializationSize(address));
       size = Expr::createTempRead(lazyInstantiationSize,
                                   Context::get().getPointerWidth());
