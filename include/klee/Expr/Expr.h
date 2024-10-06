@@ -1830,27 +1830,27 @@ private:
 // Implementations
 
 inline bool Expr::isZero() const {
-  if (const ConstantExpr *CE = dyn_cast<ConstantExpr>(this))
+  if (const ConstantExpr *CE = dyn_cast<ConstantExpr>(getValue()))
     return CE->isZero();
   return false;
 }
 
 inline bool Expr::isOne() const {
-  if (const ConstantExpr *CE = dyn_cast<ConstantExpr>(this))
+  if (const ConstantExpr *CE = dyn_cast<ConstantExpr>(getValue()))
     return CE->isOne();
   return false;
 }
 
 inline bool Expr::isTrue() const {
   assert(getWidth() == Expr::Bool && "Invalid isTrue() call!");
-  if (const ConstantExpr *CE = dyn_cast<ConstantExpr>(this))
+  if (const ConstantExpr *CE = dyn_cast<ConstantExpr>(getValue()))
     return CE->isTrue();
   return false;
 }
 
 inline bool Expr::isFalse() const {
   assert(getWidth() == Expr::Bool && "Invalid isFalse() call!");
-  if (const ConstantExpr *CE = dyn_cast<ConstantExpr>(this))
+  if (const ConstantExpr *CE = dyn_cast<ConstantExpr>(getValue()))
     return CE->isFalse();
   return false;
 }

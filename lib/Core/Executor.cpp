@@ -1637,6 +1637,7 @@ Executor::StatePair Executor::forkInternal(ExecutionState &current,
 }
 
 void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
+  assert(!isa<PointerExpr>(condition));
   condition =
       Simplificator::simplifyExpr(state.constraints.cs(), condition).simplified;
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(condition)) {
@@ -1739,8 +1740,9 @@ ref<Expr> Executor::toUnique(const ExecutionState &state, ref<Expr> e) {
 ref<klee::ConstantExpr> Executor::toConstant(ExecutionState &state, ref<Expr> e,
                                              const char *reason) {
   e = Simplificator::simplifyExpr(state.constraints.cs(), e).simplified;
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e))
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
     return CE;
+  }
 
   ref<ConstantExpr> value;
   bool success =
@@ -2803,8 +2805,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
 #ifdef SUPPORT_KLEE_EH_CXX
       if (ri->getFunction()->getName() == "_klee_eh_cxx_personality") {
-        assert(dyn_cast<ConstantExpr>(result) &&
-               "result from personality fn must be a concrete value");
+        assert(
+            (isa<ConstantPointerExpr>(result) || isa<ConstantExpr>(result)) &&
+            "result from personality fn must be a concrete value");
+
+        // This may happen only if we read sequence on 0's
+        if (auto resultPointer = dyn_cast<PointerExpr>(result)) {
+          assert(resultPointer->getBase()->isZero());
+          result = resultPointer->getValue();
+        }
 
         auto *sui = dyn_cast_or_null<SearchPhaseUnwindingInformation>(
             state.unwindingInformation.get());
@@ -2947,9 +2956,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     address = toUnique(state, address);
 
     // concrete address
-    if (const auto CE = dyn_cast<ConstantExpr>(address.get())) {
+    if (const auto CE = dyn_cast<ConstantPointerExpr>(address.get())) {
       const auto bb_address =
-          (BasicBlock *)CE->getZExtValue(Context::get().getPointerWidth());
+          (BasicBlock *)CE->getConstantValue()->getZExtValue(
+              Context::get().getPointerWidth());
       transferToBasicBlock(bb_address, bi->getParent(), state);
       break;
     }
@@ -4214,6 +4224,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> newElt = eval(ki, 1, state).value;
     ref<Expr> idx = eval(ki, 2, state).value;
 
+    if (auto pointerIdx = dyn_cast<PointerExpr>(idx)) {
+      assert(pointerIdx->getBase()->isZero());
+      idx = pointerIdx->getValue();
+    }
+
     ConstantExpr *cIdx = dyn_cast<ConstantExpr>(idx);
     if (cIdx == NULL) {
       terminateStateOnExecError(
@@ -4256,6 +4271,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ExtractElementInst *eei = cast<ExtractElementInst>(i);
     ref<Expr> vec = eval(ki, 0, state).value;
     ref<Expr> idx = eval(ki, 1, state).value;
+
+    if (auto pointerIdx = dyn_cast<PointerExpr>(idx)) {
+      assert(pointerIdx->getBase()->isZero());
+      idx = pointerIdx->getValue();
+    }
 
     ConstantExpr *cIdx = dyn_cast<ConstantExpr>(idx);
     if (cIdx == NULL) {
@@ -5334,7 +5354,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
     klee_error("Could not resolve memory object for errno");
   }
   ref<Expr> errValueExpr =
-      resolveResult.get().second->read(0, sizeof(*getErrnoLocation()) * 8);
+      resolveResult.get().second->readValue(0, sizeof(*getErrnoLocation()) * 8);
   errValueExpr = toUnique(state, errValueExpr);
 
   assert(isa<ConstantExpr>(errValueExpr));
@@ -5498,8 +5518,13 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
   if (auto wrappedSize = dyn_cast<PointerExpr>(size)) {
     solver->setTimeout(coreSolverTimeout);
     bool sizeIsValue = false;
-    auto baseIsValueExpr = EqExpr::create(
-        wrappedSize->getBase(), Expr::createPointer(PointerExpr::CONSTANT));
+
+    auto baseIsValueExpr = OrExpr::create(
+        EqExpr::create(wrappedSize->getBase(),
+                       Expr::createPointer(PointerExpr::CONSTANT)),
+        EqExpr::create(wrappedSize->getBase(),
+                       Expr::createPointer(PointerExpr::NULLPTR)));
+
     bool success = solver->mayBeTrue(state.constraints.cs(), baseIsValueExpr,
                                      sizeIsValue, state.queryMetaData);
     solver->setTimeout(time::Span());
@@ -5931,7 +5956,6 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
           updateNameVersion(state, "const_arr"), kgb, size);
     }
   } else {
-    // TODO: I do not like that
     sourceAddressArray =
         SourceBuilder::lazyInitializationAddress(lazyInitializationSource);
   }
@@ -5987,25 +6011,10 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
     return nullptr;
   }
 
-  // TODO:
-  // if (!lazyInitializationSource.isNull()) {
-  //   addConstraint(state,
-  //                 EqExpr::create(mo->getBaseExpr(),
-  //                 lazyInitializationSource));
-  // }
   if (!lazyInitializationSource.isNull()) {
-    // Lazy initialization should point here
     addConstraint(state, EqExpr::create(mo->getBaseExpr()->getBase(),
                                         lazyInitializationSource->getBase()));
   }
-
-  // if (lazyInitializationSource.isNull()) {
-  //   auto baseObjectExpr =
-  //       ConstantExpr::create(Context::get().getPointerWidth(), mo->id);
-  //   state.addPointerResolution(PointerExpr::create(baseObjectExpr,
-  //   addressExpr),
-  //                              mo);
-  // }
 
   state.constraints.addSymcrete(sizeSymcrete);
   state.constraints.addSymcrete(addressSymcrete);
@@ -6342,6 +6351,9 @@ ExecutionState *Executor::nullPointerValidated(ExecutionState &state,
   auto [bound, unbound] = forkInternal(state, isNullPointer, BranchType::MemOp);
 
   if (bound != nullptr) {
+    reportStateOnTargetError(
+        *bound, unbound == nullptr ? ReachWithError::MustBeNullPointerException
+                                   : ReachWithError::MayBeNullPointerException);
     terminateStateOnProgramError(
         *bound, new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
                                "memory error: null pointer exception"));
@@ -6402,53 +6414,6 @@ void Executor::executeMemoryOperation(
   KType *baseTargetType = targetType;
 
   ExecutionState *state = &estate;
-
-  // {
-  //   ref<Expr> isIncorrectPointer =
-  //       EqExpr::create(ConstantExpr::create(PointerExpr::CONSTANT,
-  //                                           Context::get().getPointerWidth()),
-  //                      address->getBase());
-  //   auto [bound, unbound] =
-  //       forkInternal(*state, isIncorrectPointer, BranchType::MemOp);
-
-  //   if (bound) {
-  //     // Certainly invalid pointer. Abort execution
-  //     ref<Expr> isNullPointer = Expr::createIsZero(address->getValue());
-
-  //     bool isNullPointerValue = false;
-
-  //     solver->setTimeout(coreSolverTimeout);
-  //     bool success =
-  //         solver->mayBeTrue(bound->constraints.cs(), isNullPointer,
-  //                           isNullPointerValue, bound->queryMetaData);
-  //     solver->setTimeout(time::Span());
-
-  //     if (!success) {
-  //       terminateStateOnSolverError(*bound,
-  //                                   "Query timed out (null pointer check).");
-  //     } else {
-  //       if (isNullPointerValue) {
-  //         terminateStateOnProgramError(
-  //             *bound,
-  //             new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
-  //                            "memory error: null pointer exception"));
-  //       } else if (unbound == nullptr) {
-  //         terminateStateOnProgramError(
-  //             *bound,
-  //             new ErrorEvent(
-  //                 locationOf(*bound), StateTerminationType::Ptr,
-  //                 "memory error: out of bound pointer (invalid pointer)"));
-  //       } else {
-  //         terminateStateEarly(*bound, "", StateTerminationType::SilentExit);
-  //       }
-  //     }
-  //   }
-
-  //   if (unbound == nullptr) {
-  //     return;
-  //   }
-  //   state = unbound;
-  // }
 
   state = nonConstantValidated(*state, address);
   if (!state) {
@@ -6772,8 +6737,8 @@ void Executor::executeMemoryOperation(
     /* If base may point to some object then we may provide additional
     information about object allocations site.*/
     auto universalAddressArray =
-        makeArray(ConstantExpr::create(8, Context::get().getPointerWidth()),
-                  SourceBuilder::irreproducible("array"));
+        makeArray(Expr::createPointer(8),
+                  SourceBuilder::irreproducible("universal_address"));
 
     ref<PointerExpr> universalPointer = PointerExpr::create(
         address->getBase(),
@@ -6879,6 +6844,7 @@ void Executor::executeMemoryOperation(
         continue;
       }
 
+      reportStateOnTargetError(*state, ReachWithError::UseAfterFree);
       terminateStateOnProgramError(
           *state,
           new ErrorEvent(locationOf(*state), StateTerminationType::Ptr,
@@ -6977,10 +6943,9 @@ void Executor::lazyInitializeLocalObject(ExecutionState &state, StackFrame &sf,
 
   auto resolution = state.addressSpace.lazyInitializeObject(mo.get());
   assert(resolution.isOk());
-  auto op = resolution.get();
 
-  auto wos = state.addressSpace.getWriteable(op);
-  state.addSymbolic(*op.first, *wos);
+  auto wos = state.addressSpace.getWriteable(resolution.get());
+  state.addSymbolic(*mo, *wos);
 }
 
 void Executor::lazyInitializeLocalObject(ExecutionState &state,

@@ -238,7 +238,9 @@ ref<Expr> ObjectState::readBase8(ref<Expr> offset) const {
 
 void ObjectState::write8(unsigned offset, uint8_t value) {
   valueOS.writeWidth(offset, value);
-  baseOS.writeWidth(offset, Expr::createPointer(PointerExpr::CONSTANT));
+  baseOS.writeWidth(offset,
+                    Expr::createPointer(value == 0 ? PointerExpr::NULLPTR
+                                                   : PointerExpr::CONSTANT));
 }
 
 void ObjectState::write8(unsigned offset, ref<Expr> value) {
@@ -248,7 +250,10 @@ void ObjectState::write8(unsigned offset, ref<Expr> value) {
     baseOS.writeWidth(offset, pointer->getBase());
   } else {
     valueOS.writeWidth(offset, value);
-    baseOS.writeWidth(offset, Expr::createPointer(PointerExpr::CONSTANT));
+    baseOS.writeWidth(
+        offset, SelectExpr::create(Expr::createIsZero(value),
+                                   Expr::createPointer(PointerExpr::NULLPTR),
+                                   Expr::createPointer(PointerExpr::CONSTANT)));
   }
 }
 
@@ -281,7 +286,10 @@ void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
     baseOS.writeWidth(offset, pointer->getBase());
   } else {
     valueOS.writeWidth(offset, value);
-    baseOS.writeWidth(offset, Expr::createPointer(PointerExpr::CONSTANT));
+    baseOS.writeWidth(
+        offset, SelectExpr::create(Expr::createIsZero(value),
+                                   Expr::createPointer(PointerExpr::NULLPTR),
+                                   Expr::createPointer(PointerExpr::CONSTANT)));
   }
 }
 

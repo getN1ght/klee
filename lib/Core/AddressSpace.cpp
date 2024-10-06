@@ -162,7 +162,7 @@ class ResolvePredicate {
   bool skipLocal;
   bool skipGlobal;
   unsigned timestamp;
-  ExecutionState *state;
+  ExecutionState &state;
   KType *objectType;
   bool complete;
   bool allowAll = false;
@@ -173,7 +173,7 @@ public:
       : useTimestamps(UseTimestamps),
         skipNotSymbolicObjects(SkipNotSymbolicObjects),
         skipNotLazyInitialized(SkipNotLazyInitialized), skipLocal(SkipLocal),
-        skipGlobal(SkipGlobal), timestamp(UINT_MAX), state(&state),
+        skipGlobal(SkipGlobal), timestamp(UINT_MAX), state(state),
         objectType(objectType), complete(complete) {
     ref<Expr> base = address->getBase();
     // TODO: skip
@@ -214,7 +214,7 @@ public:
     }
 
     bool result = !useTimestamps || mo->timestamp <= timestamp;
-    result = result && (!skipNotSymbolicObjects || state->inSymbolics(*mo));
+    result = result && (!skipNotSymbolicObjects || state.inSymbolics(*mo));
     result = result && (!skipNotLazyInitialized || mo->isLazyInitialized);
     result = result && (!skipLocal || !mo->isLocal);
     result = result && (!skipGlobal || !mo->isGlobal);

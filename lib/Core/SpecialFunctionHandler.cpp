@@ -321,14 +321,13 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
   for (size_t i = offset; i < moSize; ++i) {
     ref<Expr> cur = os->read8(i);
     cur = executor.toUnique(state, cur);
-    // We may meet zero as a part of zero pointer here.
-    // That would mean that we had reach the end of the string.
+
+    // In code you may write 0 to a string and then add 65 to it
     if (auto pCur = dyn_cast<ConstantPointerExpr>(cur)) {
-      assert(pCur->getConstantBase()->getZExtValue() == 0);
-      assert(pCur->getConstantValue()->getZExtValue() == 0);
-      c = '\0';
-      break;
-    } else if (auto cCur = dyn_cast<ConstantExpr>(cur)) {
+      cur = pCur->getValue();
+    }
+
+    if (auto cCur = dyn_cast<ConstantExpr>(cur)) {
       c = cCur->getZExtValue(sizeof(char) * CHAR_BIT);
       if (c == '\0') {
         // we read the whole string
@@ -594,7 +593,9 @@ void SpecialFunctionHandler::handleIsSymbolic(
 
   executor.bindLocal(
       target, state,
-      ConstantExpr::create(!isa<ConstantExpr>(arguments[0]), Expr::Int32));
+      ConstantExpr::create(!isa<ConstantExpr>(arguments[0]) &&
+                               !isa<ConstantPointerExpr>(arguments[0]),
+                           Expr::Int32));
 }
 
 void SpecialFunctionHandler::handlePreferCex(

@@ -77,6 +77,14 @@ public:
     return result;
   }
 
+  // Unwraps the result of resolution.
+  // Note, that this method has lvalue ref-qualifier in order
+  // to prevent code like
+  //
+  //  `resolveOne(address).get().first...;`
+  //
+  // So, PLEASE, always check results of the functions
+  // returning `ResolveResult<T>` (at least assert the `result.isOk()`).
   T &get() & {
     if (isNone()) {
       // throw std::runtime_error("Accessing empty ResolveResult object");
