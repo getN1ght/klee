@@ -3003,6 +3003,12 @@ std::vector<ref<Expr>> PointerExpr::getAliasedBases() const {
   return {getBase()};
 }
 
+bool PointerExpr::areAliasedBasesKnown() const {
+  auto bases = getAliasedBases();
+  return std::all_of(bases.begin(), bases.end(),
+                     [](auto base) { return isa<ConstantExpr>(base); });
+}
+
 ref<Expr> ConstantPointerExpr::create(const ref<ConstantExpr> &b,
                                       const ref<ConstantExpr> &v) {
   return ConstantPointerExpr::alloc(b, v);

@@ -151,14 +151,14 @@ ConstantAddressSpace::referencesInFinal(const ObjectPair &objectPair) const {
   return references;
 }
 
-ResolveResult
+ResolveResult<ObjectPair>
 ConstantAddressSpace::resolve(ref<ConstantPointerExpr> address) const {
   auto valueOfBase = address->getConstantBase()->getZExtValue();
   if (objects.count(valueOfBase)) {
     return addressSpace.findObject(objects.at(valueOfBase));
   }
 
-  return ResolveResult::createNone();
+  return ResolveResult<ObjectPair>::createNone();
 }
 
 ConstantPointerGraph ConstantAddressSpace::createPointerGraph() const {

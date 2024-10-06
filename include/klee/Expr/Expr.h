@@ -1720,8 +1720,6 @@ public:
   static ref<PointerExpr> createSymbolic(const ref<Expr> &v);
   static ref<PointerExpr> createNull();
 
-
-
   bool isKnownInvalid() const {
     return EqExpr::create(getBase(),
                           ConstantExpr::create(
@@ -1747,6 +1745,7 @@ public:
   ref<Expr> getValue() const { return value; }
 
   std::vector<ref<Expr>> getAliasedBases() const;
+  bool areAliasedBasesKnown() const;
 
   unsigned getNumKids() const { return numKids; }
   ref<Expr> getKid(unsigned i) const {

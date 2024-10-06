@@ -6074,15 +6074,17 @@ bool Executor::resolveMemoryObjects(
       LazyInitialization != LazyInitializationPolicy::None && checkAddress;
 
   if (!onlyLazyInitialize || !mayLazyInitialize) {
-    ResolutionList rl;
-
     solver->setTimeout(coreSolverTimeout);
-    incomplete = state.addressSpace.resolve(
-        state, solver.get(), address, targetType, rl, 0, coreSolverTimeout);
+    auto resolution = state.addressSpace.resolve(
+        state, solver.get(), address, targetType, 0, coreSolverTimeout);
     solver->setTimeout(time::Span());
 
+    incomplete = resolution.isUnknown();
+
     ref<Expr> checkOutOfBounds = Expr::createTrue();
-    for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
+    for (ResolutionList::iterator i = resolution.get().begin(),
+                                  ie = resolution.get().end();
+         i != ie; ++i) {
       const MemoryObject *mo = i->first;
       ref<Expr> inBounds =
           EqExpr::create(mo->getBaseExpr()->getBase(), address->getBase());

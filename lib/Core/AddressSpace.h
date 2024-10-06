@@ -48,39 +48,37 @@ typedef ImmutableMap<const MemoryObject *, ref<ObjectState>, MemoryObjectLT>
     MemoryMap;
 typedef ImmutableMap<IDType, const MemoryObject *> IDMap;
 
-class AddressSpace;
-
-struct ResolveResult {
+template <typename T> struct ResolveResult {
 private:
   enum ResolveResultType : std::uint8_t { Ok, Unknown, None };
 
   ResolveResultType type;
-  ObjectPair resolution;
+  T resolution;
 
 public:
   bool isOk() const { return type == ResolveResultType::Ok; }
   bool isUnknown() const { return type == ResolveResultType::Unknown; }
   bool isNone() const { return type == ResolveResultType::None; }
 
-  static ResolveResult createOk(const ObjectPair &resolution) {
+  static ResolveResult<T> createOk(const T &resolution) {
     ResolveResult result;
     result.type = ResolveResultType::Ok;
     result.resolution = resolution;
     return result;
   }
-  static ResolveResult createUnknown(const ObjectPair &resolution) {
+  static ResolveResult<T> createUnknown(const T &resolution) {
     ResolveResult result;
     result.type = ResolveResultType::Unknown;
     result.resolution = resolution;
     return result;
   }
-  static ResolveResult createNone() {
+  static ResolveResult<T> createNone() {
     ResolveResult result;
     result.type = ResolveResultType::None;
     return result;
   }
 
-  ObjectPair &get() {
+  T &get() {
     if (isNone()) {
       // throw std::runtime_error("Accessing empty ResolveResult object");
       assert(false);
@@ -92,6 +90,9 @@ public:
 };
 
 class AddressSpace {
+public:
+  enum ResolvePolicy { Single, Multiple };
+
 private:
   /// Epoch counter used to control ownership of objects.
   mutable unsigned cowKey;
@@ -109,6 +110,17 @@ private:
   int checkPointerInObject(ExecutionState &state, TimingSolver *solver,
                            ref<PointerExpr> p, const ObjectPair &op,
                            ResolutionList &rl, unsigned maxResolutions) const;
+
+  ResolveResult<ResolutionList>
+  resolveSymbolic(ExecutionState &state, TimingSolver *solver,
+                  ref<PointerExpr> p, KType *objectType,
+                  unsigned maxResolutions = 0,
+                  time::Span timeout = time::Span()) const;
+
+  ResolveResult<ObjectPair>
+  resolveOneSymbolic(ExecutionState &state, TimingSolver *solver,
+                     ref<PointerExpr> address, KType *objectType,
+                     const std::atomic_bool &haltExecution) const;
 
 public:
   /// The MemoryObject -> ObjectState map that constitutes the
@@ -136,10 +148,8 @@ public:
 
   /// Resolve address to an ObjectPair in result.
   /// \return true iff an object was found.
-  ResolveResult resolveOne(ref<ConstantPointerExpr> address,
-                           KType *objectType) const;
-
-  ResolveResult resolveOneByBase(ref<ConstantPointerExpr> pointer) const;
+  ResolveResult<ObjectPair> resolveOne(ref<ConstantPointerExpr> address,
+                                       KType *objectType) const;
 
   /// Resolve address to an ObjectPair in result.
   ///
@@ -150,9 +160,10 @@ public:
   /// \param[out] result An ObjectPair this address can resolve to
   ///               (when returning true).
   /// \return true iff an object was found at \a address.
-  ResolveResult resolveOne(ExecutionState &state, TimingSolver *solver,
-                           ref<PointerExpr> address, KType *objectType,
-                           const std::atomic_bool &haltExecution) const;
+  ResolveResult<ObjectPair>
+  resolveOne(ExecutionState &state, TimingSolver *solver,
+             ref<PointerExpr> address, KType *objectType,
+             const std::atomic_bool &haltExecution) const;
 
   /// Resolve pointer `p` to a list of `ObjectPairs` it can point
   /// to. If `maxResolutions` is non-zero then no more than that many
@@ -160,10 +171,10 @@ public:
   ///
   /// \return true iff the resolution is incomplete (`maxResolutions`
   /// is non-zero and it was reached, or a query timed out).
-  bool resolve(ExecutionState &state, TimingSolver *solver, ref<PointerExpr> p,
-               KType *objectType, ResolutionList &rl,
-               unsigned maxResolutions = 0,
-               time::Span timeout = time::Span()) const;
+  ResolveResult<ResolutionList>
+  resolve(ExecutionState &state, TimingSolver *solver, ref<PointerExpr> p,
+          KType *objectType, unsigned maxResolutions = 0,
+          time::Span timeout = time::Span()) const;
 
   /***/
 
@@ -174,7 +185,7 @@ public:
   void unbindObject(const MemoryObject *mo);
 
   /// Lookup a binding from a MemoryObject.
-  ResolveResult findObject(const MemoryObject *mo) const;
+  ResolveResult<ObjectPair> findObject(const MemoryObject *mo) const;
   RefObjectPair lazyInitializeObject(const MemoryObject *mo) const;
   RefObjectPair findOrLazyInitializeObject(const MemoryObject *mo) const;
 
