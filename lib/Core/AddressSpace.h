@@ -32,7 +32,6 @@ class TimingSolver;
 template <class T> class ref;
 
 typedef std::pair<const MemoryObject *, const ObjectState *> ObjectPair;
-typedef std::pair<const MemoryObject *, ref<const ObjectState>> RefObjectPair;
 
 typedef std::vector<ObjectPair> ResolutionList;
 typedef std::vector<ref<const MemoryObject>> ObjectResolutionList;
@@ -78,7 +77,7 @@ public:
     return result;
   }
 
-  T &get() {
+  T &get() & {
     if (isNone()) {
       // throw std::runtime_error("Accessing empty ResolveResult object");
       assert(false);
@@ -186,8 +185,7 @@ public:
 
   /// Lookup a binding from a MemoryObject.
   ResolveResult<ObjectPair> findObject(const MemoryObject *mo) const;
-  RefObjectPair lazyInitializeObject(const MemoryObject *mo) const;
-  RefObjectPair findOrLazyInitializeObject(const MemoryObject *mo) const;
+  ResolveResult<ObjectPair> lazyInitializeObject(const MemoryObject *mo) const;
 
   /// Copy the concrete values of all managed ObjectStates into the
   /// actual system memory location they were allocated at.
@@ -209,6 +207,7 @@ public:
   /// \param os The current binding of the MemoryObject.
   /// \return A writeable ObjectState (\a os or a copy).
   ObjectState *getWriteable(const MemoryObject *mo, const ObjectState *os);
+  ObjectState *getWriteable(ObjectPair objPair);
 
   /// Copy the concrete values of all managed ObjectStates back from
   /// the actual system memory location they were allocated

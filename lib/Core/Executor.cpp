@@ -6115,16 +6115,15 @@ bool Executor::resolveMemoryObjects(
         ref<const MemoryObject> idLazyInitialization = lazyInitializeObject(
             state, address, target, baseTargetType, minObjectSize, sizeExpr,
             false, checkOutOfBounds, UseSymbolicSizeLazyInit);
-        RefObjectPair op = state.addressSpace.findOrLazyInitializeObject(
-            idLazyInitialization.get());
 
-        auto wos = state.addressSpace.getWriteable(op.first, op.second.get());
-        if (op.first == idLazyInitialization.get()) {
-          state.addSymbolic(*op.first, *wos);
-        } else {
-          state.replaceSymbolic(*op.first, *op.second, *wos);
-        }
+        auto resolution =
+            state.addressSpace.lazyInitializeObject(idLazyInitialization.get());
+        assert(resolution.isOk());
+        auto op = resolution.get();
 
+        auto wos = state.addressSpace.getWriteable(op);
+
+        state.addSymbolic(*op.first, *wos);
         mayBeResolvedMemoryObjects.push_back(idLazyInitialization);
       }
     }
@@ -6243,9 +6242,6 @@ bool Executor::checkResolvedMemoryObjects(
         continue;
       }
 
-      // state.addPointerResolution(address, mo, bytes);
-      // state.addPointerResolution(basePointer, mo, size);
-
       resolveConditions.push_back(inBounds);
       resolvedMemoryObjects.push_back(mo);
       unboundConditions.push_back(addressNotInBounds);
@@ -6314,10 +6310,10 @@ void Executor::collectReads(ExecutionState &state, ref<PointerExpr> address,
                             const ObjectResolutionList &resolvedMemoryObjects,
                             std::vector<ref<Expr>> &results) {
   for (unsigned int i = 0; i < resolvedMemoryObjects.size(); ++i) {
-    RefObjectPair op = state.addressSpace.findOrLazyInitializeObject(
-        resolvedMemoryObjects.at(i).get());
-    const MemoryObject *mo = op.first;
-    const ObjectState *os = op.second.get();
+    auto resolution =
+        state.addressSpace.findObject(resolvedMemoryObjects.at(i).get());
+    assert(resolution.isOk());
+    auto [mo, os] = resolution.get();
 
     ref<Expr> offset = mo->getOffsetExpr(address);
     if (SimplifySymIndices) {
@@ -6503,9 +6499,7 @@ void Executor::executeMemoryOperation(
   solver->setTimeout(time::Span());
 
   if (fastResolutionResult.isOk()) {
-    RefObjectPair op = state->addressSpace.findOrLazyInitializeObject(
-        fastResolutionResult.get().first);
-    const MemoryObject *mo = op.first;
+    auto [mo, os] = fastResolutionResult.get();
 
     // ref<ConstantExpr> sizeExpr = dyn_cast<ConstantExpr>(mo->getSizeExpr());
     // if (MaxSymArraySize && sizeExpr &&
@@ -6535,9 +6529,7 @@ void Executor::executeMemoryOperation(
     bool mustBeInBounds = !isa<InvalidResponse>(response);
     if (mustBeInBounds) {
       ref<Expr> result;
-      op = state->addressSpace.findOrLazyInitializeObject(
-          fastResolutionResult.get().first);
-      const ObjectState *os = op.second.get();
+
       ref<Expr> offset = mo->getOffsetExpr(address);
       if (SimplifySymIndices) {
         if (!isa<ConstantExpr>(offset)) {
@@ -6647,10 +6639,10 @@ void Executor::executeMemoryOperation(
 
       if (isWrite) {
         for (unsigned int i = 0; i < resolvedMemoryObjects.size(); ++i) {
-          RefObjectPair op = state->addressSpace.findOrLazyInitializeObject(
-              resolvedMemoryObjects.at(i).get());
-          const MemoryObject *mo = op.first;
-          const ObjectState *os = op.second.get();
+          auto resolution =
+              state->addressSpace.findObject(resolvedMemoryObjects.at(i).get());
+          assert(resolution.isOk());
+          auto [mo, os] = resolution.get();
 
           ObjectState *wos = state->addressSpace.getWriteable(mo, os);
           if (state->inSymbolics(*mo)) {
@@ -6708,10 +6700,11 @@ void Executor::executeMemoryOperation(
       if (!bound) {
         continue;
       }
-      RefObjectPair op = bound->addressSpace.findOrLazyInitializeObject(
-          resolvedMemoryObjects.at(i).get());
-      const MemoryObject *mo = op.first;
-      const ObjectState *os = op.second.get();
+
+      auto resolution =
+          bound->addressSpace.findObject(resolvedMemoryObjects.at(i).get());
+      assert(resolution.isOk());
+      auto [mo, os] = resolution.get();
 
       if (hasLazyInitialized && i + 1 != resolvedMemoryObjects.size()) {
         const MemoryObject *liMO = resolvedMemoryObjects.back().get();
@@ -6981,13 +6974,13 @@ void Executor::lazyInitializeLocalObject(ExecutionState &state, StackFrame &sf,
   if (isa<ConstantExpr>(size)) {
     addConstraint(state, EqExpr::create(size, mo->getSizeExpr()));
   }
-  RefObjectPair op = state.addressSpace.findOrLazyInitializeObject(mo.get());
-  auto wos = state.addressSpace.getWriteable(op.first, op.second.get());
-  if (op.first == mo.get()) {
-    state.addSymbolic(*op.first, *wos);
-  } else {
-    state.replaceSymbolic(*op.first, *op.second, *wos);
-  }
+
+  auto resolution = state.addressSpace.lazyInitializeObject(mo.get());
+  assert(resolution.isOk());
+  auto op = resolution.get();
+
+  auto wos = state.addressSpace.getWriteable(op);
+  state.addSymbolic(*op.first, *wos);
 }
 
 void Executor::lazyInitializeLocalObject(ExecutionState &state,
@@ -7731,39 +7724,39 @@ void Executor::doImpliedValueConcretization(ExecutionState &state, ref<Expr> e,
                                             ref<ConstantExpr> value) {
   abort(); // FIXME: Broken until we sort out how to do the write back.
 
-  if (DebugCheckForImpliedValues)
-    ImpliedValue::checkForImpliedValues(solver->solver.get(), e, value);
+  // if (DebugCheckForImpliedValues)
+  //   ImpliedValue::checkForImpliedValues(solver->solver.get(), e, value);
 
-  ImpliedValueList results;
-  ImpliedValue::getImpliedValues(e, value, results);
-  for (ImpliedValueList::iterator it = results.begin(), ie = results.end();
-       it != ie; ++it) {
-    ReadExpr *re = it->first.get();
+  // ImpliedValueList results;
+  // ImpliedValue::getImpliedValues(e, value, results);
+  // for (ImpliedValueList::iterator it = results.begin(), ie = results.end();
+  //      it != ie; ++it) {
+  //   ReadExpr *re = it->first.get();
 
-    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(re->index)) {
-      // FIXME: This is the sole remaining usage of the Array object
-      // variable. Kill me.
-      const MemoryObject *mo = 0; // re->updates.root->object;
-      assert(state.addressSpace.findObject(mo).isOk());
-      const ObjectState *os = state.addressSpace.findObject(mo).get().second;
+  //   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(re->index)) {
+  //     // FIXME: This is the sole remaining usage of the Array object
+  //     // variable. Kill me.
+  //     const MemoryObject *mo = 0; // re->updates.root->object;
+  //     assert(state.addressSpace.findObject(mo).isOk());
+  //     const ObjectState *os = state.addressSpace.findObject(mo).get().second;
 
-      if (!os) {
-        // object has been free'd, no need to concretize (although as
-        // in other cases we would like to concretize the outstanding
-        // reads, but we have no facility for that yet)
-      } else {
-        assert(!os->readOnly &&
-               "not possible? read only object with static read?");
-        ObjectState *wos = state.addressSpace.getWriteable(mo, os);
-        if (state.inSymbolics(*mo)) {
-          state.replaceSymbolic(*mo, *os, *wos);
-        }
-        maxNewWriteableOSSize =
-            std::max(maxNewWriteableOSSize, wos->getSparseStorageEntries());
-        wos->write(CE, it->second);
-      }
-    }
-  }
+  //     if (!os) {
+  //       // object has been free'd, no need to concretize (although as
+  //       // in other cases we would like to concretize the outstanding
+  //       // reads, but we have no facility for that yet)
+  //     } else {
+  //       assert(!os->readOnly &&
+  //              "not possible? read only object with static read?");
+  //       ObjectState *wos = state.addressSpace.getWriteable(mo, os);
+  //       if (state.inSymbolics(*mo)) {
+  //         state.replaceSymbolic(*mo, *os, *wos);
+  //       }
+  //       maxNewWriteableOSSize =
+  //           std::max(maxNewWriteableOSSize, wos->getSparseStorageEntries());
+  //       wos->write(CE, it->second);
+  //     }
+  //   }
+  // }
 }
 
 Expr::Width Executor::getWidthForLLVMType(llvm::Type *type) const {

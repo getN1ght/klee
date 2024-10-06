@@ -83,7 +83,8 @@ AddressSpace::findObject(const MemoryObject *mo) const {
              : ResolveResult<ObjectPair>::createNone();
 }
 
-RefObjectPair AddressSpace::lazyInitializeObject(const MemoryObject *mo) const {
+ResolveResult<ObjectPair>
+AddressSpace::lazyInitializeObject(const MemoryObject *mo) const {
   auto valueArray = mo->content;
   assert(valueArray != nullptr);
 
@@ -92,22 +93,13 @@ RefObjectPair AddressSpace::lazyInitializeObject(const MemoryObject *mo) const {
       SourceBuilder::makeSymbolic(valueArray->source->toString() + "_base", 0),
       Expr::Int32, Context::get().getPointerWidth());
 
-  return RefObjectPair(
-      mo,
-      new ObjectState(mo, ObjectStateContent(valueArray, baseArray), mo->type));
+  return ResolveResult<ObjectPair>::createOk(ObjectPair(
+      mo, new ObjectState(mo, ObjectStateContent(valueArray, baseArray),
+                          mo->type)));
 }
 
-RefObjectPair
-AddressSpace::findOrLazyInitializeObject(const MemoryObject *mo) const {
-  auto resolution = findObject(mo);
-  if (resolution.isOk()) {
-    return RefObjectPair(resolution.get().first, resolution.get().second);
-  }
-  assert(resolution.isNone());
-  if (mo->isLazyInitialized) {
-    return lazyInitializeObject(mo);
-  }
-  return RefObjectPair(nullptr, nullptr);
+ObjectState *AddressSpace::getWriteable(ObjectPair objPair) {
+  return getWriteable(objPair.first, objPair.second);
 }
 
 ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,

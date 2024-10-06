@@ -838,9 +838,10 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
       for (Executor::ExactResolutionList::iterator it = rl.begin(),
                                                    ie = rl.end();
            it != ie; ++it) {
-        ref<const ObjectState> os =
-            it->second->addressSpace.findOrLazyInitializeObject(it->first)
-                .second;
+        auto wrappedOp = it->second->addressSpace.findObject(it->first);
+        assert(wrappedOp.isOk());
+        ref<const ObjectState> os = wrappedOp.get().second;
+
         executor.executeAlloc(*it->second, size, false, target,
                               executor.typeSystemManager->handleRealloc(
                                   os->getDynamicType(), size),
@@ -975,13 +976,13 @@ void SpecialFunctionHandler::handleMakeSymbolic(
                         rl, "make_symbolic");
 
   for (auto it = rl.begin(), ie = rl.end(); it != ie; ++it) {
-    RefObjectPair op =
-        it->second->addressSpace.findOrLazyInitializeObject(it->first);
-    const MemoryObject *mo = op.first;
+    auto resolution = it->second->addressSpace.findObject(it->first);
+    assert(resolution.isOk());
+    auto [mo, old] = resolution.get();
+
     mo->setName(name);
     mo->updateTimestamp();
 
-    ref<const ObjectState> old = op.second;
     ExecutionState *s = it->second;
 
     if (old->readOnly) {
