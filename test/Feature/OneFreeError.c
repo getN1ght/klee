@@ -6,7 +6,7 @@
 int main() {
   int *x = malloc(4);
   free(x);
-  // CHECK: OneFreeError.c:[[@LINE+1]]: memory error: out of bound pointer
+  // CHECK: OneFreeError.c:[[@LINE+1]]: memory error: use after free
   x[0] = 1;
   return 0;
 }

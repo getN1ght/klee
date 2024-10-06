@@ -107,7 +107,7 @@ public:
   /*
    * Resolves the address to the corresponding object.
    */
-  std::optional<ObjectPair> resolve(ref<ConstantPointerExpr> address) const;
+  ResolveResult resolve(ref<ConstantPointerExpr> address) const;
 
   /*
    * Returns a list of objects referenced in the the given object.

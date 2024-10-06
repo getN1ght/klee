@@ -368,9 +368,6 @@ public:
       symbolics;
   std::size_t stateSymbolicsNum = 0;
 
-  /// @brief map from memory accesses to accessed objects and access offsets.
-  ExprHashMap<std::set<ref<const MemoryObject>>> resolvedPointers;
-
   /// @brief A set of boolean expressions
   /// the user has requested be true of a counterexample.
   ImmutableSet<ref<Expr>> cexPreferences;
@@ -469,12 +466,6 @@ public:
 
   bool getBase(ref<Expr> expr,
                std::pair<ref<const MemoryObject>, ref<Expr>> &resolution) const;
-
-  void removePointerResolutions(ref<PointerExpr> address, unsigned size);
-  void addPointerResolution(ref<PointerExpr> address, const MemoryObject *mo,
-                            unsigned size = 0);
-  void addUniquePointerResolution(ref<PointerExpr> address,
-                                  const MemoryObject *mo, unsigned size = 0);
 
   void addConstraint(ref<Expr> e);
   void addCexPreference(const ref<Expr> &cond);

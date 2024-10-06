@@ -392,6 +392,11 @@ private:
   void executeCall(ExecutionState &state, KInstruction *ki, llvm::Function *f,
                    std::vector<ref<Expr>> &arguments);
 
+  ExecutionState *nullPointerValidated(ExecutionState &state,
+                                       ref<PointerExpr> expr);
+  ExecutionState *nonConstantValidated(ExecutionState &state,
+                                       ref<PointerExpr> expr);
+
   bool resolveMemoryObjects(ExecutionState &state, ref<PointerExpr> address,
                             KType *targetType, KInstruction *target,
                             unsigned bytes,
@@ -456,6 +461,10 @@ private:
   /// NULL pointers for states which were unable to be created.
   void branch(ExecutionState &state, const std::vector<ref<Expr>> &conditions,
               std::vector<ExecutionState *> &result, BranchType reason);
+
+  std::vector<ExecutionState *> branch(ExecutionState &state,
+                                       const std::vector<ref<Expr>> &conditions,
+                                       BranchType reason);
 
   /// Fork current and return states in which condition holds / does
   /// not hold, respectively. One of the states is necessarily the

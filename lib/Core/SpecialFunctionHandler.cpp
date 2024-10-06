@@ -1043,12 +1043,13 @@ void SpecialFunctionHandler::handleMakeMock(ExecutionState &state,
                         "make_symbolic");
 
   for (auto &it : rl) {
-    ObjectPair op = it.second->addressSpace.findObject(it.first);
-    const MemoryObject *mo = op.first;
+    auto resolution = it.second->addressSpace.findObject(it.first);
+    assert(resolution.isOk());
+
+    auto [mo, old] = resolution.get();
     mo->setName(name);
     mo->updateTimestamp();
 
-    const ObjectState *old = op.second;
     ExecutionState *s = it.second;
 
     if (old->readOnly) {

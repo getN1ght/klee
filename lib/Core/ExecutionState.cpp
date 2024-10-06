@@ -160,7 +160,6 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       targetForest(state.targetForest), pathOS(state.pathOS),
       symPathOS(state.symPathOS), coveredLines(state.coveredLines),
       symbolics(state.symbolics), stateSymbolicsNum(state.stateSymbolicsNum),
-      resolvedPointers(state.resolvedPointers),
       cexPreferences(state.cexPreferences), arrayNames(state.arrayNames),
       steppedInstructions(state.steppedInstructions),
       steppedMemoryInstructions(state.steppedMemoryInstructions),
@@ -342,41 +341,6 @@ bool ExecutionState::getBase(
   }
   resolution = std::make_pair(parent, base->index);
   return true;
-}
-
-void ExecutionState::removePointerResolutions(ref<PointerExpr> address,
-                                              unsigned size) {
-  ref<Expr> base = address->getBase();
-  if (!isa<ConstantExpr>(base)) {
-    resolvedPointers[base].clear();
-    addressSpace.cache.reset(address);
-  }
-}
-
-// base address mo and ignore non pure reads in setinitializationgraph
-void ExecutionState::addPointerResolution(ref<PointerExpr> address,
-                                          const MemoryObject *mo,
-                                          unsigned size) {
-  ref<Expr> base = address->getBase();
-  if (!isa<ConstantExpr>(base)) {
-    resolvedPointers[base].insert(mo);
-    auto resolution = addressSpace.cache.reset(address);
-    resolution.push_back(mo);
-    addressSpace.cache.cacheResolution(address, resolution);
-  }
-}
-
-void ExecutionState::addUniquePointerResolution(ref<PointerExpr> address,
-                                                const MemoryObject *mo,
-                                                unsigned size) {
-  ref<Expr> base = address->getBase();
-  if (!isa<ConstantExpr>(base)) {
-    removePointerResolutions(address, size);
-    resolvedPointers[base].insert(mo);
-
-    addressSpace.cache.reset(address);
-    addressSpace.cache.cacheResolution(address, ObjectResolutionList{mo});
-  }
 }
 
 /**/

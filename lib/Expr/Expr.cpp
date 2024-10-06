@@ -22,6 +22,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include <klee/Expr/ArrayExprVisitor.h>
 #if LLVM_VERSION_CODE >= LLVM_VERSION(13, 0)
 #include "llvm/ADT/StringExtras.h"
 #endif
@@ -2993,6 +2994,13 @@ ref<Expr> PointerExpr::create(const ref<Expr> &b, const ref<Expr> &v) {
   } else {
     return PointerExpr::alloc(b, v);
   }
+}
+
+std::vector<ref<Expr>> PointerExpr::getAliasedBases() const {
+  if (auto selectBaseExpr = dyn_cast<SelectExpr>(getBase())) {
+    return ArrayExprHelper::collectAlternatives(*selectBaseExpr);
+  }
+  return {getBase()};
 }
 
 ref<Expr> ConstantPointerExpr::create(const ref<ConstantExpr> &b,

@@ -50,24 +50,6 @@ typedef ImmutableMap<IDType, const MemoryObject *> IDMap;
 
 class AddressSpace;
 
-class ResolutionCache {
-  typedef ImmutableMap<ref<PointerExpr>, ObjectResolutionList, util::ExprLess>
-      ResolutionCacheContainer;
-
-public:
-  bool cacheResolution(ref<PointerExpr> address,
-                       const ObjectResolutionList &resolution);
-  ObjectResolutionList get(ref<PointerExpr> address) const;
-  bool contains(ref<PointerExpr> address) const;
-
-  ObjectResolutionList reset(ref<PointerExpr> address);
-  void reset();
-  void invalidate(ref<const MemoryObject>);
-
-private:
-  ResolutionCacheContainer cache_;
-};
-
 struct ResolveResult {
 private:
   enum ResolveResultType : std::uint8_t { Ok, Unknown, None };
@@ -129,7 +111,6 @@ private:
                            ResolutionList &rl, unsigned maxResolutions) const;
 
 public:
-  mutable ResolutionCache cache;
   /// The MemoryObject -> ObjectState map that constitutes the
   /// address space.
   ///
@@ -149,8 +130,8 @@ public:
 
   AddressSpace() : cowKey(1) {}
   AddressSpace(const AddressSpace &b)
-      : cowKey(++b.cowKey), cache(b.cache), objects(b.objects),
-        idsToObjects(b.idsToObjects), complete(b.complete) {}
+      : cowKey(++b.cowKey), objects(b.objects), idsToObjects(b.idsToObjects),
+        complete(b.complete) {}
   ~AddressSpace() {}
 
   /// Resolve address to an ObjectPair in result.
@@ -193,7 +174,7 @@ public:
   void unbindObject(const MemoryObject *mo);
 
   /// Lookup a binding from a MemoryObject.
-  ObjectPair findObject(const MemoryObject *mo) const;
+  ResolveResult findObject(const MemoryObject *mo) const;
   RefObjectPair lazyInitializeObject(const MemoryObject *mo) const;
   RefObjectPair findOrLazyInitializeObject(const MemoryObject *mo) const;
 

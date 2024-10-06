@@ -108,7 +108,7 @@ ConstantAddressSpace::referencesInInitial(const ObjectPair &objectPair) const {
         references.emplace(
             i, ConstantResolution{
                    constantPointer->getConstantValue()->getZExtValue(),
-                   std::move(*resolution)});
+                   std::move(resolution.get())});
       }
     }
   }
@@ -143,7 +143,7 @@ ConstantAddressSpace::referencesInFinal(const ObjectPair &objectPair) const {
         references.emplace(
             i, ConstantResolution{
                    constantPointer->getConstantValue()->getZExtValue(),
-                   std::move(*resolution)});
+                   std::move(resolution.get())});
       }
     }
   }
@@ -151,14 +151,14 @@ ConstantAddressSpace::referencesInFinal(const ObjectPair &objectPair) const {
   return references;
 }
 
-std::optional<ObjectPair>
+ResolveResult
 ConstantAddressSpace::resolve(ref<ConstantPointerExpr> address) const {
   auto valueOfBase = address->getConstantBase()->getZExtValue();
   if (objects.count(valueOfBase)) {
     return addressSpace.findObject(objects.at(valueOfBase));
   }
 
-  return std::nullopt;
+  return ResolveResult::createNone();
 }
 
 ConstantPointerGraph ConstantAddressSpace::createPointerGraph() const {
