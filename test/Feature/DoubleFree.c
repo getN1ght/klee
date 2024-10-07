@@ -6,7 +6,7 @@
 int main() {
   int *x = malloc(4);
   free(x);
-  // CHECK: memory error: invalid pointer: free
+  // CHECK: memory error: double free
   free(x);
   return 0;
 }

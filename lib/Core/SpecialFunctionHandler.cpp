@@ -737,12 +737,19 @@ void SpecialFunctionHandler::handleGetObjSize(
 
   assert(isa<PointerExpr>(arguments[0]));
   executor.resolveExact(state, cast<PointerExpr>(arguments[0]),
-                        executor.typeSystemManager->getUnknownType(), bytes, rl,
-                        "klee_get_obj_size");
-  for (Executor::ExactResolutionList::iterator it = rl.begin(), ie = rl.end();
-       it != ie; ++it) {
-    const MemoryObject *mo = it->first;
-    executor.bindLocal(target, *it->second, mo->getSizeExpr());
+                        executor.typeSystemManager->getUnknownType(), bytes,
+                        rl);
+  for (auto [mo, rstate] : rl.resolution) {
+    executor.bindLocal(target, *rstate, mo->getSizeExpr());
+  }
+
+  if (rl.unbound) {
+    auto unbound = *rl.unbound;
+    executor.terminateStateOnProgramError(
+        *unbound,
+        new ErrorEvent(executor.locationOf(*unbound), StateTerminationType::Ptr,
+                       "memory error: invalid pointer: klee_get_obj_size"),
+        executor.getAddressInfo(*unbound, cast<PointerExpr>(arguments[0])));
   }
 }
 
@@ -834,19 +841,41 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
       assert(isa<PointerExpr>(address));
       executor.resolveExact(*zeroPointer.second, cast<PointerExpr>(address),
                             executor.typeSystemManager->getUnknownType(),
-                            baseBytes, rl, "realloc");
+                            baseBytes, rl);
 
-      for (Executor::ExactResolutionList::iterator it = rl.begin(),
-                                                   ie = rl.end();
-           it != ie; ++it) {
-        auto wrappedOp = it->second->addressSpace.findObject(it->first);
+      for (auto [mo, rstate] : rl.resolution) {
+        auto wrappedOp = rstate->addressSpace.findObject(mo);
         assert(wrappedOp.isOk());
         ref<const ObjectState> os = wrappedOp.get().second;
 
-        executor.executeAlloc(*it->second, size, false, target,
+        executor.executeAlloc(*rstate, size, false, target,
                               executor.typeSystemManager->handleRealloc(
                                   os->getDynamicType(), size),
                               false, os.get(), 0, CheckOutOfMemory);
+      }
+
+      if (rl.unbound) {
+        auto unbound = *rl.unbound;
+
+        if (cast<PointerExpr>(arguments[0])->areAliasedBasesKnown()) {
+          executor.reportStateOnTargetError(*unbound,
+                                            ReachWithError::DoubleFree);
+          executor.terminateStateOnProgramError(
+              *unbound,
+              new ErrorEvent(executor.locationOf(*unbound),
+                             StateTerminationType::Ptr,
+                             "memory error: double free"),
+              executor.getAddressInfo(*unbound,
+                                      cast<PointerExpr>(arguments[0])));
+        } else {
+          executor.terminateStateOnProgramError(
+              *unbound,
+              new ErrorEvent(executor.locationOf(*unbound),
+                             StateTerminationType::Ptr,
+                             "memory error: invalid pointer: realloc"),
+              executor.getAddressInfo(*unbound,
+                                      cast<PointerExpr>(arguments[0])));
+        }
       }
     }
   }
@@ -974,17 +1003,17 @@ void SpecialFunctionHandler::handleMakeSymbolic(
   assert(isa<PointerExpr>(arguments[0]));
   executor.resolveExact(state, cast<PointerExpr>(arguments[0]),
                         executor.typeSystemManager->getUnknownType(), baseBytes,
-                        rl, "make_symbolic");
+                        rl);
 
-  for (auto it = rl.begin(), ie = rl.end(); it != ie; ++it) {
-    auto resolution = it->second->addressSpace.findObject(it->first);
+  for (auto it : rl.resolution) {
+    auto resolution = it.second->addressSpace.findObject(it.first);
     assert(resolution.isOk());
     auto [mo, old] = resolution.get();
 
     mo->setName(name);
     mo->updateTimestamp();
 
-    ExecutionState *s = it->second;
+    ExecutionState *s = it.second;
 
     if (old->readOnly) {
       executor.terminateStateOnUserError(
@@ -1012,6 +1041,15 @@ void SpecialFunctionHandler::handleMakeSymbolic(
       executor.terminateStateOnUserError(
           *s, "Wrong size given to klee_make_symbolic");
     }
+  }
+
+  if (rl.unbound) {
+    auto unbound = *rl.unbound;
+    executor.terminateStateOnProgramError(
+        *unbound,
+        new ErrorEvent(executor.locationOf(*unbound), StateTerminationType::Ptr,
+                       "memory error: invalid pointer: make_symbolic"),
+        executor.getAddressInfo(*unbound, cast<PointerExpr>(arguments[0])));
   }
 }
 
@@ -1041,10 +1079,9 @@ void SpecialFunctionHandler::handleMakeMock(ExecutionState &state,
   Executor::ExactResolutionList rl;
   assert(isa<PointerExpr>(arguments[0]));
   executor.resolveExact(state, cast<PointerExpr>(arguments[0]),
-                        executor.typeSystemManager->getUnknownType(), 0, rl,
-                        "make_symbolic");
+                        executor.typeSystemManager->getUnknownType(), 0, rl);
 
-  for (auto &it : rl) {
+  for (auto &it : rl.resolution) {
     auto resolution = it.second->addressSpace.findObject(it.first);
     assert(resolution.isOk());
 
@@ -1093,6 +1130,15 @@ void SpecialFunctionHandler::handleMakeMock(ExecutionState &state,
                                          "Wrong size given to klee_make_mock");
     }
   }
+
+  if (rl.unbound) {
+    auto unbound = *rl.unbound;
+    executor.terminateStateOnProgramError(
+        *unbound,
+        new ErrorEvent(executor.locationOf(*unbound), StateTerminationType::Ptr,
+                       "memory error: invalid pointer: make_mock"),
+        executor.getAddressInfo(*unbound, cast<PointerExpr>(arguments[0])));
+  }
 }
 
 void SpecialFunctionHandler::handleMarkGlobal(
@@ -1109,13 +1155,21 @@ void SpecialFunctionHandler::handleMarkGlobal(
   assert(isa<PointerExpr>(arguments[0]));
   executor.resolveExact(state, cast<PointerExpr>(arguments[0]),
                         executor.typeSystemManager->getUnknownType(), baseBytes,
-                        rl, "mark_global");
+                        rl);
 
-  for (Executor::ExactResolutionList::iterator it = rl.begin(), ie = rl.end();
-       it != ie; ++it) {
-    const MemoryObject *mo = it->first;
+  for (auto it : rl.resolution) {
+    const MemoryObject *mo = it.first;
     assert(!mo->isLocal);
     mo->isGlobal = true;
+  }
+
+  if (rl.unbound) {
+    auto unbound = *rl.unbound;
+    executor.terminateStateOnProgramError(
+        *unbound,
+        new ErrorEvent(executor.locationOf(*unbound), StateTerminationType::Ptr,
+                       "memory error: invalid pointer: mark_global"),
+        executor.getAddressInfo(*unbound, cast<PointerExpr>(arguments[0])));
   }
 }
 

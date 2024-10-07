@@ -19,7 +19,7 @@ void maybeFree1(int *a);
 int main() {
   int *a;
 #ifdef Free1
-  // CHECK-FREE1: memory error: invalid pointer: free
+  // CHECK-FREE1: memory error: double free
   // CHECK-FREE1: KLEE: done: completed paths = 1
   // CHECK-FREE1: KLEE: done: partially completed paths = 1
   // CHECK-FREE1: KLEE: done: generated tests = 2
@@ -30,12 +30,12 @@ int main() {
 
   a = maybeAllocSource1();
   maybeFree1(a);
-  // CHECK-NOT-FREE2: memory error: invalid pointer: free
+  // CHECK-NOT-FREE2: memory error: double free
   // CHECK-FREE2: KLEE: done: completed paths = 1
   // CHECK-FREE2: KLEE: done: partially completed paths = 0
   // CHECK-FREE2: KLEE: done: generated tests = 1
 #ifdef Free3
-  // CHECK-FREE3: memory error: invalid pointer: free
+  // CHECK-FREE3: memory error: double free
   // CHECK-FREE3: KLEE: done: completed paths = 0
   // CHECK-FREE3: KLEE: done: partially completed paths = 1
   // CHECK-FREE3: KLEE: done: generated tests = 1

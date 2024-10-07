@@ -5648,37 +5648,45 @@ void Executor::executeFree(ExecutionState &state, ref<PointerExpr> address,
 
   if (zeroPointer.second) { // address != 0
     ExactResolutionList rl;
-    if (!resolveExact(*zeroPointer.second, address,
-                      typeSystemManager->getUnknownType(), bytes, rl, "free") &&
-        guidanceKind == GuidanceKind::ErrorGuidance) {
-      terminateStateOnTargetError(*zeroPointer.second,
-                                  ReachWithError::DoubleFree);
-      return;
-    }
+    resolveExact(*zeroPointer.second, address,
+                 typeSystemManager->getUnknownType(), bytes, rl);
 
-    for (Executor::ExactResolutionList::iterator it = rl.begin(), ie = rl.end();
-         it != ie; ++it) {
-      const MemoryObject *mo = it->first;
-
+    for (auto [mo, rstate] : rl.resolution) {
       if (mo->isLocal) {
         terminateStateOnProgramError(
-            *it->second,
-            new ErrorEvent(new AllocEvent(mo->allocSite),
-                           locationOf(*it->second), StateTerminationType::Free,
-                           "free of alloca"),
-            getAddressInfo(*it->second, address));
+            *rstate,
+            new ErrorEvent(new AllocEvent(mo->allocSite), locationOf(*rstate),
+                           StateTerminationType::Free, "free of alloca"),
+            getAddressInfo(*rstate, address));
       } else if (mo->isGlobal) {
         terminateStateOnProgramError(
-            *it->second,
-            new ErrorEvent(new AllocEvent(mo->allocSite),
-                           locationOf(*it->second), StateTerminationType::Free,
-                           "free of global"),
-            getAddressInfo(*it->second, address));
+            *rstate,
+            new ErrorEvent(new AllocEvent(mo->allocSite), locationOf(*rstate),
+                           StateTerminationType::Free, "free of global"),
+            getAddressInfo(*rstate, address));
       } else {
-        it->second->addressSpace.unbindObject(mo);
+        rstate->addressSpace.unbindObject(mo);
         if (target) {
-          bindLocal(target, *it->second, PointerExpr::createNull());
+          bindLocal(target, *rstate, PointerExpr::createNull());
         }
+      }
+    }
+
+    if (rl.unbound) {
+      auto unbound = *rl.unbound;
+      if (address->areAliasedBasesKnown()) {
+        reportStateOnTargetError(*unbound, ReachWithError::DoubleFree);
+        terminateStateOnProgramError(
+            *unbound,
+            new ErrorEvent(locationOf(*unbound), StateTerminationType::Ptr,
+                           "memory error: double free"),
+            getAddressInfo(*unbound, address));
+      } else {
+        terminateStateOnProgramError(
+            *unbound,
+            new ErrorEvent(locationOf(*unbound), StateTerminationType::Ptr,
+                           "memory error: invalid pointer: free"),
+            getAddressInfo(*unbound, address));
       }
     }
   }
@@ -5686,8 +5694,7 @@ void Executor::executeFree(ExecutionState &state, ref<PointerExpr> address,
 
 bool Executor::resolveExact(ExecutionState &estate, ref<PointerExpr> address,
                             KType *type, unsigned bytes,
-                            ExactResolutionList &results,
-                            const std::string &name) {
+                            ExactResolutionList &results) {
   // ref<Expr> base = address->getBase();
   // ref<PointerExpr> basePointer = PointerExpr::create(base, base);
 
@@ -5708,23 +5715,12 @@ bool Executor::resolveExact(ExecutionState &estate, ref<PointerExpr> address,
   //     Simplificator::simplifyExpr(estate.constraints.cs(), base).simplified;
   // uniqueBase = toUnique(estate, uniqueBase);
 
-  ref<Expr> isNullPointer =
-      EqExpr::create(address->getBase(), PointerExpr::createNull()->getBase());
-  StatePair branches = forkInternal(estate, isNullPointer, BranchType::MemOp);
-  ExecutionState *bound = branches.first;
-  if (bound) {
-    // auto error = isReadFromSymbolicArray(uniqueBase)
-    //                  ? ReachWithError::MayBeNullPointerException
-    //                  : ReachWithError::MustBeNullPointerException;
-    auto error = ReachWithError::MustBeNullPointerException;
-    terminateStateOnTargetError(*bound, error);
-  }
-  if (!branches.second) {
-    address = PointerExpr::createNull();
+  // Checks bases, not pointers -> during exact resolution we are
+  // dereferencing pointer.
+  ExecutionState *state = nullPointerValidated(estate, address);
+  if (!state) {
     return true;
   }
-
-  ExecutionState &state = *branches.second;
 
   ObjectResolutionList rl;
   bool mayBeOutOfBound = true;
@@ -5733,12 +5729,12 @@ bool Executor::resolveExact(ExecutionState &estate, ref<PointerExpr> address,
 
   /* We do not need this variable here, just a placeholder for resolve */
   [[maybe_unused]] bool success = resolveMemoryObjects(
-      state, address, type, state.prevPC, bytes, rl, mayBeOutOfBound,
+      *state, address, type, state->prevPC, bytes, rl, mayBeOutOfBound,
       hasLazyInitialized, incomplete,
       LazyInitialization == LazyInitializationPolicy::Only);
   assert(success);
 
-  ExecutionState *unbound = &state;
+  ExecutionState *unbound = state;
   for (unsigned i = 0; i < rl.size(); ++i) {
     const MemoryObject *mo = rl[i].get();
     auto inBounds = EqExpr::create(address, mo->getBaseExpr());
@@ -5747,7 +5743,7 @@ bool Executor::resolveExact(ExecutionState &estate, ref<PointerExpr> address,
         forkInternal(*unbound, inBounds, BranchType::ResolvePointer);
 
     if (branches.first) {
-      results.push_back(std::make_pair(rl[i].get(), branches.first));
+      results.resolution.push_back(std::make_pair(rl[i].get(), branches.first));
     }
 
     unbound = branches.second;
@@ -5756,19 +5752,11 @@ bool Executor::resolveExact(ExecutionState &estate, ref<PointerExpr> address,
     }
   }
 
-  if (guidanceKind == GuidanceKind::ErrorGuidance && rl.size() == 0) {
-    return false;
-  }
-
   if (unbound) {
     if (incomplete) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
     } else {
-      terminateStateOnProgramError(
-          *unbound,
-          new ErrorEvent(locationOf(*unbound), StateTerminationType::Ptr,
-                         "memory error: invalid pointer: " + name),
-          getAddressInfo(*unbound, address));
+      results.unbound.emplace(unbound);
     }
   }
   return true;

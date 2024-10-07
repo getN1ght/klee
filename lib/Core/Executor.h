@@ -322,11 +322,14 @@ private:
   /// \param results[out] A list of ((MemoryObject,ObjectState),
   /// state) pairs for each object the given address can point to the
   /// beginning of.
-  typedef std::vector<std::pair<const MemoryObject *, ExecutionState *>>
-      ExactResolutionList;
+
+  struct ExactResolutionList {
+    std::vector<std::pair<const MemoryObject *, ExecutionState *>> resolution;
+    std::optional<ExecutionState *> unbound;
+  };
+
   bool resolveExact(ExecutionState &state, ref<PointerExpr> p, KType *type,
-                    unsigned bytes, ExactResolutionList &results,
-                    const std::string &name);
+                    unsigned bytes, ExactResolutionList &results);
 
   void concretizeSize(ExecutionState &state, ref<Expr> size, bool isLocal,
                       KInstruction *target, KType *type, bool zeroMemory,
