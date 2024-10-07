@@ -5634,8 +5634,7 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
 void Executor::executeFree(ExecutionState &state, ref<PointerExpr> address,
                            KInstruction *target) {
   address = optimizer.optimizeExpr(address, true);
-  ref<Expr> isNullPointer =
-      EqExpr::create(address->getBase(), PointerExpr::createNull()->getBase());
+  ref<Expr> isNullPointer = EqExpr::create(address, PointerExpr::createNull());
   StatePair zeroPointer = forkInternal(state, isNullPointer, BranchType::Free);
   if (zeroPointer.first) {
     if (target) {

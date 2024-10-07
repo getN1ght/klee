@@ -116,7 +116,7 @@ bool assertCreatedPointEvaluatesToTrue(
   }
   assert(isa<ConstantExpr>(q) &&
          "assignment evaluation did not result in constant");
-  return cast<ConstantExpr>(q)->isTrue();
+  return q->isTrue();
 }
 
 bool assertCreatedPointEvaluatesToTrue(const Query &query,
@@ -319,6 +319,12 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
   Assignment::bindings_ty bindings;
   [[maybe_unused]] bool success = result->tryGetInitialValues(bindings);
   assert(success);
+  if (!isa<ConstantExpr>(Assignment(bindings).evaluate(query.expr))) {
+    result =
+        new ValidResponse(ValidityCore(query.constraints.cs(), query.expr));
+    return true;
+  }
+
   assert(assertCreatedPointEvaluatesToTrue(query, bindings, retMap.bindings) &&
          "should satisfy the equation");
 
