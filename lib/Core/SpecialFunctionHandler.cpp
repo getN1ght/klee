@@ -810,11 +810,11 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
                                            std::vector<ref<Expr>> &arguments) {
   // XXX should type check args
   assert(arguments.size() == 2 && "invalid number of arguments to realloc");
-  ref<Expr> address = arguments[0];
-  ref<Expr> size = arguments[1];
 
-  ref<PointerExpr> addressPointer = dyn_cast<PointerExpr>(address);
-  assert(addressPointer);
+  assert(isa<PointerExpr>(arguments[0]));
+  auto address = cast<PointerExpr>(arguments[0]);
+
+  ref<Expr> size = arguments[1];
 
   auto type = target->inst()->getOperand(0)->getType();
   unsigned baseBytes = Expr::getMinBytesForWidth(
@@ -824,11 +824,11 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
       state, Expr::createIsZero(size), BranchType::Realloc);
 
   if (zeroSize.first) { // size == 0
-    executor.executeFree(*zeroSize.first, addressPointer, target);
+    executor.executeFree(*zeroSize.first, address, target);
   }
   if (zeroSize.second) { // size != 0
     Executor::StatePair zeroPointer = executor.forkInternal(
-        *zeroSize.second, Expr::createIsZero(addressPointer->getValue()),
+        *zeroSize.second, EqExpr::create(address, PointerExpr::createNull()),
         BranchType::Realloc);
 
     if (zeroPointer.first) { // address == 0
@@ -838,26 +838,25 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
     }
     if (zeroPointer.second) { // address != 0
       Executor::ExactResolutionList rl;
-      assert(isa<PointerExpr>(address));
-      executor.resolveExact(*zeroPointer.second, cast<PointerExpr>(address),
+      executor.resolveExact(*zeroPointer.second, address,
                             executor.typeSystemManager->getUnknownType(),
                             baseBytes, rl);
 
       for (auto [mo, rstate] : rl.resolution) {
         auto wrappedOp = rstate->addressSpace.findObject(mo);
         assert(wrappedOp.isOk());
-        ref<const ObjectState> os = wrappedOp.get().second;
+        auto os = wrappedOp.get().second;
 
         executor.executeAlloc(*rstate, size, false, target,
                               executor.typeSystemManager->handleRealloc(
                                   os->getDynamicType(), size),
-                              false, os.get(), 0, CheckOutOfMemory);
+                              false, os, 0, CheckOutOfMemory);
       }
 
       if (rl.unbound) {
         auto unbound = *rl.unbound;
 
-        if (cast<PointerExpr>(arguments[0])->areAliasedBasesKnown()) {
+        if (address->areAliasedBasesKnown()) {
           executor.reportStateOnTargetError(*unbound,
                                             ReachWithError::DoubleFree);
           executor.terminateStateOnProgramError(
@@ -865,16 +864,14 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
               new ErrorEvent(executor.locationOf(*unbound),
                              StateTerminationType::Ptr,
                              "memory error: double free"),
-              executor.getAddressInfo(*unbound,
-                                      cast<PointerExpr>(arguments[0])));
+              executor.getAddressInfo(*unbound, address));
         } else {
           executor.terminateStateOnProgramError(
               *unbound,
               new ErrorEvent(executor.locationOf(*unbound),
                              StateTerminationType::Ptr,
                              "memory error: invalid pointer: realloc"),
-              executor.getAddressInfo(*unbound,
-                                      cast<PointerExpr>(arguments[0])));
+              executor.getAddressInfo(*unbound, address));
         }
       }
     }
@@ -886,8 +883,8 @@ void SpecialFunctionHandler::handleFree(ExecutionState &state,
                                         std::vector<ref<Expr>> &arguments) {
   // XXX should type check args
   assert(arguments.size() == 1 && "invalid number of arguments to free");
-  ref<PointerExpr> pointer = dyn_cast<PointerExpr>(arguments[0]);
-  assert(pointer);
+  assert(isa<PointerExpr>(arguments[0]));
+  auto pointer = cast<PointerExpr>(arguments[0]);
 
   executor.executeFree(state, pointer, target);
 }

@@ -25,7 +25,7 @@ class KType;
 class MemoryObject;
 struct CodeLocation;
 
-typedef uint64_t IDType;
+typedef uint64_t id_t;
 
 class MemoryManager {
 private:
@@ -35,6 +35,8 @@ private:
   char *deterministicSpace;
   char *nextFreeSlot;
   size_t spaceSize;
+
+  inline static id_t counter = 1;
 
 public:
   MemoryManager();
@@ -53,6 +55,9 @@ public:
                          const Array *content = nullptr);
   MemoryObject *allocateFixed(uint64_t address, uint64_t size,
                               ref<CodeLocation> allocSite, KType *type);
+
+  klee::id_t getNextID() const { return counter; }
+
   void markFreed(MemoryObject *mo);
   /*
    * Returns the size used by deterministic allocation in bytes

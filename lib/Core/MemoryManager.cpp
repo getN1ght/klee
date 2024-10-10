@@ -180,17 +180,16 @@ MemoryManager::allocate(ref<Expr> size, bool isLocal, bool isGlobal,
       }
     }
 
-    if (!address)
-      return 0;
+    if (!address) {
+      return nullptr;
+    }
     addressValue = Expr::createPointer(address);
   }
 
-  MemoryObject *res = nullptr;
-
   ++stats::allocations;
-  res = new MemoryObject(addressValue, size, alignment, isLocal, isGlobal,
-                         false, isLazyInitialized, allocSite, this, type,
-                         conditionExpr, timestamp, content);
+  auto res = new MemoryObject(counter++, addressValue, size, alignment, isLocal,
+                              isGlobal, false, isLazyInitialized, allocSite,
+                              this, type, conditionExpr, timestamp, content);
 
   objects.insert(res);
   return res;
@@ -222,9 +221,9 @@ MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
 
   ++stats::allocations;
   ref<Expr> addressExpr = Expr::createPointer(address);
-  MemoryObject *res =
-      new MemoryObject(addressExpr, Expr::createPointer(size), 8, false, true,
-                       true, false, allocSite, this, type);
+  auto res =
+      new MemoryObject(counter++, addressExpr, Expr::createPointer(size), 8,
+                       false, true, true, false, allocSite, this, type);
   objects.insert(res);
   return res;
 }

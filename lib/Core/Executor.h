@@ -404,8 +404,8 @@ private:
                             KType *targetType, KInstruction *target,
                             unsigned bytes,
                             ObjectResolutionList &mayBeResolvedMemoryObjects,
-                            bool &mayBeOutOfBound, bool &mayLazyInitialize,
-                            bool &incomplete, bool onlyLazyInitialize = false);
+                            bool &mayLazyInitialize, bool &incomplete,
+                            bool onlyLazyInitialize = false);
 
   bool checkResolvedMemoryObjects(
       ExecutionState &state, ref<PointerExpr> address, unsigned bytes,
@@ -664,7 +664,8 @@ private:
 
   /// Save extra information in targeted mode
   /// Then just call `terminateStateOnError`
-  void terminateStateOnTargetError(ExecutionState &state, ReachWithError error);
+  // void terminateStateOnTargetError(ExecutionState &state, ReachWithError
+  // error);
 
   /// Call error handler and terminate state in case of program errors
   /// (e.g. free()ing globals, out-of-bound accesses)

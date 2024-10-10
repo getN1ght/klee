@@ -45,7 +45,7 @@ struct MemoryObjectLT {
 
 typedef ImmutableMap<const MemoryObject *, ref<ObjectState>, MemoryObjectLT>
     MemoryMap;
-typedef ImmutableMap<IDType, const MemoryObject *> IDMap;
+typedef ImmutableMap<id_t, const MemoryObject *> IDMap;
 
 template <typename T> struct ResolveResult {
 private:

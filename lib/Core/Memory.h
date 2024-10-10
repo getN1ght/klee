@@ -40,7 +40,7 @@ class KType;
 class MemoryManager;
 class Solver;
 
-typedef uint64_t IDType;
+typedef uint64_t id_t;
 
 extern llvm::cl::opt<bool> UseTypeBasedAliasAnalysis;
 extern llvm::cl::opt<unsigned long> MaxFixedSizeStructureSize;
@@ -52,17 +52,18 @@ class MemoryObject {
   friend class ref<MemoryObject>;
   friend class ref<const MemoryObject>;
 
+  friend class MemoryManager;
+
 private:
   // Counter is using for id's of MemoryObjects.
   //
   // Value 0 is reserved for erroneous objects.
-  static IDType counter;
   static int time;
   /// @brief Required by klee::ref-managed objects
   mutable class ReferenceCounter _refCount;
 
 public:
-  IDType id;
+  id_t id;
   mutable unsigned timestamp;
 
   ref<Expr> addressExpr;
@@ -93,9 +94,8 @@ public:
   /// it was allocated for (or whatever else makes sense).
   ref<CodeLocation> allocSite;
 
-  // DO NOT IMPLEMENT
-  MemoryObject(const MemoryObject &b);
-  MemoryObject &operator=(const MemoryObject &b);
+  MemoryObject(const MemoryObject &b) = delete;
+  MemoryObject &operator=(const MemoryObject &b) = delete;
 
 public:
   // XXX this is just a temp hack, should be removed
@@ -109,14 +109,14 @@ public:
   }
 
   MemoryObject(
-      ref<Expr> _address, ref<Expr> _size, uint64_t alignment, bool _isLocal,
+      klee::id_t id, ref<Expr> _address, ref<Expr> _size, uint64_t alignment, bool _isLocal,
       bool _isGlobal, bool _isFixed, bool _isLazyInitialized,
       ref<CodeLocation> _allocSite, MemoryManager *_parent, KType *_type,
       ref<Expr> _condition = Expr::createTrue(),
       unsigned _timestamp = 0 /* unused if _isLazyInitialized is false*/,
       const Array *_content =
           nullptr /* unused if _isLazyInitialized is false*/)
-      : id(counter++), timestamp(_timestamp), addressExpr(_address),
+      : id(id), timestamp(_timestamp), addressExpr(_address),
         sizeExpr(_size), conditionExpr(_condition), alignment(alignment),
         name("unnamed"), isLocal(_isLocal), isGlobal(_isGlobal),
         isFixed(_isFixed), isLazyInitialized(_isLazyInitialized),
@@ -199,9 +199,8 @@ public:
 
 private:
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
-    ref<Expr> isZeroSizeExpr =
-        EqExpr::create(Expr::createPointer(0), getSizeExpr());
-    ref<Expr> isZeroOffsetExpr = EqExpr::create(Expr::createPointer(0), offset);
+    ref<Expr> isZeroSizeExpr = Expr::createIsZero(getSizeExpr());
+    ref<Expr> isZeroOffsetExpr = Expr::createIsZero(offset);
     return SelectExpr::create(isZeroSizeExpr, isZeroOffsetExpr,
                               UltExpr::create(offset, getSizeExpr()));
   }

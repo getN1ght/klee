@@ -63,7 +63,6 @@ using namespace klee;
 
 /***/
 
-IDType MemoryObject::counter = 1;
 int MemoryObject::time = 0;
 
 MemoryObject::~MemoryObject() {

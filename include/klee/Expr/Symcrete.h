@@ -12,7 +12,7 @@ namespace klee {
 class Array;
 class Expr;
 
-typedef uint64_t IDType;
+typedef uint64_t id_t;
 
 class Symcrete {
   friend class ConstraintSet;
@@ -26,14 +26,14 @@ public:
   };
 
 private:
-  static IDType idCounter;
+  static id_t idCounter;
   const SymcreteKind symcreteKind;
 
   std::vector<std::reference_wrapper<Symcrete>> _dependentSymcretes;
   std::vector<const Array *> _dependentArrays;
 
 public:
-  const IDType id;
+  const id_t id;
   ReferenceCounter _refCount;
 
   const ref<Expr> symcretized;

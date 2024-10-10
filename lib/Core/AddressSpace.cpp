@@ -313,8 +313,42 @@ AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     return resolveResult;
   }
 
-  // TODO: make a constant optimization on the result
-  return resolveOneSymbolic(state, solver, address, objectType, haltExecution);
+  if (address->areAliasedBasesKnown()) {
+    for (auto base : address->getAliasedBases()) {
+      auto constantBase = cast<ConstantExpr>(base);
+      auto constantBaseValue = constantBase->getZExtValue();
+
+      if (idsToObjects.count(constantBaseValue) == 0) {
+        continue;
+      }
+      auto mo = idsToObjects.at(constantBaseValue);
+
+      auto resolution = findObject(mo);
+      if (resolution.isNone()) {
+        continue;
+      }
+      assert(resolution.isOk());
+
+      if (haltExecution) {
+        break;
+      }
+
+      bool mayBeTrue;
+      if (!solver->mayBeTrue(state.constraints.cs(),
+                             mo->getBoundsCheckPointer(address), mayBeTrue,
+                             state.queryMetaData)) {
+        return ResolveResult<ObjectPair>::createUnknown({});
+      }
+
+      if (mayBeTrue) {
+        return resolution;
+      }
+    }
+    return ResolveResult<ObjectPair>::createNone();
+  } else {
+    return resolveOneSymbolic(state, solver, address, objectType,
+                              haltExecution);
+  }
 }
 
 int AddressSpace::checkPointerInObject(ExecutionState &state,
@@ -358,7 +392,6 @@ AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
                       unsigned maxResolutions, time::Span timeout) const {
   ResolutionList rl;
 
-  ResolvePredicate predicate(state, p, objectType, complete);
   if (ref<ConstantPointerExpr> CP = dyn_cast<ConstantPointerExpr>(p)) {
     if (auto resolveResult = resolveOne(CP, objectType)) {
       rl.push_back(resolveResult.get());
@@ -398,13 +431,8 @@ AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
       if (resolution.isNone()) {
         continue;
       }
-
       assert(resolution.isOk());
       auto objectPair = resolution.get();
-
-      if (!predicate(objectPair.first, objectPair.second)) {
-        continue;
-      }
 
       if (timeout && timeout < timer.delta()) {
         return ResolveResult<ResolutionList>::createUnknown(rl);

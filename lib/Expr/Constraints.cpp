@@ -286,7 +286,7 @@ void ConstraintSet::addConstraint(ref<Expr> e) {
   _independentElements->addExpr(e);
 }
 
-IDType Symcrete::idCounter = 0;
+klee::id_t Symcrete::idCounter = 0;
 
 void ConstraintSet::addSymcrete(ref<Symcrete> s) {
   checkCopyOnWriteOwner();
